@@ -19,8 +19,11 @@ Dark-first, cool-gray temperature. Surfaces get lighter as they elevate.
 | `--border` | `#222c3d` | Default 1px separators |
 | `--border-strong` | `#33405a` | Inputs, emphasized edges |
 | `--text` | `#e6edf6` | Primary text (softened white, not `#fff`) |
-| `--text-dim` | `#9aa9bd` | Secondary text — **use this for small copy** |
-| `--text-faint` | `#64748b` | Large/tertiary text only (≈3.9:1 — fails AA at body size) |
+| `--text-dim` | `#9aa9bd` | Secondary text (7.5:1 on cards) |
+| `--text-faint` | `#7d8da3` | Tertiary text — passes AA at body size (≥4.99:1 on all surfaces) |
+
+All three text tokens pass WCAG AA for body copy on every surface, so any of them
+is safe for small text. Keep the hierarchy `text` → `dim` → `faint`.
 
 ### Accents — one per meaning
 

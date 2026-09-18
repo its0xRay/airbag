@@ -6,7 +6,9 @@
   --border-strong: #33405a;
   --text: #e6edf6;
   --text-dim: #9aa9bd;
-  --text-faint: #64748b;
+  /* Lightened from #64748b (4.06:1) so tertiary text passes WCAG AA at body
+     size on every surface: 5.72:1 on --bg, 5.31 on --bg-elev, 4.99 on --bg-elev2. */
+  --text-faint: #7d8da3;
   --accent: #4ade80;
   --accent-dim: #16382a;
   --blue: #5b9dff;

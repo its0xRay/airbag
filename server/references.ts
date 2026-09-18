@@ -27,13 +27,31 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------ Pyth (equity) ---
 export class PythEquityAdapter {
-  readonly label = "Pyth underlying-stock benchmark";
+  readonly label = "Underlying-stock benchmark";
   constructor(
     public assetId: number,
     private symbol = process.env.PYTH_EQUITY_SYMBOL || "NVDA",
     private feedId = process.env.PYTH_EQUITY_FEED || "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
     private hermes = process.env.PYTH_HERMES || "https://hermes.pyth.network",
+    /** Secondary real benchmark: Jupiter returns the underlying stock price
+     *  alongside the token price for xStocks (`stockData.price`). Used when
+     *  Hermes is unavailable — a different disclosed source, never synthetic. */
+    private jupMint = process.env.EQUITY_TOKEN_MINT || "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    private jupApi = process.env.JUP_PRICE_API || "https://lite-api.jup.ag/price/v3",
   ) {}
+
+  /** Underlying stock benchmark from the Jupiter xStocks payload. */
+  private async jupiterBenchmark(): Promise<number | null> {
+    try {
+      const r = await fetch(`${this.jupApi}?ids=${this.jupMint}`);
+      if (!r.ok) return null;
+      const j = (await r.json()) as Record<string, { stockData?: { price?: number } }>;
+      const px = j[this.jupMint]?.stockData?.price;
+      return typeof px === "number" && px > 0 ? px : null;
+    } catch {
+      return null;
+    }
+  }
 
   private async marketOpen(): Promise<{ open: boolean; nextOpen?: number }> {
     const r = await fetch(`${this.hermes}/v2/price_feeds?query=${this.symbol}&asset_type=equity`);
@@ -51,17 +69,32 @@ export class PythEquityAdapter {
       if (!session.open) {
         return { ...base, reason: `stock session closed (next open ${session.nextOpen ?? "?"})` };
       }
+      // 1) Preferred: Pyth Hermes (canonical oracle). Public Hermes now
+      //    requires auth — set PYTH_HERMES to an authorized endpoint to use it.
       const r = await fetch(`${this.hermes}/v2/updates/price/latest?ids[]=${this.feedId}&parsed=true`);
-      if (!r.ok) return { ...base, reason: `hermes price ${r.status}` };
-      const j = (await r.json()) as { parsed?: Array<{ price: { price: string; expo: number; conf: string; publish_time: number } }> };
-      const p = j.parsed?.[0]?.price;
-      if (!p) return { ...base, reason: "no parsed price" };
-      const real = Number(p.price) * Math.pow(10, p.expo);
-      return {
-        price: toFixed(real), sourceTs: p.publish_time, slot: BigInt(p.publish_time),
-        confidence: toFixed(Number(p.conf) * Math.pow(10, p.expo)), available: true,
-        sourceId: `pyth:${this.symbol}`, verification: "pyth-hermes-parsed",
-      };
+      if (r.ok) {
+        const j = (await r.json()) as { parsed?: Array<{ price: { price: string; expo: number; conf: string; publish_time: number } }> };
+        const p = j.parsed?.[0]?.price;
+        if (p) {
+          const real = Number(p.price) * Math.pow(10, p.expo);
+          return {
+            price: toFixed(real), sourceTs: p.publish_time, slot: BigInt(p.publish_time),
+            confidence: toFixed(Number(p.conf) * Math.pow(10, p.expo)), available: true,
+            sourceId: `pyth:${this.symbol}`, verification: "pyth-hermes-parsed",
+          };
+        }
+      }
+      // 2) Secondary REAL source: the underlying stock price Jupiter reports
+      //    for the xStock. Disclosed as a distinct source, not synthetic.
+      const jup = await this.jupiterBenchmark();
+      if (jup !== null) {
+        const ts = nowSec();
+        return {
+          price: toFixed(jup), sourceTs: ts, slot: BigInt(ts), available: true,
+          sourceId: `jupiter-stockdata:${this.symbol}`, verification: "jupiter-xstocks-stockdata",
+        };
+      }
+      return { ...base, reason: `hermes ${r.status} and no Jupiter benchmark` };
     } catch (e) {
       return { ...base, reason: `unreachable: ${(e as Error).message}` };
     }

@@ -61,10 +61,10 @@ async function resolveExercise(assetId: number, windowStart: number, windowEnd: 
   if (assetId === 0) {
     const ro = await pyth.observe();
     if (ro.available) {
-      let st = ro.sourceTs <= windowStart ? windowStart + 1 : ro.sourceTs;
-      if (st <= windowEnd) return { equity: true, single: { slot: ro.slot || BigInt(st), sourceTs: st, collectedTs: nowSec(), price: ro.price }, source: `Pyth live $${f(ro.price)}` };
+      const st = ro.sourceTs <= windowStart ? windowStart + 1 : ro.sourceTs;
+      if (st <= windowEnd) return { equity: true, single: { slot: ro.slot || BigInt(st), sourceTs: st, collectedTs: nowSec(), price: ro.price }, source: `${ro.sourceId} live $${f(ro.price)}` };
     }
-    if (DEMO_FALLBACK) return { equity: true, single: demoEquity(windowStart, assetId), source: `DEMO fallback (Pyth unavailable: ${ro.reason || "late"})` };
+    if (DEMO_FALLBACK) return { equity: true, single: demoEquity(windowStart, assetId), source: `DEMO fallback (benchmark unavailable: ${ro.reason || "late"})` };
     return null;
   }
   const ros = (await jupiter.observe(3)).filter((o) => o.available && o.sourceTs > windowStart && o.sourceTs <= windowEnd);
@@ -80,9 +80,9 @@ async function resolveExpiry(assetId: number, expiryTs: number): Promise<Resolve
   if (assetId === 0) {
     const ro = await pyth.observe();
     if (ro.available && ro.sourceTs >= expiryTs && ro.sourceTs <= expiryTs + 300) {
-      return { equity: true, single: { slot: ro.slot || BigInt(ro.sourceTs), sourceTs: ro.sourceTs, collectedTs: nowSec(), price: ro.price }, source: `Pyth live $${f(ro.price)}` };
+      return { equity: true, single: { slot: ro.slot || BigInt(ro.sourceTs), sourceTs: ro.sourceTs, collectedTs: nowSec(), price: ro.price }, source: `${ro.sourceId} live $${f(ro.price)}` };
     }
-    if (DEMO_FALLBACK) return { equity: true, single: { slot: BigInt(Date.now()), sourceTs: expiryTs + 30, collectedTs: expiryTs + 35, price: price(DEMO_REF[assetId]) }, source: `DEMO fallback (Pyth unavailable: ${ro.reason || "late"})` };
+    if (DEMO_FALLBACK) return { equity: true, single: { slot: BigInt(Date.now()), sourceTs: expiryTs + 30, collectedTs: expiryTs + 35, price: price(DEMO_REF[assetId]) }, source: `DEMO fallback (benchmark unavailable: ${ro.reason || "late"})` };
     return null;
   }
   if (DEMO_FALLBACK) return { equity: false, many: demoPrestocks(expiryTs - 200, assetId), source: "DEMO fallback (PreStocks expiry needs pre-expiry samples)" };

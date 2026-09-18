@@ -22,6 +22,7 @@ import {
 } from "./format";
 import OnchainTab from "./components/OnchainTab";
 import Landing from "./components/Landing";
+import HoldingsCard from "./components/HoldingsCard";
 import { VERIFIED_ASSETS, assetByKey } from "./data/assets";
 import { fetchMarket, type Market } from "./data/marketData";
 
@@ -412,6 +413,7 @@ function PortfolioTab() {
   return (
     <>
       <RemindersPanel />
+      <HoldingsCard />
 
       <div className="row" style={{ marginBottom: 16 }}>
         {ASSETS.map((a) => (
