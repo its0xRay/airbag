@@ -21,10 +21,11 @@ import {
   fmtClock,
 } from "./format";
 import OnchainTab from "./components/OnchainTab";
+import Landing from "./components/Landing";
 import { VERIFIED_ASSETS, assetByKey } from "./data/assets";
 import { fetchMarket, type Market } from "./data/marketData";
 
-type Tab = "protect" | "portfolio" | "compare" | "calculator" | "underwriter" | "history" | "onchain";
+type Tab = "home" | "protect" | "portfolio" | "compare" | "calculator" | "underwriter" | "history" | "onchain";
 
 export default function App() {
   const connected = useStore((s) => s.connected);
@@ -35,7 +36,7 @@ export default function App() {
   const navTarget = useStore((s) => s.navTarget);
   const clearNav = useStore((s) => s.clearNav);
   useStore((s) => s.tick); // subscribe to re-render on mutation
-  const [tab, setTab] = useState<Tab>("protect");
+  const [tab, setTab] = useState<Tab>("home");
 
   // Cross-component navigation (e.g. renewal jumps to Protect).
   useEffect(() => {
@@ -48,12 +49,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="logo">
-          <span className="dot" /> Optket
+        <button className="logo" onClick={() => setTab("home")} aria-label="Optket home">
+          <span className="dot" aria-hidden="true" /> Optket
           <span className="pill gray" style={{ marginLeft: 6 }}>demo</span>
-        </div>
+        </button>
         <div className="spacer" />
-        <span className="faint mono" style={{ fontSize: 12 }}>sim clock {fmtClock(engine.now())}</span>
+        <span className="faint mono hide-sm" style={{ fontSize: 12 }}>sim clock {fmtClock(engine.now())}</span>
         {connected ? (
           <>
             <span className="pill green mono">{fmtTokens(walletBalance)} oUSD</span>
@@ -71,6 +72,7 @@ export default function App() {
       <div className="tabs">
         {(
           [
+            ["home", "Home"],
             ["protect", "Protect"],
             ["portfolio", "Portfolio"],
             ["compare", "Compare"],
@@ -86,12 +88,13 @@ export default function App() {
         ))}
       </div>
 
-      {!connected && tab !== "underwriter" && tab !== "onchain" && tab !== "compare" ? (
+      {!connected && tab !== "underwriter" && tab !== "onchain" && tab !== "compare" && tab !== "home" ? (
         <div className="card empty">
           Connect the demo wallet to begin. You'll receive free demo tokens (oUSD) and simulated holdings.
         </div>
       ) : (
         <>
+          {tab === "home" && <Landing onLaunch={(t) => setTab(t)} />}
           {tab === "protect" && <ProtectTab />}
           {tab === "portfolio" && <PortfolioTab />}
           {tab === "compare" && <CompareTab />}
