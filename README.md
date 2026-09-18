@@ -46,6 +46,23 @@ npm test           # 21 engine + accounting tests
 npm run build      # production build
 ```
 
+### Evidence
+
+```bash
+# Attack the DEPLOYED program and assert every rejection code (PRD §22).
+# 30/30 passing against public devnet.
+RPC_URL=https://api.devnet.solana.com npm run test:adversarial
+
+# Re-publish the weekly series / top up pools (idempotent).
+RPC_URL=https://api.devnet.solana.com npm run setup:devnet
+```
+
+`test:adversarial` covers quote integrity (expired, over-long TTL, rogue signer,
+tampered payload, wrong buyer/strike, missing ed25519 instruction), the
+real-USDC/wrong-mint guard, replay protection, exercise limits and
+no-double-payout, the observation rules (historical, stale, duplicate slots, too
+few, out-of-window), role checks, and pool obligations.
+
 Connect the demo wallet → you get 100,000 `oUSD` and simulated holdings. Then
 walk the journey: **select asset → choose quantity & strike → review scenarios →
 purchase → monitor → request exercise → settle → expire/refund → history.**

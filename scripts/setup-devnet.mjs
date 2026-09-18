@@ -94,21 +94,28 @@ async function main() {
   const prog = await conn.getAccountInfo(PROGRAM_ID);
   if (!prog?.executable) throw new Error("program is not deployed/executable on this cluster");
 
-  // 1) demo mint (oUSD)
+  // 1) demo mint (oUSD).
+  // The ON-CHAIN config is the source of truth: once it exists it permanently
+  // pins the demo mint, so re-running from a fresh clone (no local state file)
+  // must reuse that mint rather than minting an orphan the program won't accept.
+  const config = pda([S("config")]);
+  const configInfo = await conn.getAccountInfo(config);
   let demoMint;
-  if (state.demoMint && (await exists(new PublicKey(state.demoMint)))) {
+  if (configInfo) {
+    demoMint = new PublicKey(configInfo.data.subarray(104, 136)); // disc8+admin32+quote32+pub32
+    console.log(`  demo mint (from on-chain config): ${demoMint.toBase58()}`);
+  } else if (state.demoMint && (await exists(new PublicKey(state.demoMint)))) {
     demoMint = new PublicKey(state.demoMint);
     console.log(`  demo mint exists: ${demoMint.toBase58()}`);
   } else {
     demoMint = await createMint(conn, admin, admin.publicKey, null, 6);
-    state.demoMint = demoMint.toBase58();
-    saveState();
     console.log(`  ✓ created demo mint ${demoMint.toBase58()}`);
   }
+  state.demoMint = demoMint.toBase58();
+  saveState();
 
   // 2) config
-  const config = pda([S("config")]);
-  if (await exists(config)) {
+  if (configInfo) {
     console.log(`  config exists: ${config.toBase58()}`);
   } else {
     await send("initialize_config", [new TransactionInstruction({
