@@ -162,6 +162,14 @@ export class OptketClient {
     return accts.map((a) => decodeContract(a.pubkey.toBase58(), a.account.data)).filter((c) => c.status === "Active" || c.status === "PartiallySettled");
   }
 
+  /** A single exercise request by contract + nonce. Cheaper and more reliable
+   *  than scanning program accounts (one getAccountInfo, no getProgramAccounts). */
+  async getRequestAt(contract: PublicKey, nonce: number): Promise<ExerciseRequestAcct | null> {
+    const addr = pdas.request(contract, nonce);
+    const i = await this.conn.getAccountInfo(addr);
+    return i ? decodeRequest(addr.toBase58(), i.data) : null;
+  }
+
   /** All pending exercise requests across the program (for the keeper). */
   async getPendingRequests(): Promise<ExerciseRequestAcct[]> {
     const accts = await this.conn.getProgramAccounts(this.programId, { filters: [{ memcmp: { offset: 0, bytes: discB58(ACCT_DISC.ExerciseRequest) } }] });

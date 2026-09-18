@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "quote-service": "tsx server/quoteService.ts",
-    "keeper": "tsx server/keeper.ts"
+    "keeper": "tsx server/keeper.ts",
+    "test:adversarial": "tsx scripts/test-adversarial.ts",
+    "setup:devnet": "node scripts/setup-devnet.mjs"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.15",
