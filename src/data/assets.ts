@@ -1,0 +1,59 @@
+// Verified real asset registry (PRD §4 activation gate).
+//
+// These identities were verified against Solana mainnet and the Jupiter Price
+// API on 2026-09-18: real Token-2022 mints, decimals, the scaledUiAmountConfig
+// multiplier that must be applied to raw balances (§4.1), and live price
+// coverage. Only assets that pass this gate are shown with LIVE references; the
+// live multiplier and prices are refreshed at runtime from mainnet/Jupiter.
+
+export interface VerifiedAsset {
+  key: string;
+  symbol: string;
+  name: string;
+  kind: "EquityToken" | "PreStocks";
+  /** Real on-chain mint (mainnet). */
+  mint: string;
+  program: "Token-2022";
+  decimals: number;
+  /** scaledUiAmountConfig multiplier snapshot; refreshed live from the mint. */
+  scaledMultiplier: number;
+  /** What the protected reference tracks (§5). */
+  benchmarkLabel: string;
+  underlying: string;
+  /** Verified live Jupiter price coverage. */
+  jupiter: boolean;
+  verifiedAt: string;
+}
+
+export const VERIFIED_ASSETS: VerifiedAsset[] = [
+  {
+    key: "nvdax",
+    symbol: "NVDAx",
+    name: "NVIDIA xStock",
+    kind: "EquityToken",
+    mint: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    program: "Token-2022",
+    decimals: 8,
+    scaledMultiplier: 1.0009180758490996,
+    benchmarkLabel: "NVDA underlying stock benchmark",
+    underlying: "NVIDIA Corp (NASDAQ: NVDA)",
+    jupiter: true,
+    verifiedAt: "2026-09-18",
+  },
+  {
+    key: "anthropic",
+    symbol: "ANTHROPIC",
+    name: "Anthropic PreStocks",
+    kind: "PreStocks",
+    mint: "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+    program: "Token-2022",
+    decimals: 9,
+    scaledMultiplier: 1.0,
+    benchmarkLabel: "Issuer mark (PreStocks SPV, private company)",
+    underlying: "Anthropic PBC (private)",
+    jupiter: true,
+    verifiedAt: "2026-09-18",
+  },
+];
+
+export const assetByKey = (key: string) => VERIFIED_ASSETS.find((a) => a.key === key);

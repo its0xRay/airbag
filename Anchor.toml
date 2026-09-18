@@ -1,0 +1,26 @@
+[toolchain]
+anchor_version = "0.30.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+optket = "Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky"
+
+[programs.devnet]
+optket = "Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.anchor.json -t 1000000 tests/**/*.ts"
+
+# NOTE: The program id above is a placeholder. After `anchor build`, run
+# `anchor keys sync` to write the real, locally-generated program id into
+# this file and into `declare_id!` in programs/optket/src/lib.rs.

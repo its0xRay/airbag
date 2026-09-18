@@ -1,0 +1,27 @@
+# ---- SECRETS — never commit these ----
+# service keypairs (provided to hosting as env secrets instead)
+server/quote-authority.json
+server/publisher-authority.json
+server/trial-budget.json
+# deployer/admin key & any wallet keypairs
+**/id.json
+*-keypair.json
+# generated secret bundles
+DEPLOY-SECRETS.local.md
+DEPLOY-SECRETS.local.txt
+.env
+.env.*
+!.env.example
+# devnet setup state (contains the demo mint address only, but keep local)
+scripts/devnet-state.json
+
+# ---- build / deps ----
+node_modules/
+dist/
+target/
+.anchor/
+test-ledger/
+
+# ---- misc ----
+.DS_Store
+*.log
