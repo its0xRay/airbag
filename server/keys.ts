@@ -20,13 +20,34 @@ function parseSecret(raw: string, label: string): Keypair {
 }
 
 /**
+ * True when running on a PaaS rather than a developer machine. Generating a
+ * key there is never right: the container has no gitignored key files, so a
+ * missing secret would mint a brand-new authority that holds no on-chain role
+ * and no SOL — a service that boots and looks healthy but can sign nothing.
+ * Better to fail loudly at startup naming the variable that is missing.
+ */
+function isHosted(): boolean {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_ID ||
+    process.env.RENDER || process.env.FLY_APP_NAME || process.env.VERCEL,
+  );
+}
+
+/**
  * Load a keypair: env secret first, then file; optionally generate+persist the
- * file when neither exists (local dev convenience).
+ * file when neither exists (local dev convenience only — see isHosted).
  */
 export function loadKey(envName: string, filePath: string, generateIfMissing = true): Keypair {
   const fromEnv = process.env[envName];
   if (fromEnv && fromEnv.trim()) return parseSecret(fromEnv, envName);
   if (existsSync(filePath)) return parseSecret(readFileSync(filePath, "utf8"), filePath);
+  if (isHosted()) {
+    throw new Error(
+      `${envName} is not set. Add it to this service's variables as a 64-byte ` +
+      `JSON array (the value is in DEPLOY-SECRETS.local.md). Refusing to ` +
+      `generate a throwaway key, which would have no on-chain authority.`,
+    );
+  }
   if (!generateIfMissing) throw new Error(`missing key: set ${envName} or provide ${filePath}`);
   const kp = Keypair.generate();
   writeFileSync(filePath, JSON.stringify(Array.from(kp.secretKey)));

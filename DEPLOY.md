@@ -42,8 +42,24 @@ For each service, **Variables** → paste the block from `DEPLOY-SECRETS.local.m
 (quote-service block into quote-service, keeper block into keeper). Railway sets
 `PORT` automatically; the quote service reads it.
 
+Railway **stages** variable edits — click **Deploy** (or "Apply N changes") after
+pasting, or the new deployment starts without them. The minimum each service needs:
+
+| Service | Required variables |
+|---|---|
+| `quote-service` | `RPC_URL`, `QUOTE_AUTHORITY_SECRET`, `TRIAL_BUDGET_SECRET`, `ADMIN_SECRET` |
+| `keeper` | `RPC_URL`, `PUBLISHER_SECRET` |
+
+`PROGRAM_ID` and `MAINNET_RPC` are optional (the defaults are correct).
+`KEEPER_DEMO_FALLBACK` and `KEEPER_REF_*` must stay **unset** — they enable
+synthetic prices. Both services refuse to start on Railway with a missing key
+secret rather than generating a throwaway one, and the keeper exits if its key
+is not the on-chain publisher authority; the deploy log names the variable.
+
 Deploy. Copy the **quote-service public URL** (e.g. `https://optket-quote.up.railway.app`).
-Check `https://<that-url>/health` returns `{ ok: true, ... }`.
+Check `https://<that-url>/health` returns `{ ok: true, ... }` and that the keeper log
+shows `keeper key Gy6NK4iSAQcsS3HWU4mh5uURshkf52Ekq5utDUNsTyfL` — any other key means
+`PUBLISHER_SECRET` did not reach the service.
 
 ## 3. Vercel — frontend
 Import the repo (Vercel auto-detects Vite via `vercel.json`). Set **Environment

@@ -27,7 +27,11 @@ import { PythEquityAdapter, JupiterPreStocksAdapter } from "./references";
 // window rules come from the engine, which mirrors the on-chain constants
 import { PRESTOCKS_WINDOW_SECS, EQUITY_MAX_DELAY_SECS } from "../src/engine/references";
 
-const RPC = process.env.RPC_URL || "http://127.0.0.1:8899";
+// Devnet is the deployment target, so that is the default: an unset RPC_URL in
+// a hosted environment used to silently point at a local validator that does
+// not exist there, and the process died on `fetch failed`. Local-validator work
+// sets RPC_URL explicitly.
+const RPC = process.env.RPC_URL || "https://api.devnet.solana.com";
 const POLL_MS = Number(process.env.POLL_MS || 5000);
 const KEEPER_KEYPAIR = new URL("./publisher-authority.json", import.meta.url).pathname;
 // Synthetic references are OFF by default. When no qualifying reference exists
@@ -160,15 +164,24 @@ async function resolveExpiry(assetId: number, expiryTs: number): Promise<Resolve
 
 let demoMint: PublicKey;
 
+/** A misconfiguration no amount of retrying will fix — fail fast, don't poll. */
+class ConfigError extends Error {}
+
 async function ensurePublisherRole() {
   const cfg = await client.getConfig();
-  if (!cfg) throw new Error("config not found — deploy + initialize the program first");
+  if (!cfg) throw new ConfigError("config not found — deploy + initialize the program first");
   demoMint = cfg.demoMint;
   if (cfg.publisherAuthority.equals(publisher.publicKey)) return;
   const admin = loadAdmin();
   if (!admin || !cfg.admin.equals(admin.publicKey)) {
-    console.warn(`⚠ config.publisher_authority (${cfg.publisherAuthority.toBase58()}) != keeper key (${publisher.publicKey.toBase58()}) and no admin key to fix it. Settlements will fail until an admin runs set_roles.`);
-    return;
+    // Every settlement this process could attempt would be rejected by the
+    // program, so staying up would only look healthy while doing nothing.
+    throw new ConfigError(
+      `keeper key ${publisher.publicKey.toBase58()} is not the on-chain publisher ` +
+      `authority (${cfg.publisherAuthority.toBase58()}) and there is no admin key to ` +
+      `repoint it. Set PUBLISHER_SECRET to the publisher keypair from ` +
+      `DEPLOY-SECRETS.local.md, or have an admin run set_roles.`,
+    );
   }
   // set_roles(publisher = keeper key) — args: Option<Pubkey>,Option<Pubkey>,Option<u64>
   const data = new Uint8Array([119, 86, 129, 161, 55, 23, 250, 12, 0, 1, ...publisher.publicKey.toBytes(), 0]);
@@ -262,7 +275,19 @@ async function main() {
   console.log(`  references live (Pyth session + Jupiter); synthetic fallback ${DEMO_FALLBACK ? "ENABLED (dev only)" : "disabled"}`);
   // keeper needs a little SOL for fees on localnet
   try { const bal = await conn.getBalance(publisher.publicKey); if (bal < 1e8) { await conn.confirmTransaction(await conn.requestAirdrop(publisher.publicKey, 1e9), "confirmed"); } } catch { /* devnet: fund manually */ }
-  await ensurePublisherRole();
+  // A hosted keeper must survive an RPC blip at boot rather than exiting: the
+  // tick loop already tolerates transient errors, so startup should too.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await ensurePublisherRole();
+      break;
+    } catch (e) {
+      if (e instanceof ConfigError || attempt >= 10) throw e;
+      const wait = Math.min(30_000, 2_000 * attempt);
+      console.warn(`startup attempt ${attempt} failed (${(e as Error).message}); retrying in ${wait / 1000}s`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
   console.log(`  polling every ${POLL_MS}ms — settling pending requests & due expiries…\n`);
   await tick();
   setInterval(tick, POLL_MS);

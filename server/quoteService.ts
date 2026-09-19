@@ -30,7 +30,9 @@ import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
 import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
 
-const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8899";
+// See the note in keeper.ts: devnet is the default so an unset RPC_URL in a
+// hosted environment cannot point the service at a nonexistent local validator.
+const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || "Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky");
 const PORT = Number(process.env.PORT || 8787);
 const MAINNET_RPC = process.env.MAINNET_RPC || "https://api.mainnet-beta.solana.com";
