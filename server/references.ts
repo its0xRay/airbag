@@ -67,6 +67,18 @@ export class PythEquityAdapter {
     try {
       const session = await this.marketOpen();
       if (!session.open) {
+        // Out of session there is no fresh print. Rather than substitute a
+        // synthetic number (§22), use the real last print Jupiter reports and
+        // say so — a real contract would wait for a supported session (§9.1).
+        const last = await this.jupiterBenchmark();
+        const ts = nowSec();
+        if (last !== null) {
+          return {
+            price: toFixed(last), sourceTs: ts, slot: BigInt(ts), available: true,
+            sourceId: `jupiter-stockdata:${this.symbol} (session closed — last print)`,
+            verification: "jupiter-xstocks-stockdata",
+          };
+        }
         return { ...base, reason: `stock session closed (next open ${session.nextOpen ?? "?"})` };
       }
       // 1) Preferred: Pyth Hermes (canonical oracle). Public Hermes now

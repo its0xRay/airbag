@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchHoldings, type Holdings } from "../data/marketData";
-import { useStore } from "../store";
-import { toFixed } from "../engine";
+import { useChain } from "../onchain/store";
 
 interface Row { key: string; symbol: string; holdings: Holdings | null; error?: string }
 
@@ -11,11 +10,11 @@ interface Row { key: string; symbol: string; holdings: Holdings | null; error?: 
  * the verified assets and applies the Token-2022 scaled-balance multiplier, so
  * the number shown is share-equivalents — not the raw token amount (§4.1).
  *
- * Holdings never modify a contract; they can optionally seed the simulator's
+ * Holdings never modify a contract; they can optionally seed the reference
  * exposure so the coverage tracker (§16) compares against something real.
  */
 export default function HoldingsCard() {
-  const setHolding = useStore((s) => s.setHolding);
+  const setExposure = useChain((s) => s.setExposure);
   const [address, setAddress] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,7 +47,7 @@ export default function HoldingsCard() {
   }
 
   function useAsExposure(assetIndex: number, shareEquiv: number) {
-    setHolding(assetIndex, toFixed(shareEquiv));
+    setExposure(assetIndex, shareEquiv);
     setImported(VERIFIED_ASSETS[assetIndex].symbol);
   }
 
@@ -130,15 +129,15 @@ export default function HoldingsCard() {
 
           {imported && (
             <div className="callout" style={{ marginTop: 12 }}>
-              Imported your {imported} balance as the simulator's exposure. Your contracts are
-              unchanged — holdings are read-only and never modify coverage (§16).
+              Using your {imported} balance as reference exposure in the coverage tracker. Your
+              contracts are unchanged — holdings are read-only and never modify coverage (§16).
             </div>
           )}
 
           {rows.every((r) => r.holdings && r.holdings.displayed === 0) && (
             <div className="disclosure" style={{ marginTop: 12 }}>
               This wallet holds neither asset. That's expected for most wallets — try one that
-              holds NVDAx or Anthropic PreStocks, or enter a manual demo quantity in Protect.
+              holds NVDAx or Anthropic PreStocks, or just enter a quantity manually in Protect.
             </div>
           )}
         </div>

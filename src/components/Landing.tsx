@@ -15,7 +15,7 @@ type MarketState = Record<string, Market | null>;
  * the first impression is "this is wired to real sources", then explains the
  * journey, the two coverage models, and the demo boundary.
  */
-export default function Landing({ onLaunch }: { onLaunch: (tab: "onchain" | "protect" | "compare") => void }) {
+export default function Landing({ onLaunch }: { onLaunch: (tab: "protect" | "compare" | "portfolio") => void }) {
   const [markets, setMarkets] = useState<MarketState>({});
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -64,11 +64,11 @@ export default function Landing({ onLaunch }: { onLaunch: (tab: "onchain" | "pro
         </p>
 
         <div className="lp-cta-row">
-          <button className="btn primary lg" onClick={() => onLaunch("onchain")}>
+          <button className="btn primary lg" onClick={() => onLaunch("protect")}>
             Launch the demo <span className="arrow" aria-hidden="true">→</span>
           </button>
-          <button className="btn lg" onClick={() => onLaunch("protect")}>
-            Explore the simulator
+          <button className="btn lg" onClick={() => onLaunch("compare")}>
+            See the live data
           </button>
         </div>
 
@@ -281,11 +281,11 @@ export default function Landing({ onLaunch }: { onLaunch: (tab: "onchain" | "pro
         <div className="lp-close">
           <h2 className="lp-h2">Try the full lifecycle in about a minute.</h2>
           <p className="lp-lede">
-            Connecting creates a throwaway burner wallet in your browser and funds it from a
-            capped trial budget — no extension, no seed phrase, no real funds.
+            Connecting creates a throwaway burner wallet in your browser. Fees and rent are
+            sponsored from a capped trial budget — no extension, no seed phrase, no SOL needed.
           </p>
           <div className="lp-cta-row">
-            <button className="btn primary lg" onClick={() => onLaunch("onchain")}>
+            <button className="btn primary lg" onClick={() => onLaunch("protect")}>
               Launch the demo <span className="arrow" aria-hidden="true">→</span>
             </button>
           </div>

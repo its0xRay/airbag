@@ -3,7 +3,6 @@ import {
   Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { Buffer } from "buffer";
 import {
   OptketClient, associatedTokenAddress,
   type ContractAcct, type PoolAcct, type SeriesAcct,
@@ -15,6 +14,48 @@ const DEFAULT_RPC = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8899";
 const DEFAULT_SVC = import.meta.env.VITE_QUOTE_SVC || "http://127.0.0.1:8787";
 const BURNER_KEY = "optket.burner.sk";
 
+/** A purchasable series as published on-chain. */
+export interface SeriesInfo {
+  assetId: number;
+  seriesId: number;
+  strike: bigint;
+  expiryTs: number;
+  purchaseCutoffTs: number;
+  exerciseCutoffTs: number;
+  maxContractSize: bigint;
+  referenceVersion: number;
+  shortDated: boolean;
+}
+
+/** One confirmed transaction touching a contract the user owns (§13.7). */
+export interface HistoryEntry {
+  signature: string;
+  slot: number;
+  blockTime: number | null;
+  contractId: bigint;
+  assetId: number;
+  err: boolean;
+}
+
+async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
+  const r = await fetch(`${svcUrl}/series/all`);
+  if (!r.ok) throw new Error(`series ${r.status}`);
+  const raw = (await r.json()) as Array<Record<string, unknown>>;
+  return raw
+    .map((s) => ({
+      assetId: Number(s.assetId),
+      seriesId: Number(s.seriesId),
+      strike: BigInt(String(s.strike)),
+      expiryTs: Number(s.expiryTs),
+      purchaseCutoffTs: Number(s.purchaseCutoffTs),
+      exerciseCutoffTs: Number(s.exerciseCutoffTs),
+      maxContractSize: BigInt(String(s.maxContractSize)),
+      referenceVersion: Number(s.referenceVersion),
+      shortDated: !!s.shortDated,
+    }))
+    .sort((a, b) => a.assetId - b.assetId || a.expiryTs - b.expiryTs || Number(b.strike - a.strike));
+}
+
 /** Explorer link for a tx/address on the active cluster. */
 export function explorerUrl(kind: "tx" | "address", id: string): string {
   const cluster = /devnet/.test(DEFAULT_RPC) ? "?cluster=devnet"
@@ -24,6 +65,12 @@ export function explorerUrl(kind: "tx" | "address", id: string): string {
 }
 
 const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+/** Encode without Buffer — chunked so large transactions don't blow the stack. */
+function bytesToB64(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 const seriesKey = (a: number, s: number) => `${a}:${s}`;
 
 /**
@@ -51,7 +98,7 @@ async function sendSponsored(
       const tx = build(prefix, sponsor);
       tx.feePayer = sponsor;
       tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-      const unsigned = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64");
+      const unsigned = bytesToB64(Uint8Array.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })));
       const r = await fetch(`${svcUrl}/sponsor`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -59,7 +106,7 @@ async function sendSponsored(
       });
       const j = await r.json();
       if (j.error) throw new Error(j.error);
-      const signed = Transaction.from(Buffer.from(j.tx, "base64"));
+      const signed = Transaction.from(b64ToBytes(j.tx));
       signed.partialSign(burner);
       return await conn.sendRawTransaction(signed.serialize(), { preflightCommitment: "confirmed" })
         .then(async (sig) => { await conn.confirmTransaction(sig, "confirmed"); return sig; });
@@ -102,7 +149,14 @@ interface ChainState {
   sponsor: PublicKey | null;
   pools: Record<number, PoolAcct | null>;
   series: Record<string, SeriesAcct | null>;
+  /** Every live purchasable series (weekly + short-dated), from the service. */
+  seriesList: SeriesInfo[];
   contracts: ContractAcct[];
+  history: HistoryEntry[];
+  /** Real mainnet holdings (share-equivalents) imported by the user, per asset.
+   *  Read-only context for the coverage tracker (§16) — never changes a contract. */
+  exposure: Record<number, number>;
+  setExposure: (assetId: number, shareEquiv: number) => void;
   solBalance: number;
   tokenBalance: number;
   trial: { remainingSol: number; capSol: number; spentSol: number; active: boolean; grants: number; budgetWallet: string } | null;
@@ -133,7 +187,12 @@ export const useChain = create<ChainState>((set, get) => ({
   sponsor: null,
   pools: {},
   series: {},
+  seriesList: [],
   contracts: [],
+  history: [],
+  exposure: { 0: 0, 1: 0 },
+  setExposure: (assetId, shareEquiv) =>
+    set((s) => ({ exposure: { ...s.exposure, [assetId]: shareEquiv } })),
   solBalance: 0,
   tokenBalance: 0,
   trial: null,
@@ -168,13 +227,32 @@ export const useChain = create<ChainState>((set, get) => ({
   },
 
   refresh: async () => {
-    const { client, conn, burner, demoMint } = get();
+    const { client, conn, burner, demoMint, svcUrl } = get();
     if (!burner || !demoMint) return;
-    const [pool0, pool1, s00, s01, s10, s11, contracts] = await Promise.all([
+    const [pool0, pool1, s00, s01, s10, s11, contracts, seriesList] = await Promise.all([
       client.getPool(0), client.getPool(1),
       client.getSeries(0, 0), client.getSeries(0, 1), client.getSeries(1, 0), client.getSeries(1, 1),
       client.getContractsForBuyer(burner.publicKey),
+      loadSeries(svcUrl).catch(() => get().seriesList),
     ]);
+
+    // Real transaction history: every signature that touched a contract the
+    // user owns (§13.7) — no local log, straight from the chain.
+    const history: HistoryEntry[] = [];
+    await Promise.all(
+      contracts.slice(0, 12).map(async (c) => {
+        try {
+          const sigs = await conn.getSignaturesForAddress(new PublicKey(c.address), { limit: 12 });
+          for (const s of sigs) {
+            history.push({
+              signature: s.signature, slot: s.slot, blockTime: s.blockTime ?? null,
+              contractId: c.contractId, assetId: c.assetId, err: !!s.err,
+            });
+          }
+        } catch { /* rpc hiccup — keep what we have */ }
+      }),
+    );
+    history.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
     const sol = await conn.getBalance(burner.publicKey);
     let tokens = 0;
     try {
@@ -186,7 +264,9 @@ export const useChain = create<ChainState>((set, get) => ({
     set({
       pools: { 0: pool0, 1: pool1 },
       series: { [seriesKey(0, 0)]: s00, [seriesKey(0, 1)]: s01, [seriesKey(1, 0)]: s10, [seriesKey(1, 1)]: s11 },
+      seriesList,
       contracts,
+      history,
       solBalance: sol / 1e9,
       tokenBalance: tokens,
       trial,
