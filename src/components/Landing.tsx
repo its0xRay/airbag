@@ -104,7 +104,7 @@ export default function Landing({ onLaunch }: { onLaunch: (tab: "protect" | "com
           <div className="card">
             <div className="callout warn">
               Live prices are unavailable — the market service isn’t reachable from here.
-              The rest of the demo still works.
+              New purchases remain disabled until fresh references return.
             </div>
             <button className="btn sm" style={{ marginTop: 12 }} onClick={load}>
               Retry

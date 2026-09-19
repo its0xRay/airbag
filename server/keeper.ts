@@ -9,8 +9,7 @@
 // expire_refund (§11.2) — and never substitutes a synthetic price (§22).
 //
 // Run:  npm run keeper
-// Env:  RPC_URL, PROGRAM_ID, POLL_MS, EXPIRY_REFUND_GRACE_SECS,
-//       KEEPER_DEMO_FALLBACK=1 (offline dev only; off by default)
+// Env:  RPC_URL, PROGRAM_ID, POLL_MS, EXPIRY_REFUND_GRACE_SECS
 //
 // On localnet the keeper self-configures: if config.publisher_authority isn't
 // its key, it repoints it using the admin/payer key (id.json).
@@ -25,7 +24,11 @@ import {
 } from "../src/client/optketProgram";
 import { PythEquityAdapter, JupiterPreStocksAdapter } from "./references";
 // window rules come from the engine, which mirrors the on-chain constants
-import { PRESTOCKS_WINDOW_SECS, EQUITY_MAX_DELAY_SECS } from "../src/engine/references";
+import {
+  PRESTOCKS_WINDOW_SECS,
+  EQUITY_MAX_DELAY_SECS,
+  EQUITY_MAX_SAMPLE_AGE_SECS,
+} from "../src/engine/references";
 
 // Devnet is the deployment target, so that is the default: an unset RPC_URL in
 // a hosted environment used to silently point at a local validator that does
@@ -34,17 +37,6 @@ import { PRESTOCKS_WINDOW_SECS, EQUITY_MAX_DELAY_SECS } from "../src/engine/refe
 const RPC = process.env.RPC_URL || "https://api.devnet.solana.com";
 const POLL_MS = Number(process.env.POLL_MS || 5000);
 const KEEPER_KEYPAIR = new URL("./publisher-authority.json", import.meta.url).pathname;
-// Synthetic references are OFF by default. When no qualifying reference exists
-// the keeper uses the program's OWN disclosed fallbacks — fail_exercise (§10.4)
-// or expire_refund (§11.2) — rather than inventing a price (§22). Set
-// KEEPER_DEMO_FALLBACK=1 only for offline development.
-const DEMO_FALLBACK = process.env.KEEPER_DEMO_FALLBACK === "1";
-const DEMO_REF: Record<number, number> = {
-  0: Number(process.env.KEEPER_REF_0 || 150),
-  1: Number(process.env.KEEPER_REF_1 || 20),
-};
-const price = (n: number) => BigInt(Math.round(n * 1e6));
-
 /**
  * Rolling buffer of real observations per asset.
  *
@@ -62,7 +54,7 @@ async function collectSamples() {
   try {
     const eq = await pyth.observe();
     if (eq.available) {
-      sampleBuffer[0].push({ slot: eq.slot || BigInt(t), sourceTs: eq.sourceTs, collectedTs: t, price: eq.price });
+      sampleBuffer[0].push({ slot: eq.slot, sourceTs: eq.sourceTs, collectedTs: t, price: eq.price });
     }
   } catch { /* transient */ }
   try {
@@ -104,31 +96,22 @@ const publisher = loadKey("PUBLISHER_SECRET", KEEPER_KEYPAIR);
 const nowSec = () => Math.floor(Date.now() / 1000);
 const f = (v: bigint) => (Number(v) / 1e6).toFixed(4);
 
-// labeled synthetic fallbacks (only when a live feed is unavailable)
-function demoEquity(loTs: number, assetId: number): Observation {
-  return { slot: BigInt(Date.now()), sourceTs: loTs + 30, collectedTs: loTs + 35, price: price(DEMO_REF[assetId]) };
-}
-function demoPrestocks(loTs: number, assetId: number): Observation[] {
-  const base = BigInt(Date.now());
-  return [30, 60, 90].map((d, i) => ({ slot: base + BigInt(i), sourceTs: loTs + d, collectedTs: loTs + d + 5, price: price(DEMO_REF[assetId]) }));
-}
-
 interface Resolved { equity: boolean; single?: Observation; many?: Observation[]; source: string; }
 
 /** Resolve an EXERCISE reference (window is strictly after the request). §9 */
 async function resolveExercise(assetId: number, windowStart: number, windowEnd: number): Promise<Resolved | null> {
   if (assetId === 0) {
     const ro = await pyth.observe();
-    if (ro.available) {
-      const st = ro.sourceTs <= windowStart ? windowStart + 1 : ro.sourceTs;
-      if (st <= windowEnd) return { equity: true, single: { slot: ro.slot || BigInt(st), sourceTs: st, collectedTs: nowSec(), price: ro.price }, source: `${ro.sourceId} live $${f(ro.price)}` };
+    const collectedTs = nowSec();
+    if (ro.available && ro.sourceTs > windowStart && ro.sourceTs <= windowEnd
+      && collectedTs >= ro.sourceTs && collectedTs - ro.sourceTs <= EQUITY_MAX_SAMPLE_AGE_SECS) {
+      return { equity: true, single: { slot: ro.slot, sourceTs: ro.sourceTs, collectedTs, price: ro.price }, source: `${ro.sourceId} live $${f(ro.price)}` };
     }
-    if (DEMO_FALLBACK) return { equity: true, single: demoEquity(windowStart, assetId), source: `DEMO fallback (benchmark unavailable: ${ro.reason || "late"})` };
     return null;
   }
   const ros = (await jupiter.observe(3)).filter((o) => o.available && o.sourceTs > windowStart && o.sourceTs <= windowEnd);
-  if (ros.length >= 3) return { equity: false, many: ros.map((o) => ({ slot: o.slot, sourceTs: o.sourceTs, collectedTs: o.sourceTs + 1, price: o.price })), source: `Jupiter live median (${ros.length} samples)` };
-  if (DEMO_FALLBACK) return { equity: false, many: demoPrestocks(windowStart, assetId), source: "DEMO fallback (Jupiter samples insufficient/out-of-window)" };
+  const collectedTs = nowSec();
+  if (ros.length >= 3) return { equity: false, many: ros.map((o) => ({ slot: o.slot, sourceTs: o.sourceTs, collectedTs, price: o.price })), source: `Jupiter live median (${ros.length} samples)` };
   return null;
 }
 
@@ -141,24 +124,22 @@ async function resolveExercise(assetId: number, windowStart: number, windowEnd: 
 async function resolveExpiry(assetId: number, expiryTs: number): Promise<Resolved | null> {
   if (assetId === 0) {
     const ro = await pyth.observe();
-    if (ro.available) {
-      const st = Math.max(ro.sourceTs, expiryTs); // must be at/after expiry
-      if (st <= expiryTs + EQUITY_MAX_DELAY_SECS) {
+    const collectedTs = nowSec();
+    if (ro.available && ro.sourceTs >= expiryTs
+      && ro.sourceTs <= expiryTs + EQUITY_MAX_DELAY_SECS
+      && collectedTs >= ro.sourceTs && collectedTs - ro.sourceTs <= EQUITY_MAX_SAMPLE_AGE_SECS) {
         return {
           equity: true,
-          single: { slot: ro.slot || BigInt(st), sourceTs: st, collectedTs: nowSec(), price: ro.price },
+          single: { slot: ro.slot, sourceTs: ro.sourceTs, collectedTs, price: ro.price },
           source: `${ro.sourceId} live $${f(ro.price)}`,
         };
-      }
     }
-    if (DEMO_FALLBACK) return { equity: true, single: { slot: BigInt(Date.now()), sourceTs: expiryTs + 30, collectedTs: expiryTs + 35, price: price(DEMO_REF[assetId]) }, source: `DEMO fallback (${ro.reason || "late"})` };
     return null;
   }
   const buffered = windowSamples(1, expiryTs - PRESTOCKS_WINDOW_SECS, expiryTs);
   if (buffered.length >= 3) {
     return { equity: false, many: buffered, source: `Jupiter buffered median (${buffered.length} samples in window)` };
   }
-  if (DEMO_FALLBACK) return { equity: false, many: demoPrestocks(expiryTs - 200, assetId), source: "DEMO fallback (insufficient buffered samples)" };
   return null;
 }
 
@@ -272,7 +253,7 @@ async function main() {
   console.log("Optket keeper");
   console.log(`  RPC:       ${RPC}`);
   console.log(`  keeper key ${publisher.publicKey.toBase58()}`);
-  console.log(`  references live (Pyth session + Jupiter); synthetic fallback ${DEMO_FALLBACK ? "ENABLED (dev only)" : "disabled"}`);
+  console.log("  references live (Pyth session + Jupiter); no synthetic reference path");
   // keeper needs a little SOL for fees on localnet
   try { const bal = await conn.getBalance(publisher.publicKey); if (bal < 1e8) { await conn.confirmTransaction(await conn.requestAirdrop(publisher.publicKey, 1e9), "confirmed"); } } catch { /* devnet: fund manually */ }
   // A hosted keeper must survive an RPC blip at boot rather than exiting: the

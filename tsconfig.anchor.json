@@ -8,7 +8,9 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "ignoreDeprecations": "6.0"
   },
   "include": ["tests/**/*.ts"]
 }

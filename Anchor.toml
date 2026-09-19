@@ -19,7 +19,7 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.anchor.json -t 1000000 tests/**/*.ts"
+test = "npm exec -- ts-mocha -p ./tsconfig.anchor.json -t 1000000 tests/**/*.ts"
 
 # NOTE: The program id above is a placeholder. After `anchor build`, run
 # `anchor keys sync` to write the real, locally-generated program id into

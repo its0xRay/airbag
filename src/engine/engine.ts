@@ -1,7 +1,7 @@
 // Optket protection engine — a deterministic, pure-TypeScript mirror of the
 // on-chain program (programs/optket/src). Same arithmetic, same accounting
-// invariants, same lifecycle. It powers the local demo simulation AND serves
-// as an executable specification the vitest suite checks against PRD §22.
+// invariants, same lifecycle. It is an executable specification used by the
+// vitest suite; the web app does not use it as a runtime fallback.
 
 import {
   maxLiability,

@@ -4,9 +4,8 @@
 // `purchase` instruction in the SAME transaction, with `edIxIndex` pointing at
 // the Ed25519 instruction's position.
 //
-// This module is the seam between the in-browser simulation and a live Solana
-// deployment. It is written against @solana/web3.js + tweetnacl; install those
-// when wiring the frontend to devnet/mainnet.
+// This module builds the quote verification instruction used by the live
+// Solana client. The pure builder is also used by tests.
 
 import { serializeQuotePayload } from "../engine/quote";
 import type { QuotePayload } from "../engine/types";

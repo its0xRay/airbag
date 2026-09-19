@@ -3,6 +3,7 @@
 server/quote-authority.json
 server/publisher-authority.json
 server/trial-budget.json
+server/trial-budget-state.json
 # deployer/admin key & any wallet keypairs
 **/id.json
 *-keypair.json

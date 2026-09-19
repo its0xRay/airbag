@@ -21,7 +21,7 @@ pub struct InitializeConfig<'info> {
         seeds = [CONFIG_SEED],
         bump
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     /// The demo mint — the only token accepted for premium/collateral.
     pub demo_mint: InterfaceAccount<'info, Mint>,
@@ -98,7 +98,7 @@ pub struct InitAsset<'info> {
         bump = config.bump,
         has_one = admin @ OptketError::Unauthorized
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(
         init,
@@ -107,7 +107,7 @@ pub struct InitAsset<'info> {
         seeds = [ASSET_SEED, &[asset_id]],
         bump
     )]
-    pub asset: Account<'info, AssetConfig>,
+    pub asset: Box<Account<'info, AssetConfig>>,
 
     #[account(
         init,
@@ -116,7 +116,7 @@ pub struct InitAsset<'info> {
         seeds = [POOL_SEED, &[asset_id]],
         bump
     )]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
 
     /// Per-asset collateral vault, authority = pool PDA.
     #[account(
@@ -127,10 +127,10 @@ pub struct InitAsset<'info> {
         token::mint = demo_mint,
         token::authority = pool,
     )]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(address = config.demo_mint @ OptketError::WrongMint)]
-    pub demo_mint: InterfaceAccount<'info, Mint>,
+    pub demo_mint: Box<InterfaceAccount<'info, Mint>>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,

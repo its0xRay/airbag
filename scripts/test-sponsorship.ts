@@ -2,8 +2,7 @@
  *  the exact account rent (PRD §19). Also checks the sponsor refuses to
  *  co-sign a transaction that would drain it. */
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { OptketClient, pdas } from "../src/client/optketProgram";
+import { OptketClient } from "../src/client/optketProgram";
 
 const RPC = process.env.RPC_URL || "https://api.devnet.solana.com";
 const SVC = process.env.QUOTE_SVC || "http://127.0.0.1:8787";

@@ -1,8 +1,8 @@
 // Trial budget / fee-support controller (PRD §19).
 //
-// Grants small, capped SOL allocations to trial wallets so users can pay their
-// own transaction fees without funding a wallet first. Enforces: a hard total
-// cap, a per-request max, a per-wallet lifetime max, a rate limit, a per-wallet
+// Sponsors small, capped SOL costs so users can transact without holding SOL.
+// The legacy direct-grant method remains available for local tooling. Enforces:
+// a hard total cap, a per-request max, a per-wallet lifetime max, a rate limit, a per-wallet
 // cooldown (duplicate-request control), an append-only spend log, and automatic
 // shutdown once the cap is reached. The budget wallet is a DEDICATED keypair,
 // separate from the collateral pool and the admin/quote/publisher keys.
@@ -11,6 +11,8 @@
 // purchases or payouts (PRD §19).
 
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { loadKey } from "./keys";
 
 export interface TrialConfig {
@@ -37,11 +39,43 @@ export class TrialBudget {
 
   private conn: Connection;
   private cfg: TrialConfig;
-  constructor(conn: Connection, cfg: TrialConfig, keypairPath: string) {
+  private statePath: string;
+  constructor(conn: Connection, cfg: TrialConfig, keypairPath: string, statePath: string) {
     this.conn = conn;
     this.cfg = cfg;
+    this.statePath = statePath;
     // env secret in production (Railway), gitignored file locally
     this.budget = loadKey("TRIAL_BUDGET_SECRET", keypairPath);
+    this.restore();
+  }
+
+  private restore() {
+    if (!existsSync(this.statePath)) return;
+    const state = JSON.parse(readFileSync(this.statePath, "utf8")) as {
+      spentLamports?: number;
+      active?: boolean;
+      wallets?: Array<[string, WalletState]>;
+      grantTimestamps?: number[];
+      log?: LogEntry[];
+    };
+    this.spentLamports = Math.max(0, Number(state.spentLamports || 0));
+    this.active = state.active !== false && this.spentLamports < this.cfg.capSol * LAMPORTS_PER_SOL;
+    this.wallets = new Map(state.wallets || []);
+    this.grantTimestamps = state.grantTimestamps || [];
+    this.log = state.log || [];
+  }
+
+  private persist() {
+    mkdirSync(dirname(this.statePath), { recursive: true });
+    const tmp = `${this.statePath}.tmp`;
+    writeFileSync(tmp, JSON.stringify({
+      spentLamports: this.spentLamports,
+      active: this.active,
+      wallets: [...this.wallets.entries()],
+      grantTimestamps: this.grantTimestamps,
+      log: this.log,
+    }));
+    renameSync(tmp, this.statePath);
   }
 
   get address() { return this.budget.publicKey; }
@@ -71,7 +105,10 @@ export class TrialBudget {
       grants: this.log.length,
       perGrantSol: this.cfg.perGrantSol,
       perWalletMaxSol: this.cfg.perWalletMaxSol,
-      recent: this.log.slice(-8).reverse(),
+      recent: this.log.slice(-8).reverse().map((e) => ({
+        ...e,
+        wallet: `${e.wallet.slice(0, 4)}…${e.wallet.slice(-4)}`,
+      })),
     };
   }
 
@@ -86,6 +123,10 @@ export class TrialBudget {
     if (!this.active) return { ok: false, reason: "trial budget closed (cap reached)", remainingSol: remaining() };
 
     const now = Date.now();
+    if (!Number.isSafeInteger(lamports) || lamports <= 0
+      || lamports > this.cfg.perGrantSol * LAMPORTS_PER_SOL) {
+      return { ok: false, reason: "sponsorship amount exceeds the per-request limit", remainingSol: remaining() };
+    }
     if (this.spentLamports + lamports > this.cfg.capSol * LAMPORTS_PER_SOL) {
       this.active = false;
       return { ok: false, reason: "trial budget cap reached — sponsorship disabled", remainingSol: remaining() };
@@ -105,6 +146,7 @@ export class TrialBudget {
     this.grantTimestamps.push(now);
     this.log.push({ ts: now, wallet: address, lamports });
     if (this.spentLamports >= this.cfg.capSol * LAMPORTS_PER_SOL) this.active = false;
+    this.persist();
     return { ok: true, remainingSol: remaining() };
   }
 
@@ -149,6 +191,7 @@ export class TrialBudget {
     this.grantTimestamps.push(now);
     this.log.push({ ts: now, wallet: address, lamports: grantLamports, sig });
     if (this.spentLamports >= this.cfg.capSol * LAMPORTS_PER_SOL) this.active = false;
+    this.persist();
 
     return { ok: true, grantedSol: grantLamports / LAMPORTS_PER_SOL, remainingSol: remaining(), active: this.active };
   }

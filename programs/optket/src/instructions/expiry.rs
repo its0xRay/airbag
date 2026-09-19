@@ -143,8 +143,6 @@ pub fn expire_refund(ctx: Context<SettleExpiry>) -> Result<()> {
     require!(pool.available_capital >= refund, OptketError::InsufficientCollateral);
     pool.available_capital -= refund;
     pool.total_refunds = pool.total_refunds.saturating_add(refund);
-    drop(pool);
-
     if refund > 0 {
         transfer_from_vault(&ctx, refund)?;
     }

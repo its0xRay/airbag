@@ -29,7 +29,7 @@ export default function CompareTab() {
     load();
     const t = setInterval(load, 15000);
     return () => { alive = false; clearInterval(t); };
-  }, [assetKey]);
+  }, [assetKey, asset.mint]);
 
   const equity = asset.kind === "EquityToken";
   const token = market?.usdPrice ?? null;
@@ -57,7 +57,7 @@ export default function CompareTab() {
           </div>
           <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>{asset.name} · {asset.benchmarkLabel}</div>
 
-          {err && <div className="callout warn">{err} — is <code>npm run quote-service</code> running?</div>}
+          {err && <div className="callout warn" role="alert">Live market data is unavailable. Retry when the reference service recovers.</div>}
           {loading && !market && <div className="empty">Fetching live mainnet data…</div>}
           {market?.available && (
             <>

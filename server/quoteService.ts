@@ -8,11 +8,12 @@
 //   GET  /config           program id, demo mint, quote authority
 //   GET  /assets           verified real asset registry (§4)
 //   GET  /market?mint=     live Jupiter price + benchmark + scaled multiplier
+//   GET  /reference?assetId= qualifying live price used for quote issuance
 //   GET  /holdings?owner=&mint=   real mainnet holdings (scaled)
 //   GET  /series?assetId=&seriesId=   on-chain series terms
 //   GET  /trial/status     trial budget status (§19)
 //   POST /quote            signed premium quote (60s validity, replay-protected)
-//   POST /faucet           SOL grant (trial budget) + demo tokens
+//   POST /faucet           idempotent demo-token top-up (fees stay sponsored)
 
 import { createServer, type ServerResponse } from "node:http";
 import {
@@ -24,11 +25,13 @@ import { getOrCreateAssociatedTokenAccount, mintTo, getMint } from "@solana/spl-
 import nacl from "tweetnacl";
 import { serializeQuotePayload, QUOTE_VALIDITY_SECS } from "../src/engine/quote";
 import { quotePremium } from "../src/engine/pricing";
-import { toFixed, fromFixed } from "../src/engine/fixed";
+import { fromFixed } from "../src/engine/fixed";
+import { EQUITY_MAX_SAMPLE_AGE_SECS } from "../src/engine/references";
 import type { QuotePayload } from "../src/engine/types";
 import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
 import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
+import { JupiterPreStocksAdapter, PythEquityAdapter } from "./references";
 
 // See the note in keeper.ts: devnet is the default so an unset RPC_URL in a
 // hosted environment cannot point the service at a nonexistent local validator.
@@ -40,12 +43,18 @@ const JUP_API = process.env.JUP_PRICE_API || "https://lite-api.jup.ag/price/v3";
 
 const conn = new Connection(RPC_URL, "confirmed");
 const mainnet = new Connection(MAINNET_RPC, "confirmed");
+const equityReference = new PythEquityAdapter(0);
+const prestocksReference = new JupiterPreStocksAdapter(1);
 
 // ---- keys (env secrets in production, gitignored files locally) ----
 const dir = new URL(".", import.meta.url).pathname;
 const quoteAuthority = loadKey("QUOTE_AUTHORITY_SECRET", `${dir}quote-authority.json`);
 const payer: Keypair | null = loadAdmin(); // demo-mint authority; funds token faucet
-const trialBudget = new TrialBudget(conn, trialConfigFromEnv(), `${dir}trial-budget.json`);
+const trialStatePath = process.env.TRIAL_STATE_PATH || `${dir}trial-budget-state.json`;
+if (process.env.RAILWAY_ENVIRONMENT && !process.env.TRIAL_STATE_PATH) {
+  throw new Error("TRIAL_STATE_PATH must point to a Railway volume so sponsorship limits survive restarts");
+}
+const trialBudget = new TrialBudget(conn, trialConfigFromEnv(), `${dir}trial-budget.json`, trialStatePath);
 
 // ---- replay guard: quote ids unique across restarts ----
 const usedQuoteIds = new Set<string>();
@@ -146,21 +155,32 @@ async function marketData(mint: string) {
   };
 }
 
+class ServiceError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
 /** Live spot for premium pricing (§8.3): equity uses the stock benchmark,
- *  PreStocks uses the token market. Falls back to at-the-money (spot=strike)
- *  when the live source is unavailable — disclosed in the quote response. */
-async function liveSpot(assetId: number, strike: bigint): Promise<{ spot: bigint; source: string }> {
+ *  PreStocks uses the token market. Quote issuance fails closed when the live
+ *  reference is unavailable. */
+async function liveSpot(assetId: number): Promise<{ spot: bigint; source: string }> {
   const asset = VERIFIED_ASSETS[assetId];
-  if (asset) {
-    try {
-      const m = await marketData(asset.mint);
-      const px = asset.kind === "EquityToken" ? (m.benchmark ?? m.usdPrice) : m.usdPrice;
-      if (px != null && px > 0) {
-        return { spot: toFixed(px), source: asset.kind === "EquityToken" ? "live stock benchmark (Jupiter)" : "live token market (Jupiter)" };
-      }
-    } catch { /* fall through */ }
+  if (!asset) throw new ServiceError("unknown asset", 404);
+
+  if (asset.kind === "EquityToken") {
+    const observation = await equityReference.observe();
+    const collectedTs = nowSec();
+    if (observation.available && observation.price > 0n
+      && observation.sourceTs <= collectedTs
+      && collectedTs - observation.sourceTs <= EQUITY_MAX_SAMPLE_AGE_SECS) {
+      return { spot: observation.price, source: observation.sourceId };
+    }
+  } else {
+    const observation = (await prestocksReference.observe(1))[0];
+    if (observation?.available && observation.price > 0n) {
+      return { spot: observation.price, source: observation.sourceId };
+    }
   }
-  return { spot: strike, source: "ATM fallback (live spot unavailable)" };
+  throw new ServiceError("reference unavailable — no executable quote was issued", 503);
 }
 
 // ---- signed quotes (§8) ----
@@ -173,7 +193,7 @@ async function buildSignedQuote(buyer: string, assetId: number, seriesId: number
   const now = nowSec();
   if (now > s.purchaseCutoffTs) throw new Error("purchase window has closed");
 
-  const { spot, source } = await liveSpot(assetId, s.strike);
+  const { spot, source } = await liveSpot(assetId);
   const { premium } = quotePremium(assetId, quantity, s.strike, spot, s.expiryTs - now);
 
   const quoteId = quoteCounter++;
@@ -202,20 +222,25 @@ async function buildSignedQuote(buyer: string, assetId: number, seriesId: number
   };
 }
 
-// ---- faucet (§19): SOL via trial budget, demo tokens via mint authority ----
+// ---- faucet (§19): idempotent demo-token top-up; SOL stays sponsor-owned ----
 async function faucet(address: string) {
   const dest = new PublicKey(address); // throws on bad input → 400
-  const g = await trialBudget.grant(address);
 
-  let tokens = 0;
+  let tokensMinted = 0;
+  let tokenBalance = 0;
   let tokenError: string | undefined;
   if (payer) {
     try {
       const mint = await demoMint();
       const m = await getMint(conn, mint);
       const ata = await getOrCreateAssociatedTokenAccount(conn, payer, mint, dest);
-      await mintTo(conn, payer, mint, ata.address, payer, 20_000n * 10n ** BigInt(m.decimals));
-      tokens = 20_000;
+      const scale = 10n ** BigInt(m.decimals);
+      const target = 20_000n * scale;
+      const current = ata.amount;
+      const delta = current < target ? target - current : 0n;
+      if (delta > 0n) await mintTo(conn, payer, mint, ata.address, payer, delta);
+      tokensMinted = Number(delta) / Number(scale);
+      tokenBalance = Number(current + delta) / Number(scale);
     } catch (e) {
       tokenError = `token mint failed: ${(e as Error).message}`;
     }
@@ -223,9 +248,7 @@ async function faucet(address: string) {
     tokenError = "token faucet unavailable (no ADMIN_SECRET)";
   }
 
-  let sol = 0;
-  try { sol = (await conn.getBalance(dest)) / 1e9; } catch { /* balance read is best-effort */ }
-  return { granted: g.ok, grantedSol: g.grantedSol, sol, remainingSol: g.remainingSol, reason: g.reason, tokens, tokenError };
+  return { grantedSol: 0, reason: "fees and rent are sponsored", tokensMinted, tokenBalance, tokenError };
 }
 
 // ---- short-dated series rotation ----
@@ -395,6 +418,12 @@ const server = createServer(async (req, res) => {
       if (!mint) return json(res, 400, { error: "mint required" });
       return json(res, 200, await marketData(mint));
     }
+    if (req.method === "GET" && url.pathname === "/reference") {
+      const assetId = Number(url.searchParams.get("assetId"));
+      if (!Number.isInteger(assetId)) return json(res, 400, { error: "valid assetId required" });
+      const reference = await liveSpot(assetId);
+      return json(res, 200, { assetId, price: fromFixed(reference.spot), source: reference.source, available: true });
+    }
     if (req.method === "GET" && url.pathname === "/holdings") {
       const owner = url.searchParams.get("owner");
       const mint = url.searchParams.get("mint");
@@ -455,7 +484,7 @@ const server = createServer(async (req, res) => {
     }
     return json(res, 404, { error: "not found" });
   } catch (e) {
-    return json(res, 400, { error: String((e as Error).message || e) });
+    return json(res, e instanceof ServiceError ? e.status : 400, { error: String((e as Error).message || e) });
   }
 });
 

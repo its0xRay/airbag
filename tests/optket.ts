@@ -27,7 +27,6 @@ import nacl from "tweetnacl";
 import { assert } from "chai";
 import { Optket } from "../target/types/optket";
 
-const PRICE_ONE = new BN(1_000_000);
 const price = (n: number) => new BN(Math.round(n * 1_000_000));
 const qty = (n: number) => new BN(Math.round(n * 1_000_000));
 

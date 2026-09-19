@@ -24,6 +24,8 @@ const TABS: [Tab, string][] = [
 export default function App() {
   const connected = useChain((s) => s.connected);
   const refresh = useChain((s) => s.refresh);
+  const chainError = useChain((s) => s.error);
+  const clearError = useChain((s) => s.clearError);
   const [tab, setTab] = useState<Tab>("home");
   // A renewal jumps to Protect with the quantity prefilled — the quote itself
   // is always fresh, so no terms carry over from the old contract (§18).
@@ -65,6 +67,15 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {chainError && (
+        <div className="callout warn" role="alert" style={{ margin: "14px 16px" }}>
+          <div className="between">
+            <span>{chainError}</span>
+            <button className="btn ghost sm" onClick={clearError}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {tab === "home" && <Landing onLaunch={(t) => setTab(t as Tab)} />}
       {tab === "protect" && <ProtectTab renewal={renewal} onRenewalConsumed={() => setRenewal(null)} />}

@@ -24,7 +24,7 @@ verified xStocks/PreStocks assets.
 | Layer | Path | Status |
 |---|---|---|
 | On-chain program (Anchor/Rust) | `programs/optket` | Complete source; build with the Solana/Anchor toolchain |
-| Protection engine (TypeScript) | `src/engine` | **Test oracle** for the Rust — 21 passing tests (`npm test`). Not used by the app. |
+| Protection engine (TypeScript) | `src/engine` | **Test oracle** for the Rust — 27 passing tests (`npm test`). Not used by the app. |
 | Web app — full protection journey | `src/App.tsx`, `src/components` | **Fully on-chain** (`npm run dev`) |
 | On-chain client | `src/client/optketProgram.ts` | Account decoders + instruction builders used by the app |
 | Quote service + sponsorship | `server/quoteService.ts` | **Runs** (`npm run quote-service`) — signs quotes, pays fees/rent (§19) |
@@ -46,7 +46,7 @@ acceptance criteria, not a second implementation of the product.
 cd optket
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 21 engine + accounting tests
+npm test           # 27 engine, service-boundary and reference tests
 npm run build      # production build
 ```
 
@@ -146,9 +146,8 @@ manipulated market. This must be evaluated (depth, cost-to-move, max payout,
 source concentration) before any real-money use.
 
 **Activation gate (§4.3):** an asset only becomes available for live-reference
-contracts after identity, reference, conversion rules and fallbacks are verified.
-Otherwise it is either unavailable or clearly labelled synthetic — the program
-**never silently substitutes synthetic prices**.
+contracts after identity, reference and conversion rules are verified. Otherwise
+it remains unavailable; the program and keeper do not substitute synthetic prices.
 
 ---
 

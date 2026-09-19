@@ -1,7 +1,9 @@
 // Browser-side access to REAL market data, proxied through the quote service
 // (which reads mainnet + the Jupiter Price API). PRD §4/§9/§13/§15.
 
-const SVC = import.meta.env.VITE_QUOTE_SVC || "http://127.0.0.1:8787";
+import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
+
+const SVC = normalizeServiceUrl(import.meta.env.VITE_QUOTE_SVC);
 
 export interface Market {
   mint: string;
@@ -17,14 +19,21 @@ export interface Market {
 }
 
 export async function fetchMarket(mint: string): Promise<Market> {
-  const r = await fetch(`${SVC}/market?mint=${mint}`);
-  if (!r.ok) throw new Error(`market ${r.status}`);
-  return r.json();
+  return fetchJson<Market>(`${SVC}/market?mint=${encodeURIComponent(mint)}`);
+}
+
+export interface QuoteReference {
+  assetId: number;
+  price: number;
+  source: string;
+  available: true;
+}
+
+export async function fetchQuoteReference(assetId: number): Promise<QuoteReference> {
+  return fetchJson<QuoteReference>(`${SVC}/reference?assetId=${encodeURIComponent(assetId)}`);
 }
 
 export interface Holdings { owner: string; mint: string; displayed: number; raw: number; scaledMultiplier: number; }
 export async function fetchHoldings(owner: string, mint: string): Promise<Holdings> {
-  const r = await fetch(`${SVC}/holdings?owner=${owner}&mint=${mint}`);
-  if (!r.ok) throw new Error(`holdings ${r.status}`);
-  return r.json();
+  return fetchJson<Holdings>(`${SVC}/holdings?owner=${encodeURIComponent(owner)}&mint=${encodeURIComponent(mint)}`);
 }

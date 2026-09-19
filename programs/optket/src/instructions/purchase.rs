@@ -25,7 +25,7 @@ pub struct Purchase<'info> {
     pub payer: Signer<'info>,
 
     #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(
         mut,
@@ -33,20 +33,20 @@ pub struct Purchase<'info> {
         bump = asset.bump,
         constraint = asset.active @ OptketError::AssetInactive
     )]
-    pub asset: Account<'info, AssetConfig>,
+    pub asset: Box<Account<'info, AssetConfig>>,
 
     #[account(
         seeds = [SERIES_SEED, &[quote.asset_id], &quote.series_id.to_le_bytes()],
         bump = series.bump,
         constraint = series.active @ OptketError::SeriesInactive
     )]
-    pub series: Account<'info, Series>,
+    pub series: Box<Account<'info, Series>>,
 
     #[account(mut, seeds = [POOL_SEED, &[quote.asset_id]], bump = pool.bump)]
-    pub pool: Account<'info, Pool>,
+    pub pool: Box<Account<'info, Pool>>,
 
     #[account(mut, seeds = [VAULT_SEED, &[quote.asset_id]], bump = pool.vault_bump)]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// Buyer's premium source. Constrained to the demo mint — this is what
     /// makes "real USDC is rejected" true (PRD §22).
@@ -55,10 +55,10 @@ pub struct Purchase<'info> {
         token::mint = demo_mint,
         token::authority = buyer
     )]
-    pub buyer_token: InterfaceAccount<'info, TokenAccount>,
+    pub buyer_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(address = config.demo_mint @ OptketError::WrongMint)]
-    pub demo_mint: InterfaceAccount<'info, Mint>,
+    pub demo_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Replay guard: `init` fails if this quote_id was already used (PRD §8.2).
     #[account(
@@ -68,7 +68,7 @@ pub struct Purchase<'info> {
         seeds = [QUOTE_SEED, &quote.quote_id.to_le_bytes()],
         bump
     )]
-    pub quote_marker: Account<'info, QuoteMarker>,
+    pub quote_marker: Box<Account<'info, QuoteMarker>>,
 
     #[account(
         init,
@@ -77,7 +77,7 @@ pub struct Purchase<'info> {
         seeds = [CONTRACT_SEED, &quote.quote_id.to_le_bytes()],
         bump
     )]
-    pub contract: Account<'info, Contract>,
+    pub contract: Box<Account<'info, Contract>>,
 
     /// CHECK: validated by address; read via the instructions sysvar loader.
     #[account(address = INSTRUCTIONS_SYSVAR_ID)]

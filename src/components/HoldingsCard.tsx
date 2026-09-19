@@ -46,7 +46,7 @@ export default function HoldingsCard() {
     }
   }
 
-  function useAsExposure(assetIndex: number, shareEquiv: number) {
+  function applyExposure(assetIndex: number, shareEquiv: number) {
     setExposure(assetIndex, shareEquiv);
     setImported(VERIFIED_ASSETS[assetIndex].symbol);
   }
@@ -115,7 +115,7 @@ export default function HoldingsCard() {
                       <span className="faint" style={{ fontSize: 11 }}>
                         ({h.displayed.toLocaleString(undefined, { maximumFractionDigits: 6 })} raw × {h.scaledMultiplier.toFixed(6)})
                       </span>
-                      <button className="btn ghost sm" onClick={() => useAsExposure(i, shareEquiv)}>
+                      <button className="btn ghost sm" onClick={() => applyExposure(i, shareEquiv)}>
                         Use as exposure
                       </button>
                     </>

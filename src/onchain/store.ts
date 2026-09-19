@@ -7,11 +7,12 @@ import {
   OptketClient, associatedTokenAddress,
   type ContractAcct, type PoolAcct, type SeriesAcct,
 } from "../client/optketProgram";
+import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 
 // Hosted deployment: set VITE_RPC_URL (devnet RPC) and VITE_QUOTE_SVC (Railway
 // quote-service URL) in Vercel. Local dev falls back to localnet defaults.
 const DEFAULT_RPC = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8899";
-const DEFAULT_SVC = import.meta.env.VITE_QUOTE_SVC || "http://127.0.0.1:8787";
+const DEFAULT_SVC = normalizeServiceUrl(import.meta.env.VITE_QUOTE_SVC);
 const BURNER_KEY = "optket.burner.sk";
 
 /** A purchasable series as published on-chain. */
@@ -38,9 +39,7 @@ export interface HistoryEntry {
 }
 
 async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
-  const r = await fetch(`${svcUrl}/series/all`);
-  if (!r.ok) throw new Error(`series ${r.status}`);
-  const raw = (await r.json()) as Array<Record<string, unknown>>;
+  const raw = await fetchJson<Array<Record<string, unknown>>>(`${svcUrl}/series/all`);
   return raw
     .map((s) => ({
       assetId: Number(s.assetId),
@@ -99,13 +98,11 @@ async function sendSponsored(
       tx.feePayer = sponsor;
       tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
       const unsigned = bytesToB64(Uint8Array.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })));
-      const r = await fetch(`${svcUrl}/sponsor`, {
+      const j = await fetchJson<{ tx: string }>(`${svcUrl}/sponsor`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ tx: unsigned, buyer: burner.publicKey.toBase58() }),
       });
-      const j = await r.json();
-      if (j.error) throw new Error(j.error);
       const signed = Transaction.from(b64ToBytes(j.tx));
       signed.partialSign(burner);
       return await conn.sendRawTransaction(signed.serialize(), { preflightCommitment: "confirmed" })
@@ -162,6 +159,7 @@ interface ChainState {
   trial: { remainingSol: number; capSol: number; spentSol: number; active: boolean; grants: number; budgetWallet: string } | null;
   /** Most recent confirmed transaction signature (explorer link in the UI). */
   lastTx: string | null;
+  clearError: () => void;
 
   connect: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -197,21 +195,22 @@ export const useChain = create<ChainState>((set, get) => ({
   tokenBalance: 0,
   trial: null,
   lastTx: null,
+  clearError: () => set({ error: null }),
 
   connect: async () => {
     set({ busy: true, error: null, status: "connecting…" });
     try {
       const burner = loadBurner();
-      const cfg = await (await fetch(`${get().svcUrl}/config`)).json();
+      const cfg = await fetchJson<{ demoMint: string; quoteAuthority: string }>(`${get().svcUrl}/config`);
       const demoMint = new PublicKey(cfg.demoMint);
       // Fees and account rent are sponsored (§19), so the burner needs no SOL —
       // the faucet only mints the demo tokens used to pay premiums.
       set({ status: "claiming demo tokens…" });
-      await fetch(`${get().svcUrl}/faucet`, {
+      await fetchJson(`${get().svcUrl}/faucet`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: burner.publicKey.toBase58() }),
       });
-      const trial = await (await fetch(`${get().svcUrl}/trial/status`)).json().catch(() => null);
+      const trial = await fetchJson<ChainState["trial"]>(`${get().svcUrl}/trial/status`).catch(() => null);
       set({
         burner, address: burner.publicKey.toBase58(), connected: true, demoMint,
         quoteAuthority: cfg.quoteAuthority,
@@ -260,7 +259,7 @@ export const useChain = create<ChainState>((set, get) => ({
       tokens = bal.value.uiAmount || 0;
     } catch { /* no ata yet */ }
     let trial = get().trial;
-    try { trial = await (await fetch(`${get().svcUrl}/trial/status`)).json(); } catch { /* service down */ }
+    try { trial = await fetchJson<ChainState["trial"]>(`${get().svcUrl}/trial/status`); } catch { /* service down */ }
     set({
       pools: { 0: pool0, 1: pool1 },
       series: { [seriesKey(0, 0)]: s00, [seriesKey(0, 1)]: s01, [seriesKey(1, 0)]: s10, [seriesKey(1, 1)]: s11 },
@@ -279,11 +278,16 @@ export const useChain = create<ChainState>((set, get) => ({
     set({ busy: true, error: null, status: "requesting signed quote…" });
     try {
       const quantity = BigInt(Math.round(quantityUnits * 1e6));
-      const resp = await (await fetch(`${svcUrl}/quote`, {
+      const resp = await fetchJson<{
+        premiumTokens: number;
+        message: string;
+        signature: string;
+        quoteAuthority: string;
+        quote: { quoteId: string };
+      }>(`${svcUrl}/quote`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ buyer: burner.publicKey.toBase58(), assetId, seriesId, quantity: quantity.toString() }),
-      })).json();
-      if (resp.error) throw new Error(resp.error);
+      });
       set({ status: `signing & sending purchase (premium ${resp.premiumTokens} oUSD)…` });
       const signedQuote = {
         message: b64ToBytes(resp.message),
@@ -362,11 +366,12 @@ const PROGRAM_ERRORS: Record<number, string> = {
 };
 function friendly(e: unknown): string {
   const s = String((e as Error)?.message || e);
-  if (/fetch|Failed to fetch|ECONNREFUSED|NetworkError|aborted/i.test(s)) {
+  if (/fetch|Failed to fetch|ECONNREFUSED|NetworkError|aborted|non-JSON response/i.test(s)) {
     return "Can't reach the RPC or quote service. Check your connection and that the services are up.";
   }
+  if (/reference unavailable/i.test(s)) return "The live settlement reference is unavailable. Purchases are paused until a fresh price returns.";
   if (/blockhash|block height exceeded/i.test(s)) return "Transaction expired before confirming (network congestion) — try again.";
-  if (/insufficient lamports|insufficient funds for rent/i.test(s)) return "Burner wallet is out of SOL for fees — use Refresh / reconnect to request another trial grant.";
+  if (/insufficient lamports|insufficient funds for rent/i.test(s)) return "Fee sponsorship is temporarily unavailable. Try again shortly.";
   const m = s.match(/custom program error: (0x[0-9a-fA-F]+)/);
   if (m) {
     const code = parseInt(m[1], 16);

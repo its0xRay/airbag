@@ -41,13 +41,23 @@ export class PythEquityAdapter {
   ) {}
 
   /** Underlying stock benchmark from the Jupiter xStocks payload. */
-  private async jupiterBenchmark(): Promise<number | null> {
+  private async jupiterBenchmark(): Promise<{ price: number; sourceTs: number; slot: bigint } | null> {
     try {
       const r = await fetch(`${this.jupApi}?ids=${this.jupMint}`);
       if (!r.ok) return null;
-      const j = (await r.json()) as Record<string, { stockData?: { price?: number } }>;
-      const px = j[this.jupMint]?.stockData?.price;
-      return typeof px === "number" && px > 0 ? px : null;
+      const j = (await r.json()) as Record<string, {
+        blockId?: number;
+        stockData?: { price?: number; updatedAt?: string };
+      }>;
+      const row = j[this.jupMint];
+      const px = row?.stockData?.price;
+      const sourceTs = row?.stockData?.updatedAt
+        ? Math.floor(new Date(row.stockData.updatedAt).getTime() / 1000)
+        : 0;
+      const blockId = row?.blockId;
+      if (typeof px !== "number" || px <= 0 || !Number.isFinite(sourceTs) || sourceTs <= 0
+        || typeof blockId !== "number" || !Number.isSafeInteger(blockId) || blockId <= 0) return null;
+      return { price: px, sourceTs, slot: BigInt(blockId) };
     } catch {
       return null;
     }
@@ -67,18 +77,8 @@ export class PythEquityAdapter {
     try {
       const session = await this.marketOpen();
       if (!session.open) {
-        // Out of session there is no fresh print. Rather than substitute a
-        // synthetic number (§22), use the real last print Jupiter reports and
-        // say so — a real contract would wait for a supported session (§9.1).
-        const last = await this.jupiterBenchmark();
-        const ts = nowSec();
-        if (last !== null) {
-          return {
-            price: toFixed(last), sourceTs: ts, slot: BigInt(ts), available: true,
-            sourceId: `jupiter-stockdata:${this.symbol} (session closed — last print)`,
-            verification: "jupiter-xstocks-stockdata",
-          };
-        }
+        // No qualifying observation exists while the supported equity session
+        // is closed. Never re-stamp a last print as if it occurred now.
         return { ...base, reason: `stock session closed (next open ${session.nextOpen ?? "?"})` };
       }
       // 1) Preferred: Pyth Hermes (canonical oracle). Public Hermes now
@@ -100,9 +100,8 @@ export class PythEquityAdapter {
       //    for the xStock. Disclosed as a distinct source, not synthetic.
       const jup = await this.jupiterBenchmark();
       if (jup !== null) {
-        const ts = nowSec();
         return {
-          price: toFixed(jup), sourceTs: ts, slot: BigInt(ts), available: true,
+          price: toFixed(jup.price), sourceTs: jup.sourceTs, slot: jup.slot, available: true,
           sourceId: `jupiter-stockdata:${this.symbol}`, verification: "jupiter-xstocks-stockdata",
         };
       }
@@ -121,6 +120,7 @@ export class JupiterPreStocksAdapter {
     // Real Anthropic PreStocks mint (verified Token-2022, live Jupiter coverage).
     private mint = process.env.JUP_TOKEN_MINT || "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
     private api = process.env.JUP_PRICE_API || "https://lite-api.jup.ag/price/v3",
+    private sampleDelayMs = 1500,
   ) {}
 
   private async sample(): Promise<{ price: bigint; slot: bigint } | null> {
@@ -128,29 +128,25 @@ export class JupiterPreStocksAdapter {
     if (!r.ok) return null;
     const j = (await r.json()) as Record<string, { usdPrice?: number; blockId?: number }>;
     const row = j[this.mint];
-    if (!row?.usdPrice) return null;
-    return { price: toFixed(row.usdPrice), slot: BigInt(row.blockId ?? Date.now()) };
+    if (!row?.usdPrice || typeof row.blockId !== "number" || !Number.isSafeInteger(row.blockId) || row.blockId <= 0) return null;
+    return { price: toFixed(row.usdPrice), slot: BigInt(row.blockId) };
   }
 
   /** Collect `count` qualifying samples for the median window (PRD §9.2). */
   async observe(count = 3): Promise<RefObservation[]> {
     const out: RefObservation[] = [];
     let lastSlot = 0n;
-    for (let i = 0; i < count; i++) {
+    const maxAttempts = Math.max(count * 5, count);
+    for (let attempt = 0; attempt < maxAttempts && out.length < count; attempt++) {
       const ts = nowSec();
       try {
         const s = await this.sample();
-        if (!s) { out.push({ price: 0n, sourceTs: ts, slot: 0n, available: false, reason: "jupiter no price", sourceId: `jupiter:${this.mint.slice(0, 6)}`, verification: "jupiter-price-v3" }); }
-        else {
-          // ensure strictly increasing slots across the set (PRD §9.2/§9.3)
-          const slot = s.slot > lastSlot ? s.slot : lastSlot + 1n;
-          lastSlot = slot;
-          out.push({ price: s.price, sourceTs: ts, slot, available: true, sourceId: `jupiter:${this.mint.slice(0, 6)}`, verification: "jupiter-price-v3" });
+        if (s && s.slot > lastSlot) {
+          lastSlot = s.slot;
+          out.push({ price: s.price, sourceTs: ts, slot: s.slot, available: true, sourceId: `jupiter:${this.mint.slice(0, 6)}`, verification: "jupiter-price-v3" });
         }
-      } catch (e) {
-        out.push({ price: 0n, sourceTs: ts, slot: 0n, available: false, reason: (e as Error).message, sourceId: `jupiter:${this.mint.slice(0, 6)}`, verification: "jupiter-price-v3" });
-      }
-      if (i < count - 1) await sleep(1500);
+      } catch { /* retry within the bounded sampling window */ }
+      if (out.length < count && attempt < maxAttempts - 1) await sleep(this.sampleDelayMs);
     }
     return out;
   }
