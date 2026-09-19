@@ -7,6 +7,11 @@
  * engine unit tests prove the arithmetic; this proves the deployed program
  * enforces the rules on a real cluster. Each case asserts the *specific*
  * program error code, so a rejection for the wrong reason still fails.
+ *
+ * IMPORTANT: stop the keeper first (`pkill -f server/keeper`). It settles
+ * pending requests within seconds, which races the settlement cases here and
+ * produces spurious RequestNotPending failures. The suite also competes with
+ * the keeper for the devnet rate limit.
  */
 
 import {

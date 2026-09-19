@@ -55,6 +55,9 @@ npm run build      # production build
 ```bash
 # Attack the DEPLOYED program and assert every rejection code (PRD §22).
 # 30/30 passing against public devnet.
+# Stop the keeper first — it settles pending requests within seconds and would
+# race the settlement cases.
+pkill -f server/keeper
 RPC_URL=https://api.devnet.solana.com npm run test:adversarial
 
 # Re-publish the weekly series / top up pools (idempotent).
