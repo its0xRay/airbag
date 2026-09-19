@@ -219,12 +219,27 @@ export class OptketClient {
     return Ed25519Program.createInstructionWithPublicKey({ publicKey: q.quoteAuthority.toBytes(), message: q.message, signature: q.signature });
   }
 
-  /** Build a full purchase transaction (ed25519 verify + purchase). */
-  purchaseTx(buyer: PublicKey, assetId: number, seriesId: number, demoMint: PublicKey, q: SignedQuoteInput): Transaction {
-    return new Transaction().add(this.ed25519Ix(q), this.purchaseIx(buyer, assetId, seriesId, demoMint, q, 0));
+  /**
+   * Build a full purchase transaction (ed25519 verify + purchase).
+   * `prefixIxs` run first (e.g. a sponsor's rent transfer); the ed25519
+   * instruction index passed to the program is offset to match, since the
+   * program locates the signature by absolute index in the transaction.
+   */
+  purchaseTx(
+    buyer: PublicKey, assetId: number, seriesId: number, demoMint: PublicKey,
+    q: SignedQuoteInput, prefixIxs: TransactionInstruction[] = [],
+  ): Transaction {
+    const edIndex = prefixIxs.length;
+    return new Transaction().add(
+      ...prefixIxs,
+      this.ed25519Ix(q),
+      this.purchaseIx(buyer, assetId, seriesId, demoMint, q, edIndex),
+    );
   }
 
-  requestExerciseIx(buyer: PublicKey, contract: PublicKey, assetId: number, nonce: number, quantity: bigint): TransactionInstruction {
+  /** `payer` funds the request account's rent; it defaults to the buyer but can
+   *  be a sponsor (the program takes it as a separate signer). */
+  requestExerciseIx(buyer: PublicKey, contract: PublicKey, assetId: number, nonce: number, quantity: bigint, payer: PublicKey = buyer): TransactionInstruction {
     return new TransactionInstruction({
       programId: this.programId,
       keys: [
@@ -233,7 +248,7 @@ export class OptketClient {
         { pubkey: pdas.asset(assetId), isSigner: false, isWritable: false },
         { pubkey: pdas.pool(assetId), isSigner: false, isWritable: true },
         { pubkey: pdas.request(contract, nonce), isSigner: false, isWritable: true },
-        { pubkey: buyer, isSigner: true, isWritable: true },
+        { pubkey: payer, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

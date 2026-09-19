@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import {
-  Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction,
+  Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { Buffer } from "buffer";
 import {
   OptketClient, associatedTokenAddress,
   type ContractAcct, type PoolAcct, type SeriesAcct,
@@ -23,6 +25,55 @@ export function explorerUrl(kind: "tx" | "address", id: string): string {
 
 const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const seriesKey = (a: number, s: number) => `${a}:${s}`;
+
+/**
+ * Send a transaction with the trial budget as fee payer (PRD §19), so a user
+ * never needs SOL. `rentLamports` is an exact top-up for any account the
+ * instruction creates — the service caps it and refuses anything that isn't a
+ * transfer to this buyer. Falls back to self-paying if sponsorship is refused.
+ */
+async function sendSponsored(
+  conn: Connection,
+  svcUrl: string,
+  /** Rebuilt per attempt: receives the rent-funding prefix (empty when
+   *  self-paying) and who pays account rent, because instruction indexes and
+   *  the rent payer are both baked into the instruction data. */
+  build: (prefix: TransactionInstruction[], rentPayer: PublicKey) => Transaction,
+  burner: Keypair,
+  sponsor: PublicKey | null,
+  rentLamports = 0,
+): Promise<string> {
+  if (sponsor) {
+    try {
+      const prefix = rentLamports > 0
+        ? [SystemProgram.transfer({ fromPubkey: sponsor, toPubkey: burner.publicKey, lamports: rentLamports })]
+        : [];
+      const tx = build(prefix, sponsor);
+      tx.feePayer = sponsor;
+      tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+      const unsigned = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64");
+      const r = await fetch(`${svcUrl}/sponsor`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tx: unsigned, buyer: burner.publicKey.toBase58() }),
+      });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      const signed = Transaction.from(Buffer.from(j.tx, "base64"));
+      signed.partialSign(burner);
+      return await conn.sendRawTransaction(signed.serialize(), { preflightCommitment: "confirmed" })
+        .then(async (sig) => { await conn.confirmTransaction(sig, "confirmed"); return sig; });
+    } catch (e) {
+      // Sponsorship unavailable (cap reached, service down) — fall through and
+      // let the burner pay from its own trial grant if it has one.
+      console.warn("[sponsorship unavailable]", (e as Error).message);
+    }
+  }
+  const self = build([], burner.publicKey);
+  self.feePayer = burner.publicKey;
+  self.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+  return sendAndConfirmTransaction(conn, self, [burner], { commitment: "confirmed" });
+}
 
 function loadBurner(): Keypair {
   const saved = localStorage.getItem(BURNER_KEY);
@@ -47,6 +98,8 @@ interface ChainState {
   error: string | null;
   demoMint: PublicKey | null;
   quoteAuthority: string | null;
+  /** Trial-budget wallet that co-signs as fee payer (§19). */
+  sponsor: PublicKey | null;
   pools: Record<number, PoolAcct | null>;
   series: Record<string, SeriesAcct | null>;
   contracts: ContractAcct[];
@@ -77,6 +130,7 @@ export const useChain = create<ChainState>((set, get) => ({
   error: null,
   demoMint: null,
   quoteAuthority: null,
+  sponsor: null,
   pools: {},
   series: {},
   contracts: [],
@@ -91,12 +145,19 @@ export const useChain = create<ChainState>((set, get) => ({
       const burner = loadBurner();
       const cfg = await (await fetch(`${get().svcUrl}/config`)).json();
       const demoMint = new PublicKey(cfg.demoMint);
-      set({ status: "funding burner from faucet…" });
+      // Fees and account rent are sponsored (§19), so the burner needs no SOL —
+      // the faucet only mints the demo tokens used to pay premiums.
+      set({ status: "claiming demo tokens…" });
       await fetch(`${get().svcUrl}/faucet`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: burner.publicKey.toBase58() }),
       });
-      set({ burner, address: burner.publicKey.toBase58(), connected: true, demoMint, quoteAuthority: cfg.quoteAuthority });
+      const trial = await (await fetch(`${get().svcUrl}/trial/status`)).json().catch(() => null);
+      set({
+        burner, address: burner.publicKey.toBase58(), connected: true, demoMint,
+        quoteAuthority: cfg.quoteAuthority,
+        sponsor: trial?.budgetWallet ? new PublicKey(trial.budgetWallet) : null,
+      });
       await get().refresh();
       set({ status: "" });
     } catch (e) {
@@ -133,7 +194,7 @@ export const useChain = create<ChainState>((set, get) => ({
   },
 
   buy: async (assetId, seriesId, quantityUnits) => {
-    const { client, conn, burner, demoMint, svcUrl } = get();
+    const { client, conn, burner, demoMint, svcUrl, sponsor } = get();
     if (!burner || !demoMint) throw new Error("not connected");
     set({ busy: true, error: null, status: "requesting signed quote…" });
     try {
@@ -144,13 +205,19 @@ export const useChain = create<ChainState>((set, get) => ({
       })).json();
       if (resp.error) throw new Error(resp.error);
       set({ status: `signing & sending purchase (premium ${resp.premiumTokens} oUSD)…` });
-      const tx = client.purchaseTx(burner.publicKey, assetId, seriesId, demoMint, {
+      const signedQuote = {
         message: b64ToBytes(resp.message),
         signature: b64ToBytes(resp.signature),
         quoteAuthority: new PublicKey(resp.quoteAuthority),
         quoteId: BigInt(resp.quote.quoteId),
-      });
-      const sig = await sendAndConfirmTransaction(conn, tx, [burner], { commitment: "confirmed" });
+      };
+      // purchase creates the contract + quote-marker PDAs, whose rent the
+      // program charges to the buyer — so the sponsor tops that up exactly.
+      const sig = await sendSponsored(
+        conn, svcUrl,
+        (prefix) => client.purchaseTx(burner.publicKey, assetId, seriesId, demoMint, signedQuote, prefix),
+        burner, sponsor, 6_000_000,
+      );
       await get().refresh();
       set({ status: "", lastTx: sig });
     } catch (e) {
@@ -162,13 +229,20 @@ export const useChain = create<ChainState>((set, get) => ({
   },
 
   requestExercise: async (contractAddr, assetId, nonce, quantityUnits) => {
-    const { client, conn, burner } = get();
+    const { client, conn, burner, svcUrl, sponsor } = get();
     if (!burner) throw new Error("not connected");
     set({ busy: true, error: null, status: "submitting exercise request…" });
     try {
       const quantity = BigInt(Math.round(quantityUnits * 1e6));
-      const ix = client.requestExerciseIx(burner.publicKey, new PublicKey(contractAddr), assetId, nonce, quantity);
-      const sig = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [burner], { commitment: "confirmed" });
+      // the program takes a separate rent payer here, so the sponsor pays directly
+      const sig = await sendSponsored(
+        conn, svcUrl,
+        (prefix, rentPayer) => new Transaction().add(
+          ...prefix,
+          client.requestExerciseIx(burner.publicKey, new PublicKey(contractAddr), assetId, nonce, quantity, rentPayer),
+        ),
+        burner, sponsor, 0,
+      );
       await get().refresh();
       set({ status: "", lastTx: sig });
     } catch (e) {

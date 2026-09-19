@@ -75,6 +75,45 @@ export class TrialBudget {
     };
   }
 
+  /**
+   * Authorize an exact-sized sponsorship spend (fee + rent subsidy) without
+   * transferring — the transfer rides inside the sponsored transaction.
+   * Applies the same hard cap, per-wallet ceiling and rate limit as a grant,
+   * but no cooldown: a user legitimately signs several transactions in a row.
+   */
+  authorizeSponsorship(address: string, lamports: number): { ok: boolean; reason?: string; remainingSol: number } {
+    const remaining = () => Math.max(0, this.cfg.capSol - this.spentLamports / LAMPORTS_PER_SOL);
+    if (!this.active) return { ok: false, reason: "trial budget closed (cap reached)", remainingSol: remaining() };
+
+    const now = Date.now();
+    if (this.spentLamports + lamports > this.cfg.capSol * LAMPORTS_PER_SOL) {
+      this.active = false;
+      return { ok: false, reason: "trial budget cap reached — sponsorship disabled", remainingSol: remaining() };
+    }
+    this.grantTimestamps = this.grantTimestamps.filter((t) => now - t < this.cfg.rateWindowMs);
+    if (this.grantTimestamps.length >= this.cfg.rateMax) {
+      return { ok: false, reason: "rate limit — try again shortly", remainingSol: remaining() };
+    }
+    const w = this.wallets.get(address) || { spentLamports: 0, count: 0, lastTs: 0 };
+    if (w.spentLamports + lamports > this.cfg.perWalletMaxSol * LAMPORTS_PER_SOL) {
+      return { ok: false, reason: "per-wallet trial limit reached", remainingSol: remaining() };
+    }
+
+    this.spentLamports += lamports;
+    w.spentLamports += lamports; w.count += 1; w.lastTs = now;
+    this.wallets.set(address, w);
+    this.grantTimestamps.push(now);
+    this.log.push({ ts: now, wallet: address, lamports });
+    if (this.spentLamports >= this.cfg.capSol * LAMPORTS_PER_SOL) this.active = false;
+    return { ok: true, remainingSol: remaining() };
+  }
+
+  /** Sign a transaction as fee payer. Callers MUST validate the tx first. */
+  signAsFeePayer<T extends { partialSign: (kp: Keypair) => void }>(tx: T): T {
+    tx.partialSign(this.budget);
+    return tx;
+  }
+
   async grant(address: string): Promise<GrantResult> {
     const remaining = () => Math.max(0, this.cfg.capSol - this.spentLamports / LAMPORTS_PER_SOL);
     if (!this.active) return { ok: false, grantedSol: 0, remainingSol: remaining(), reason: "trial budget closed (cap reached)", active: false };

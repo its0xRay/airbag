@@ -15,7 +15,11 @@
 //   POST /faucet           SOL grant (trial budget) + demo tokens
 
 import { createServer, type ServerResponse } from "node:http";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import {
+  Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
+  sendAndConfirmTransaction,
+} from "@solana/web3.js";
+import { createHash } from "node:crypto";
 import { getOrCreateAssociatedTokenAccount, mintTo, getMint } from "@solana/spl-token";
 import nacl from "tweetnacl";
 import { serializeQuotePayload, QUOTE_VALIDITY_SECS } from "../src/engine/quote";
@@ -222,6 +226,128 @@ async function faucet(address: string) {
   return { granted: g.ok, grantedSol: g.grantedSol, sol, remainingSol: g.remainingSol, reason: g.reason, tokens, tokenError };
 }
 
+// ---- short-dated series rotation ----
+// The weekly series follow PRD §7, but a judge shouldn't have to wait a week to
+// see expiry settlement. Keep one short-dated series per asset alive at all
+// times, rolled under a fresh id as each expires. Requires ADMIN_SECRET.
+const SHORT_ID_MIN = 9;
+const SHORT_ID_MAX = 108;
+const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 45);
+const SHORT_STRIKES: Record<number, { strike: number; maxSize: number }> = {
+  0: { strike: 215, maxSize: 100 },
+  1: { strike: 1000, maxSize: 20 },
+};
+const fx = (n: number) => BigInt(Math.round(n * 1e6));
+
+function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSize: number, expiry: number) {
+  const d = createHash("sha256").update("global:create_series").digest().subarray(0, 8);
+  const u16b = (v: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
+  const u64b = (v: bigint) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(v); return b; };
+  const i64b = (v: number) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(v)); return b; };
+  const meta = (pubkey: PublicKey, isSigner: boolean, isWritable: boolean) => ({ pubkey, isSigner, isWritable });
+  const asset = PublicKey.findProgramAddressSync([Buffer.from("asset"), Buffer.from([assetId])], PROGRAM_ID)[0];
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(payer!.publicKey, true, true), meta(CONFIG_PDA, false, false), meta(asset, false, false),
+      meta(seriesPda(assetId, seriesId), false, true), meta(SystemProgram.programId, false, false)],
+    data: Buffer.concat([d, Buffer.from([assetId]), u16b(seriesId), u64b(fx(strike)), i64b(expiry),
+      i64b(expiry - 300), i64b(expiry - 180), u64b(fx(maxSize))]),
+  });
+}
+
+async function rotateShortSeries() {
+  if (!payer) return;
+  try {
+    const t = nowSec();
+    const ids = Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i);
+    // one batch at a time (getMultipleAccounts caps at 100 keys)
+    let liveId: number | null = null;
+    let freeId: number | null = null;
+    for (let i = 0; i < ids.length && liveId === null && freeId === null; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      const infos = await conn.getMultipleAccountsInfo(chunk.map((id) => seriesPda(0, id)));
+      for (let k = 0; k < chunk.length; k++) {
+        const info = infos[k];
+        if (!info) { freeId = chunk[k]; break; }
+        const expiryTs = Number((info.data as Buffer).readBigInt64LE(19));
+        if (expiryTs > t + 240) { liveId = chunk[k]; break; } // still usable
+      }
+    }
+    if (liveId !== null || freeId === null) return;
+    const expiry = t + SHORT_MINUTES * 60;
+    for (const assetId of [0, 1]) {
+      const cfgS = SHORT_STRIKES[assetId];
+      const tx = new Transaction().add(createSeriesIx(assetId, freeId, cfgS.strike, cfgS.maxSize, expiry));
+      await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" });
+    }
+    console.log(`[rotate] published short-dated series id ${freeId} (${SHORT_MINUTES}m) for both assets`);
+  } catch (e) {
+    console.warn("[rotate] failed:", (e as Error).message);
+  }
+}
+
+// ---- fee sponsorship (§19) ----
+// The budget wallet co-signs as fee payer and funds the exact rent a new
+// account needs, so a trial user never has to hold SOL. A co-signer that signs
+// anything is a blank cheque on that wallet, so every instruction is checked
+// against an allowlist and the only sponsor-debiting instruction permitted is a
+// capped System transfer to the buyer itself.
+const ED25519_PROGRAM = "Ed25519SigVerify111111111111111111111111111";
+const COMPUTE_BUDGET = "ComputeBudget111111111111111111111111111111";
+const SYSTEM_PROGRAM = SystemProgram.programId.toBase58();
+const MAX_SPONSOR_RENT_LAMPORTS = Number(process.env.MAX_SPONSOR_RENT_LAMPORTS || 12_000_000); // 0.012 SOL
+const SPONSOR_FEE_ALLOWANCE = 20_000; // generous per-tx fee headroom, for accounting
+
+function sponsorReject(reason: string): never {
+  throw new Error(`sponsorship refused: ${reason}`);
+}
+
+async function sponsor(txBase64: string, buyer: string) {
+  const buyerKey = new PublicKey(buyer);
+  const tx = Transaction.from(Buffer.from(txBase64, "base64"));
+
+  // 1) we must be the fee payer, and nothing else
+  if (!tx.feePayer?.equals(trialBudget.address)) sponsorReject("fee payer is not the sponsor");
+
+  // 2) the buyer must actually be signing this transaction
+  const buyerSigns = tx.signatures.some((s) => s.publicKey.equals(buyerKey));
+  if (!buyerSigns) sponsorReject("buyer is not a signer of this transaction");
+
+  // 3) every instruction must be on the allowlist
+  let subsidy = 0;
+  let touchesOptket = false;
+  for (const ix of tx.instructions) {
+    const pid = ix.programId.toBase58();
+    if (pid === PROGRAM_ID.toBase58()) { touchesOptket = true; continue; }
+    if (pid === ED25519_PROGRAM || pid === COMPUTE_BUDGET) continue;
+    if (pid === SYSTEM_PROGRAM) {
+      // only a transfer from the sponsor to the buyer, to cover account rent
+      const isTransfer = ix.data.length === 12 && ix.data.readUInt32LE(0) === 2;
+      if (!isTransfer) sponsorReject("only System transfers are allowed");
+      const from = ix.keys[0]?.pubkey, to = ix.keys[1]?.pubkey;
+      if (!from?.equals(trialBudget.address)) sponsorReject("transfer must originate from the sponsor");
+      if (!to?.equals(buyerKey)) sponsorReject("transfer must be to the buyer");
+      subsidy += Number(ix.data.readBigUInt64LE(4));
+      continue;
+    }
+    sponsorReject(`disallowed program ${pid}`);
+  }
+  if (!touchesOptket) sponsorReject("transaction does not call the Optket program");
+  if (subsidy > MAX_SPONSOR_RENT_LAMPORTS) sponsorReject("rent subsidy above the per-request cap");
+
+  // 4) budget controls (hard cap, per-wallet ceiling, rate limit)
+  const auth = trialBudget.authorizeSponsorship(buyer, subsidy + SPONSOR_FEE_ALLOWANCE);
+  if (!auth.ok) sponsorReject(auth.reason || "not authorized");
+
+  trialBudget.signAsFeePayer(tx);
+  return {
+    tx: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
+    sponsor: trialBudget.address.toBase58(),
+    subsidyLamports: subsidy,
+    remainingSol: auth.remainingSol,
+  };
+}
+
 // ---- http plumbing ----
 function json(res: ServerResponse, code: number, body: unknown) {
   res.writeHead(code, {
@@ -273,6 +399,31 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ...s, strike: s.strike.toString(), maxContractSize: s.maxContractSize.toString() });
     }
     if (req.method === "GET" && url.pathname === "/trial/status") return json(res, 200, await trialBudget.status());
+    if (req.method === "POST" && url.pathname === "/sponsor") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { tx, buyer } = JSON.parse(body || "{}");
+      if (!tx || !buyer) return json(res, 400, { error: "tx and buyer required" });
+      return json(res, 200, await sponsor(String(tx), String(buyer)));
+    }
+    /** Every live series across both assets in ONE rpc call, including the
+     *  short-dated demo ids, so the UI can discover what's purchasable. */
+    if (req.method === "GET" && url.pathname === "/series/all") {
+      const ids: Array<{ assetId: number; seriesId: number }> = [];
+      for (const assetId of [0, 1]) for (const seriesId of [0, 1, ...Array.from({ length: 30 }, (_, i) => SHORT_ID_MIN + i)]) ids.push({ assetId, seriesId });
+      const infos = await conn.getMultipleAccountsInfo(ids.map((k) => seriesPda(k.assetId, k.seriesId)));
+      const now = nowSec();
+      const out = infos
+        .map((info, i) => (info ? { ...decodeSeries(info.data as Buffer), ...ids[i] } : null))
+        .filter((s): s is SeriesTerms & { assetId: number; seriesId: number } => !!s && s.active && s.expiryTs > now)
+        .map((s) => ({
+          ...s,
+          strike: s.strike.toString(),
+          maxContractSize: s.maxContractSize.toString(),
+          shortDated: s.seriesId >= SHORT_ID_MIN,
+        }));
+      return json(res, 200, out);
+    }
     if (req.method === "POST" && url.pathname === "/faucet") {
       let body = "";
       for await (const chunk of req) body += chunk;
@@ -312,4 +463,7 @@ server.listen(PORT, async () => {
   } catch (e) {
     console.warn("  trial budget status unavailable:", (e as Error).message);
   }
+  // keep an expiry demo permanently available
+  await rotateShortSeries();
+  setInterval(rotateShortSeries, 120_000);
 });

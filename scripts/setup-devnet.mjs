@@ -34,6 +34,20 @@ const SERIES_PLAN = [
   [1, 0, 1000, 20], // ANTHROPIC — token market ~$1020
   [1, 1, 950, 20],
 ];
+
+/**
+ * Short-dated demo series (series id 9). The weekly series above follow PRD §7;
+ * these exist so the *expiry* and demo-refund paths can be demonstrated in one
+ * sitting instead of waiting a week. They are relabelled "demo (short-dated)"
+ * everywhere in the UI. Re-run this script to roll fresh ones — the PDA is
+ * derived from the series id, so an expired one must be rolled under a new id.
+ */
+const SHORT_SERIES_ID = 9;
+const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 20);
+const SHORT_PLAN = [
+  [0, 215, 100],
+  [1, 1000, 20],
+];
 const POOL_FUNDING_TOKENS = 2_000_000; // per asset, demo oUSD
 const AGGREGATE_EXPOSURE_TOKENS = 5_000_000;
 const PUBLISHER_SOL = 0.3; // keeper fee wallet
@@ -160,6 +174,38 @@ async function main() {
       keys: [meta(admin.publicKey, true, true), meta(config, false, false), meta(asset, false, false), meta(series, false, true), meta(SystemProgram.programId, false, false)],
       data: Buffer.concat([disc("create_series"), Buffer.from([assetId]), sid, u64(fx(strike)), i64(expiry), i64(expiry - 900), i64(expiry - 300), u64(fx(maxSize))]),
     })]);
+  }
+
+  // 4b) short-dated demo series, rolled under a fresh id once the last expired
+  {
+    const t = Math.floor(Date.now() / 1000);
+    let liveId = null;
+    let freeId = null;
+    for (let id = SHORT_SERIES_ID; id < SHORT_SERIES_ID + 40; id++) {
+      const info = await conn.getAccountInfo(pda([S("series"), Buffer.from([0]), u16(id)]));
+      if (!info) { freeId = id; break; }
+      const expiryTs = Number(info.data.readBigInt64LE(19)); // disc8+asset1+series2+strike8
+      if (expiryTs > t + 180) { liveId = id; break; }        // still usable
+    }
+    if (liveId !== null) {
+      console.log(`  short-dated series ${liveId} still live — skipping`);
+    } else if (freeId !== null) {
+      const expiry = t + SHORT_MINUTES * 60;
+      for (const [assetId, strike, maxSize] of SHORT_PLAN) {
+        const series = pda([S("series"), Buffer.from([assetId]), u16(freeId)]);
+        const asset = pda([S("asset"), Buffer.from([assetId])]);
+        await send(`create short-dated series ${assetId}:${freeId} strike $${strike} (${SHORT_MINUTES}m)`, [new TransactionInstruction({
+          programId: PROGRAM_ID,
+          keys: [meta(admin.publicKey, true, true), meta(config, false, false), meta(asset, false, false), meta(series, false, true), meta(SystemProgram.programId, false, false)],
+          // purchase cutoff 5m before expiry, exercise cutoff 3m before
+          data: Buffer.concat([disc("create_series"), Buffer.from([assetId]), u16(freeId), u64(fx(strike)), i64(expiry), i64(expiry - 300), i64(expiry - 180), u64(fx(maxSize))]),
+        })]);
+      }
+      state.shortSeriesId = freeId;
+      saveState();
+    } else {
+      console.log("  ⚠ no free short-dated series id in range — widen SHORT_SERIES_ID window");
+    }
   }
 
   // 5) mint demo tokens to admin + fund both pools
