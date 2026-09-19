@@ -17,6 +17,13 @@ pub struct Purchase<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
 
+    /// Funds rent for the contract and quote-marker accounts. Usually the buyer,
+    /// but kept separate so a fee sponsor can cover it and a trial user needs no
+    /// SOL at all (PRD §19). It pays rent only — never the premium, which always
+    /// moves from the buyer's own token account.
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
     #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
     pub config: Account<'info, Config>,
 
@@ -56,7 +63,7 @@ pub struct Purchase<'info> {
     /// Replay guard: `init` fails if this quote_id was already used (PRD §8.2).
     #[account(
         init,
-        payer = buyer,
+        payer = payer,
         space = 8 + QuoteMarker::INIT_SPACE,
         seeds = [QUOTE_SEED, &quote.quote_id.to_le_bytes()],
         bump
@@ -65,7 +72,7 @@ pub struct Purchase<'info> {
 
     #[account(
         init,
-        payer = buyer,
+        payer = payer,
         space = 8 + Contract::INIT_SPACE,
         seeds = [CONTRACT_SEED, &quote.quote_id.to_le_bytes()],
         bump

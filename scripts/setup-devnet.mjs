@@ -48,6 +48,11 @@ const SHORT_PLAN = [
   [0, 215, 100],
   [1, 1000, 20],
 ];
+// Real mainnet identities recorded on-chain (reference only — never escrowed).
+const REAL_ASSET_MINTS = {
+  0: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh", // NVDAx (NVIDIA xStock)
+  1: "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw", // Anthropic PreStocks
+};
 const POOL_FUNDING_TOKENS = 2_000_000; // per asset, demo oUSD
 const AGGREGATE_EXPOSURE_TOKENS = 5_000_000;
 const PUBLISHER_SOL = 0.3; // keeper fee wallet
@@ -142,8 +147,21 @@ async function main() {
   // 3) assets + pools (asset 0 = EquityToken variant 0, asset 1 = PreStocks variant 1)
   for (const [assetId, kindVariant] of [[0, 0], [1, 1]]) {
     const asset = pda([S("asset"), Buffer.from([assetId])]);
+    const realMint = new PublicKey(REAL_ASSET_MINTS[assetId]);
     if (await exists(asset)) {
-      console.log(`  asset ${assetId} exists`);
+      // Correct the recorded identity if it predates the real-mint change.
+      const info = await conn.getAccountInfo(asset);
+      const recorded = new PublicKey(info.data.subarray(10, 42)); // disc8 + asset_id1 + kind1
+      if (!recorded.equals(realMint)) {
+        await send(`set_asset_metadata ${assetId} -> ${realMint.toBase58().slice(0, 8)}…`, [new TransactionInstruction({
+          programId: PROGRAM_ID,
+          keys: [meta(admin.publicKey, true, false), meta(config, false, false), meta(asset, false, true)],
+          data: Buffer.concat([disc("set_asset_metadata"), Buffer.from([assetId]),
+            Buffer.from([1]), realMint.toBuffer(), Buffer.from([0]), Buffer.from([0])]),
+        })]);
+      } else {
+        console.log(`  asset ${assetId} exists (mint ${realMint.toBase58().slice(0, 8)}…)`);
+      }
       continue;
     }
     const pool = pda([S("pool"), Buffer.from([assetId])]);
@@ -153,9 +171,9 @@ async function main() {
       keys: [
         meta(admin.publicKey, true, true), meta(config, false, false), meta(asset, false, true),
         meta(pool, false, true), meta(vault, false, true), meta(demoMint, false, false),
-        meta(demoMint, false, false), meta(TOKEN_PROGRAM_ID, false, false), meta(SystemProgram.programId, false, false),
+        meta(TOKEN_PROGRAM_ID, false, false), meta(SystemProgram.programId, false, false),
       ],
-      data: Buffer.concat([disc("init_asset"), Buffer.from([assetId]), Buffer.from([kindVariant]), u32(1), u32(1), u64(fx(AGGREGATE_EXPOSURE_TOKENS)), Buffer.from([1])]),
+      data: Buffer.concat([disc("init_asset"), Buffer.from([assetId]), Buffer.from([kindVariant]), realMint.toBuffer(), u32(1), u32(1), u64(fx(AGGREGATE_EXPOSURE_TOKENS)), Buffer.from([1])]),
     })]);
   }
 

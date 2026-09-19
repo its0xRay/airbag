@@ -192,11 +192,17 @@ export class OptketClient {
   }
 
   // ----- instruction builders -----
-  purchaseIx(buyer: PublicKey, assetId: number, seriesId: number, demoMint: PublicKey, q: SignedQuoteInput, edIxIndex = 0): TransactionInstruction {
+  /** `payer` funds the contract + quote-marker rent; defaults to the buyer, but
+   *  a sponsor can cover it so a trial user needs no SOL (§19). */
+  purchaseIx(
+    buyer: PublicKey, assetId: number, seriesId: number, demoMint: PublicKey,
+    q: SignedQuoteInput, edIxIndex = 0, payer: PublicKey = buyer,
+  ): TransactionInstruction {
     return new TransactionInstruction({
       programId: this.programId,
       keys: [
         { pubkey: buyer, isSigner: true, isWritable: true },
+        { pubkey: payer, isSigner: true, isWritable: true },
         { pubkey: pdas.config(), isSigner: false, isWritable: true },
         { pubkey: pdas.asset(assetId), isSigner: false, isWritable: true },
         { pubkey: pdas.series(assetId, seriesId), isSigner: false, isWritable: false },
@@ -227,13 +233,13 @@ export class OptketClient {
    */
   purchaseTx(
     buyer: PublicKey, assetId: number, seriesId: number, demoMint: PublicKey,
-    q: SignedQuoteInput, prefixIxs: TransactionInstruction[] = [],
+    q: SignedQuoteInput, prefixIxs: TransactionInstruction[] = [], payer: PublicKey = buyer,
   ): Transaction {
     const edIndex = prefixIxs.length;
     return new Transaction().add(
       ...prefixIxs,
       this.ed25519Ix(q),
-      this.purchaseIx(buyer, assetId, seriesId, demoMint, q, edIndex),
+      this.purchaseIx(buyer, assetId, seriesId, demoMint, q, edIndex, payer),
     );
   }
 

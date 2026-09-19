@@ -145,7 +145,7 @@ function buildPurchase(opts: {
   buyer: PublicKey; buyerToken: PublicKey; demoMint: PublicKey;
   edMessage: Uint8Array; edSignature: Uint8Array; edAuthority: PublicKey;
   ixMessage: Uint8Array; quoteId: bigint; assetId?: number; seriesId?: number;
-  omitEd25519?: boolean;
+  omitEd25519?: boolean; payer?: PublicKey;
 }): Transaction {
   const assetId = opts.assetId ?? 0;
   const seriesId = opts.seriesId ?? 0;
@@ -153,7 +153,8 @@ function buildPurchase(opts: {
   const ix = new TransactionInstruction({
     programId: OPTKET_PROGRAM_ID,
     keys: [
-      meta(opts.buyer, true, true), meta(pdas.config(), false, true), meta(pdas.asset(assetId), false, true),
+      meta(opts.buyer, true, true), meta(opts.payer ?? opts.buyer, true, true),
+      meta(pdas.config(), false, true), meta(pdas.asset(assetId), false, true),
       meta(pdas.series(assetId, seriesId), false, false), meta(pdas.pool(assetId), false, true),
       meta(pdas.vault(assetId), false, true), meta(opts.buyerToken, false, true), meta(opts.demoMint, false, false),
       meta(pdas.quoteMarker(opts.quoteId), false, true), meta(pdas.contract(opts.quoteId), false, true),

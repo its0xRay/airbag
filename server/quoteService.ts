@@ -297,6 +297,9 @@ const COMPUTE_BUDGET = "ComputeBudget111111111111111111111111111111";
 const SYSTEM_PROGRAM = SystemProgram.programId.toBase58();
 const MAX_SPONSOR_RENT_LAMPORTS = Number(process.env.MAX_SPONSOR_RENT_LAMPORTS || 12_000_000); // 0.012 SOL
 const SPONSOR_FEE_ALLOWANCE = 20_000; // generous per-tx fee headroom, for accounting
+// Conservative rent estimate charged against the budget when the sponsor is the
+// rent payer inside an Optket instruction (contract + quote-marker ≈ 0.0037 SOL).
+const ACCOUNT_RENT_ESTIMATE_LAMPORTS = 5_000_000;
 
 function sponsorReject(reason: string): never {
   throw new Error(`sponsorship refused: ${reason}`);
@@ -318,7 +321,15 @@ async function sponsor(txBase64: string, buyer: string) {
   let touchesOptket = false;
   for (const ix of tx.instructions) {
     const pid = ix.programId.toBase58();
-    if (pid === PROGRAM_ID.toBase58()) { touchesOptket = true; continue; }
+    if (pid === PROGRAM_ID.toBase58()) {
+      touchesOptket = true;
+      // The sponsor can be named as the rent payer inside the instruction, so
+      // account for that outflow too — otherwise rent would escape the cap.
+      if (ix.keys.some((k) => k.pubkey.equals(trialBudget.address) && k.isWritable)) {
+        subsidy += ACCOUNT_RENT_ESTIMATE_LAMPORTS;
+      }
+      continue;
+    }
     if (pid === ED25519_PROGRAM || pid === COMPUTE_BUDGET) continue;
     if (pid === SYSTEM_PROGRAM) {
       // only a transfer from the sponsor to the buyer, to cover account rent

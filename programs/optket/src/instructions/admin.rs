@@ -132,17 +132,21 @@ pub struct InitAsset<'info> {
     #[account(address = config.demo_mint @ OptketError::WrongMint)]
     pub demo_mint: InterfaceAccount<'info, Mint>,
 
-    /// Underlying asset mint — recorded only, never escrowed.
-    pub asset_mint: InterfaceAccount<'info, Mint>,
-
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
+/// `asset_mint` is a plain argument, not an account: it identifies the real
+/// underlying token (e.g. an xStock on mainnet) and is recorded for reference
+/// only — the program never reads or escrows it. Requiring it as an account
+/// would force the asset to exist on whatever cluster this runs on, which is
+/// why a devnet deployment could not name its real mainnet mint (PRD §4.1).
+#[allow(clippy::too_many_arguments)]
 pub fn init_asset(
     ctx: Context<InitAsset>,
     asset_id: u8,
     kind: AssetKind,
+    asset_mint: Pubkey,
     reference_version: u32,
     conversion_version: u32,
     max_aggregate_exposure: u64,
@@ -151,7 +155,7 @@ pub fn init_asset(
     let a = &mut ctx.accounts.asset;
     a.asset_id = asset_id;
     a.kind = kind;
-    a.mint = ctx.accounts.asset_mint.key();
+    a.mint = asset_mint;
     a.reference_version = reference_version;
     a.conversion_version = conversion_version;
     a.max_aggregate_exposure = max_aggregate_exposure;
@@ -192,6 +196,29 @@ pub struct SetAssetActive<'info> {
 
 pub fn set_asset_active(ctx: Context<SetAssetActive>, _asset_id: u8, active: bool) -> Result<()> {
     ctx.accounts.asset.active = active;
+    Ok(())
+}
+
+/// Correct an asset's recorded identity/versions after creation (PRD §4).
+/// Reference-only metadata: it never affects existing contracts, whose terms
+/// are immutable, and never touches collateral.
+pub fn set_asset_metadata(
+    ctx: Context<SetAssetActive>,
+    _asset_id: u8,
+    asset_mint: Option<Pubkey>,
+    reference_version: Option<u32>,
+    conversion_version: Option<u32>,
+) -> Result<()> {
+    let a = &mut ctx.accounts.asset;
+    if let Some(m) = asset_mint {
+        a.mint = m;
+    }
+    if let Some(v) = reference_version {
+        a.reference_version = v;
+    }
+    if let Some(v) = conversion_version {
+        a.conversion_version = v;
+    }
     Ok(())
 }
 

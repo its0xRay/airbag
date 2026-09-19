@@ -85,10 +85,10 @@ describe("optket", () => {
       .rpc();
 
     await program.methods
-      .initAsset(assetId, { equityToken: {} }, 1, 1, price(50_000_000), true)
+      .initAsset(assetId, { equityToken: {} }, demoMint, 1, 1, price(50_000_000), true)
       .accounts({
         admin: admin.publicKey, config: configPda, asset: assetPda, pool: poolPda, vault: vaultPda,
-        demoMint, assetMint: demoMint, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
+        demoMint, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
       })
       .rpc();
 
@@ -145,7 +145,8 @@ describe("optket", () => {
         0, // ed25519 instruction index within the tx
       )
       .accounts({
-        buyer: buyer.publicKey, config: configPda, asset: assetPda, series: seriesPda, pool: poolPda, vault: vaultPda,
+        buyer: buyer.publicKey, payer: buyer.publicKey, config: configPda, asset: assetPda,
+        series: seriesPda, pool: poolPda, vault: vaultPda,
         buyerToken, demoMint, quoteMarker: markerPda, contract: contractPda,
         instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
       })

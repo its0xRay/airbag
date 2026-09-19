@@ -47,14 +47,14 @@ async function main() {
   if (q.error) throw new Error(q.error);
   console.log(`quote premium: ${q.premiumTokens} oUSD (spot ${q.spot} via ${q.spotSource})`);
 
-  // rent prefix must be part of the build so the ed25519 index stays correct
+  // The sponsor is the rent payer directly — no SOL transfer to the burner.
   const tx = client.purchaseTx(
     burner.publicKey, s.assetId, s.seriesId, demoMint,
     {
       message: b64(q.message), signature: b64(q.signature),
       quoteAuthority: new PublicKey(q.quoteAuthority), quoteId: BigInt(q.quote.quoteId),
     },
-    [SystemProgram.transfer({ fromPubkey: sponsor, toPubkey: burner.publicKey, lamports: 6_000_000 })],
+    [], sponsor,
   );
   tx.feePayer = sponsor;
   tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;

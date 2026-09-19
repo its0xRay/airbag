@@ -291,12 +291,14 @@ export const useChain = create<ChainState>((set, get) => ({
         quoteAuthority: new PublicKey(resp.quoteAuthority),
         quoteId: BigInt(resp.quote.quoteId),
       };
-      // purchase creates the contract + quote-marker PDAs, whose rent the
-      // program charges to the buyer — so the sponsor tops that up exactly.
+      // The program takes a separate rent payer, so the sponsor funds the
+      // contract + quote-marker accounts directly — no SOL ever touches the
+      // burner and no top-up transfer is needed.
       const sig = await sendSponsored(
         conn, svcUrl,
-        (prefix) => client.purchaseTx(burner.publicKey, assetId, seriesId, demoMint, signedQuote, prefix),
-        burner, sponsor, 6_000_000,
+        (prefix, rentPayer) =>
+          client.purchaseTx(burner.publicKey, assetId, seriesId, demoMint, signedQuote, prefix, rentPayer),
+        burner, sponsor, 0,
       );
       await get().refresh();
       set({ status: "", lastTx: sig });

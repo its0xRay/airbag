@@ -56,10 +56,12 @@ pub mod optket {
     }
 
     // ---- assets & series (PRD §4, §7) ----
+    #[allow(clippy::too_many_arguments)]
     pub fn init_asset(
         ctx: Context<InitAsset>,
         asset_id: u8,
         kind: AssetKind,
+        asset_mint: Pubkey,
         reference_version: u32,
         conversion_version: u32,
         max_aggregate_exposure: u64,
@@ -69,11 +71,23 @@ pub mod optket {
             ctx,
             asset_id,
             kind,
+            asset_mint,
             reference_version,
             conversion_version,
             max_aggregate_exposure,
             active,
         )
+    }
+
+    /// Correct an asset's recorded identity/versions (reference-only, §4).
+    pub fn set_asset_metadata(
+        ctx: Context<SetAssetActive>,
+        asset_id: u8,
+        asset_mint: Option<Pubkey>,
+        reference_version: Option<u32>,
+        conversion_version: Option<u32>,
+    ) -> Result<()> {
+        instructions::admin::set_asset_metadata(ctx, asset_id, asset_mint, reference_version, conversion_version)
     }
 
     pub fn set_asset_active(ctx: Context<SetAssetActive>, asset_id: u8, active: bool) -> Result<()> {
