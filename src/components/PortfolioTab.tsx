@@ -4,6 +4,7 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import type { ContractAcct } from "../client/optketProgram";
 import { fmtPrice, fmtDuration, fmtClock } from "../format";
 import HoldingsCard from "./HoldingsCard";
+import RemindersPanel from "./RemindersPanel";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 const qty = (v: bigint) => tok(v).toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -17,7 +18,7 @@ const STATUS_TONE: Record<string, string> = {
  * Positions read straight from the program (PRD §13.5) plus the coverage
  * tracker (§16). Every action here is a real transaction.
  */
-export default function PortfolioTab() {
+export default function PortfolioTab({ onRenew }: { onRenew: (assetId: number, quantity: number) => void }) {
   const c = useChain();
   const [assetId, setAssetId] = useState(0);
   const asset = VERIFIED_ASSETS[assetId];
@@ -37,6 +38,7 @@ export default function PortfolioTab() {
 
   return (
     <>
+      <RemindersPanel onRenew={onRenew} />
       <HoldingsCard />
 
       <div className="row" style={{ marginBottom: 16 }}>

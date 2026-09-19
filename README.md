@@ -4,9 +4,11 @@ Two-asset MVP implementing the Optket PRD (v1.0). Optket lets a holder pick an
 asset, protected quantity, strike and expiry, then buy put-style protection
 while keeping their tokens in their wallet.
 
-> **This is a DEMO.** Free demo tokens (`oUSD`), **no redemption promise**.
-> Real-USDC purchases, public underwriting deposits, and live hedge execution
-> are disabled. On-chain collateral is demo-token only (real USDC is rejected).
+> **Devnet deployment.** Collateral, premiums and payouts use `oUSD`, a real SPL
+> token with **no monetary value** — as is true of every devnet asset. The
+> mechanics are not simulated: every transfer, reservation and payout is
+> executed and enforced by the deployed program. Real USDC is rejected by
+> design, and hedging is modelled rather than executed.
 
 **Deployed to devnet** (program `Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky`).
 To host the public app (Vercel + Railway) so anyone can use it, see
@@ -22,17 +24,19 @@ verified xStocks/PreStocks assets.
 | Layer | Path | Status |
 |---|---|---|
 | On-chain program (Anchor/Rust) | `programs/optket` | Complete source; build with the Solana/Anchor toolchain |
-| Protection engine (TypeScript mirror) | `src/engine` | **Runs + 21 passing tests** (`npm test`) |
-| Web app — full protection journey | `src/App.tsx`, `src/store.ts` | **Runs** (`npm run dev`) |
-| On-chain client bridge (ed25519 quotes) | `src/client/anchorQuote.ts` | Seam to a live deployment |
+| Protection engine (TypeScript) | `src/engine` | **Test oracle** for the Rust — 21 passing tests (`npm test`). Not used by the app. |
+| Web app — full protection journey | `src/App.tsx`, `src/components` | **Fully on-chain** (`npm run dev`) |
+| On-chain client | `src/client/optketProgram.ts` | Account decoders + instruction builders used by the app |
+| Quote service + sponsorship | `server/quoteService.ts` | **Runs** (`npm run quote-service`) — signs quotes, pays fees/rent (§19) |
 | Anchor integration test | `tests/optket.ts` | Runs under `anchor test` |
-| Keeper / monitoring stub | `scripts/keeper.ts` | Reference implementation |
+| Keeper (settlement service) | `server/keeper.ts` | **Runs** (`npm run keeper`) — live references, no synthetic fallback |
 
-The **TypeScript engine is a faithful, line-for-line mirror of the on-chain
-program's arithmetic and accounting.** The same reserve/payout/refund math and
-the same lifecycle invariants run in both places, so the web demo behaves
-exactly like the program would, and the vitest suite is an executable
-specification for the §22 acceptance criteria.
+**There is no simulated path.** Every tab reads and writes the deployed program:
+Protect buys on-chain, Portfolio reads real contract accounts, History comes
+from transaction signatures, and Underwriter reads the real pool. The
+TypeScript engine is a faithful mirror of the program's arithmetic kept as the
+**test oracle** — the vitest suite is an executable specification for the §22
+acceptance criteria, not a second implementation of the product.
 
 ---
 
@@ -63,11 +67,12 @@ real-USDC/wrong-mint guard, replay protection, exercise limits and
 no-double-payout, the observation rules (historical, stale, duplicate slots, too
 few, out-of-window), role checks, and pool obligations.
 
-Connect the demo wallet → you get 100,000 `oUSD` and simulated holdings. Then
+Connect the demo wallet → a burner wallet is created in your browser and given
+demo `oUSD`. Fees and account rent are sponsored, so you never need SOL. Then
 walk the journey: **select asset → choose quantity & strike → review scenarios →
-purchase → monitor → request exercise → settle → expire/refund → history.**
-The Portfolio tab lets you act as the keeper/publisher to settle exercises and
-expiries so you can drive the whole lifecycle locally.
+buy on-chain → monitor → request exercise → keeper settles → expire/refund →
+history.** Every step is a real devnet transaction with an explorer link; the
+keeper runs as its own service and settles against live references.
 
 ---
 
@@ -122,11 +127,11 @@ Each asset has its own adapter behind a common observation interface; **one
 asset's reference failure never disables the other** (enforced by per-asset
 pools and independent settlement paths — see the invariant test).
 
-- **Public-equity (NVDAx, candidate):** a verified underlying-stock benchmark.
+- **Public-equity (NVDAx):** a verified underlying-stock benchmark.
   Early exercise selects the earliest qualifying observation **strictly after**
   the request; expiry selects the earliest at/after the fixed expiry, within the
   allowed delay. The value is an oracle benchmark, **not** an exchange close.
-- **PreStocks (preSPX, demo):** **median** of ≥3 qualifying Jupiter-Price
+- **PreStocks (Anthropic PreStocks):** **median** of ≥3 qualifying Jupiter-Price
   observations with distinct, strictly-increasing source slots, each ≤60s old at
   collection, inside the window.
 

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   OptketEngine,
-  makeDemoEngine,
   toFixed,
   fromFixed,
   maxLiability,
@@ -12,8 +11,8 @@ import {
   QUOTE_VALIDITY_SECS,
   type QuotePayload,
   type Observation,
-  DEMO_BUYER,
 } from "../index";
+import { makeDemoEngine, DEMO_BUYER } from "../fixtures";
 
 const NOW = 1_800_000_000; // fixed base timestamp
 

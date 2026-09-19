@@ -13,13 +13,24 @@ const tok = (v: bigint) => Number(v) / 1e6;
  * model the quote service uses, and the binding signed quote is fetched and
  * verified on-chain at purchase time (§8).
  */
-export default function ProtectTab() {
+export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: { assetId: number; quantity: number } | null; onRenewalConsumed?: () => void } = {}) {
   const c = useChain();
   const [assetId, setAssetId] = useState(0);
   const [seriesId, setSeriesId] = useState<number | null>(null);
   const [qtyStr, setQtyStr] = useState("1");
   const [market, setMarket] = useState<Market | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [isRenewal, setIsRenewal] = useState(false);
+
+  useEffect(() => {
+    if (!renewal) return;
+    setAssetId(renewal.assetId);
+    setSeriesId(null);
+    setQtyStr(String(renewal.quantity));
+    setIsRenewal(true);
+    setDone(null);
+    onRenewalConsumed?.();
+  }, [renewal, onRenewalConsumed]);
 
   const asset = VERIFIED_ASSETS[assetId];
 
@@ -73,6 +84,13 @@ export default function ProtectTab() {
 
   return (
     <>
+      {isRenewal && (
+        <div className="callout" style={{ marginBottom: 16 }}>
+          🔄 Renewing coverage — this is a <strong>fresh quote</strong>. Quantity is prefilled;
+          strike, premium, expiry and reference are all re-quoted, and your previous contract keeps
+          its own terms.
+        </div>
+      )}
       <div className="card-title">1 · Select asset</div>
       <div className="grid cols-2">
         {VERIFIED_ASSETS.map((a, i) => (
