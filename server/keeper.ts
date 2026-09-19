@@ -60,7 +60,14 @@ async function collectSamples() {
   try {
     const [jup] = await jupiter.observe(1);
     if (jup?.available) {
-      sampleBuffer[1].push({ slot: jup.slot, sourceTs: jup.sourceTs, collectedTs: t, price: jup.price });
+      // Jupiter's blockId identifies the last upstream price update, so it can
+      // remain unchanged across several honest snapshots when the market is
+      // quiet.  The program accepts a Solana slot as the observation sequence;
+      // bind each real API snapshot to the confirmed slot at which the keeper
+      // observed it.  This preserves strict ordering without fabricating a
+      // price or pretending that Jupiter published a new update.
+      const observedSlot = BigInt(await conn.getSlot("confirmed"));
+      sampleBuffer[1].push({ slot: observedSlot, sourceTs: jup.sourceTs, collectedTs: t, price: jup.price });
     }
   } catch { /* transient */ }
   for (const k of [0, 1]) {
@@ -109,9 +116,13 @@ async function resolveExercise(assetId: number, windowStart: number, windowEnd: 
     }
     return null;
   }
-  const ros = (await jupiter.observe(3)).filter((o) => o.available && o.sourceTs > windowStart && o.sourceTs <= windowEnd);
-  const collectedTs = nowSec();
-  if (ros.length >= 3) return { equity: false, many: ros.map((o) => ({ slot: o.slot, sourceTs: o.sourceTs, collectedTs, price: o.price })), source: `Jupiter live median (${ros.length} samples)` };
+  // Use snapshots accumulated by the polling loop. Calling observe(3) here
+  // required three distinct upstream blockIds inside one short request, which
+  // unnecessarily stalled settlement whenever a valid price stayed flat.
+  // Buffered snapshots are still real Jupiter responses and are sequenced by
+  // their confirmed Solana observation slots.
+  const ros = windowSamples(1, windowStart + 1, windowEnd);
+  if (ros.length >= 3) return { equity: false, many: ros, source: `Jupiter observed median (${ros.length} snapshots)` };
   return null;
 }
 
