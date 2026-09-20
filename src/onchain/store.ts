@@ -159,6 +159,8 @@ interface ChainState {
   trial: { remainingSol: number; capSol: number; spentSol: number; active: boolean; grants: number; budgetWallet: string } | null;
   /** Most recent confirmed transaction signature (explorer link in the UI). */
   lastTx: string | null;
+  /** Binding premium returned by the quote service for the latest purchase. */
+  lastPurchasePremium: number | null;
   clearError: () => void;
 
   connect: () => Promise<void>;
@@ -195,6 +197,7 @@ export const useChain = create<ChainState>((set, get) => ({
   tokenBalance: 0,
   trial: null,
   lastTx: null,
+  lastPurchasePremium: null,
   clearError: () => set({ error: null }),
 
   connect: async () => {
@@ -305,7 +308,7 @@ export const useChain = create<ChainState>((set, get) => ({
         burner, sponsor, 0,
       );
       await get().refresh();
-      set({ status: "", lastTx: sig });
+      set({ status: "", lastTx: sig, lastPurchasePremium: resp.premiumTokens });
     } catch (e) {
       set({ error: friendly(e), status: "" });
       throw e;

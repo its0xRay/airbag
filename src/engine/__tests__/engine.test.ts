@@ -49,6 +49,23 @@ describe("fixed-point arithmetic (PRD §6.3)", () => {
   });
 });
 
+describe("premium model", () => {
+  it("prices higher floors above lower floors for identical terms", () => {
+    const qty = toFixed(1);
+    const spot = toFixed(100);
+    const low = quotePremium(1, qty, toFixed(80), spot, 7 * 24 * 3600);
+    const atMoney = quotePremium(1, qty, toFixed(100), spot, 7 * 24 * 3600);
+    const high = quotePremium(1, qty, toFixed(110), spot, 7 * 24 * 3600);
+    expect(low.premium).toBeLessThan(atMoney.premium);
+    expect(atMoney.premium).toBeLessThan(high.premium);
+  });
+
+  it("never prices an in-the-money floor below intrinsic value", () => {
+    const quoted = quotePremium(0, toFixed(2), toFixed(110), toFixed(100), 3600);
+    expect(quoted.premium).toBeGreaterThanOrEqual(toFixed(20));
+  });
+});
+
 describe("purchase (PRD §8)", () => {
   let engine: OptketEngine;
   beforeEach(() => (engine = makeDemoEngine(NOW)));

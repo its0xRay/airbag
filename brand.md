@@ -31,7 +31,7 @@ is safe for small text. Keep the hierarchy `text` → `dim` → `faint`.
 |---|---|---|
 | `--accent` / `--accent-dim` | `#4ade80` / `#16382a` | Primary action, success, "live"/verified |
 | `--blue` / `--blue-dim` | `#5b9dff` / `#16273f` | Informational callouts, links, neutral status |
-| `--amber` / `--amber-dim` | `#f5c451` / `#3a2f12` | Simulation boundary, warnings, unavailable state |
+| `--amber` / `--amber-dim` | `#f5c451` / `#3a2f12` | Devnet-value boundary, warnings, unavailable state |
 | `--red` / `--red-dim` | `#f87171` / `#3a1a1a` | Destructive, negative values, failures |
 
 Green is the single brand accent. Amber is reserved for the demo/simulation

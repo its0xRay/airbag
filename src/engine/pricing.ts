@@ -1,5 +1,5 @@
-// Premium model (PRD §8.3). Prices are SIMULATED and based on documented,
-// versioned assumptions — separate per asset. This runs off-chain (the quote
+// Premium model. Prices are MODELLED from documented, versioned assumptions —
+// separate per asset. This runs off-chain (the quote
 // service); the program never recomputes premium, it only verifies the signed
 // quote. An unavailable hedge is modeled as a cost loading, never as executable.
 
@@ -33,7 +33,7 @@ export interface AssumptionSet {
 export const ASSUMPTIONS: Record<number, AssumptionSet> = {
   // asset 0 — public-equity token (lower vol, hedge investigable)
   0: {
-    version: 1,
+    version: 2,
     weeklyVolBps: 320,
     jumpEventBps: 25,
     earlyExerciseBps: 15,
@@ -46,7 +46,7 @@ export const ASSUMPTIONS: Record<number, AssumptionSet> = {
   },
   // asset 1 — PreStocks token (higher vol, no executable hedge)
   1: {
-    version: 1,
+    version: 2,
     weeklyVolBps: 650,
     jumpEventBps: 90,
     earlyExerciseBps: 25,
@@ -59,8 +59,15 @@ export const ASSUMPTIONS: Record<number, AssumptionSet> = {
   },
 };
 
-/** ATM put approximation factor: put ≈ 0.4 * vol * sqrt(T) for near-the-money. */
-const ATM_PUT_FACTOR = 0.4;
+/** Stable normal CDF approximation for the zero-rate Black-Scholes put. */
+function normalCdf(x: number): number {
+  const sign = x < 0 ? -1 : 1;
+  const z = Math.abs(x) / Math.sqrt(2);
+  const t = 1 / (1 + 0.3275911 * z);
+  const erf = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t
+    - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z);
+  return 0.5 * (1 + sign * erf);
+}
 
 export interface PremiumBreakdown {
   premium: bigint;
@@ -96,14 +103,19 @@ export function quotePremium(
   const t = Math.max(secondsToExpiry, 0) / SECONDS_PER_WEEK;
   const timeFactor = Math.sqrt(t);
 
-  // Moneyness: puts get cheaper out-of-the-money (strike below spot), dearer
-  // in-the-money. Clamp to a sane multiplier band.
+  // A zero-rate Black-Scholes put makes floor selection economically legible:
+  // lower out-of-the-money floors get materially cheaper, while an in-the-money
+  // floor can never be priced below its intrinsic value.
   const spotN = fromFixed(spot);
   const strikeN = fromFixed(strike);
-  const moneyness = spotN > 0 ? strikeN / spotN : 1; // >1 = ITM put
-  const moneynessMult = Math.min(2.5, Math.max(0.15, 0.5 + moneyness));
-
-  const volatility = a.weeklyVolBps * ATM_PUT_FACTOR * timeFactor * moneynessMult;
+  const sigmaT = (a.weeklyVolBps / 10_000) * timeFactor;
+  let putPerUnit = Math.max(strikeN - spotN, 0);
+  if (spotN > 0 && strikeN > 0 && sigmaT > 1e-8) {
+    const d1 = (Math.log(spotN / strikeN) + 0.5 * sigmaT * sigmaT) / sigmaT;
+    const d2 = d1 - sigmaT;
+    putPerUnit = Math.max(putPerUnit, strikeN * normalCdf(-d2) - spotN * normalCdf(-d1));
+  }
+  const volatility = strikeN > 0 ? Math.min(10_000, (putPerUnit / strikeN) * 10_000) : 0;
 
   const components = {
     volatility,

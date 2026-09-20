@@ -74,7 +74,7 @@ export default function CalculatorTab() {
             <select className="input" value={selected?.seriesId ?? ""} onChange={(e) => setSeriesId(Number(e.target.value))}>
               {options.map((s) => (
                 <option key={s.seriesId} value={s.seriesId}>
-                  {fmtPrice(s.strike)} · {s.shortDated ? "short-dated demo" : "weekly"}
+                  {fmtPrice(s.strike)} · {s.shortDated ? "short-dated Devnet" : "weekly"}
                 </option>
               ))}
             </select>
@@ -108,7 +108,7 @@ export default function CalculatorTab() {
             <div><div className="stat-label">Premium (est.)</div><div className="stat-value sm mono">{est ? tok(est.premium).toFixed(2) + " oUSD" : "—"}</div></div>
           </div>
           <div className="hr" />
-          <div className="stat-label">Net result from protection</div>
+          <div className="stat-label">Net protection payoff</div>
           <div className={"stat-value mono " + (net >= 0n ? "pos" : "neg")}>{net >= 0n ? "+" : ""}{tok(net).toFixed(2)} oUSD</div>
           <div className="hr" />
           <div className="kv">

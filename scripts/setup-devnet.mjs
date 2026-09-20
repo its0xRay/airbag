@@ -36,17 +36,16 @@ const SERIES_PLAN = [
 ];
 
 /**
- * Short-dated demo series (series id 9). The weekly series above follow PRD §7;
- * these exist so the *expiry* and demo-refund paths can be demonstrated in one
- * sitting instead of waiting a week. They are relabelled "demo (short-dated)"
- * everywhere in the UI. Re-run this script to roll fresh ones — the PDA is
- * derived from the series id, so an expired one must be rolled under a new id.
+ * Short-dated Devnet series (series id 9+). These are genuine, fully
+ * collateralized contracts that make the complete lifecycle testable without
+ * waiting a week. Re-run this script to roll fresh ones under a new id.
  */
 const SHORT_SERIES_ID = 9;
 const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 20);
+const FORCE_SHORT_SERIES = process.env.FORCE_SHORT_SERIES === "1";
 const SHORT_PLAN = [
-  [0, 215, 100],
-  [1, 1000, 20],
+  [0, Number(process.env.SHORT_STRIKE_0 || 230), 100],
+  [1, Number(process.env.SHORT_STRIKE_1 || 1050), 20],
 ];
 // Real mainnet identities recorded on-chain (reference only — never escrowed).
 const REAL_ASSET_MINTS = {
@@ -194,16 +193,19 @@ async function main() {
     })]);
   }
 
-  // 4b) short-dated demo series, rolled under a fresh id once the last expired
+  // 4b) short-dated Devnet series, rolled under a fresh id once the last expired
   {
     const t = Math.floor(Date.now() / 1000);
     let liveId = null;
     let freeId = null;
-    for (let id = SHORT_SERIES_ID; id < SHORT_SERIES_ID + 40; id++) {
-      const info = await conn.getAccountInfo(pda([S("series"), Buffer.from([0]), u16(id)]));
+    const shortIds = Array.from({ length: 100 }, (_, i) => SHORT_SERIES_ID + i);
+    const shortInfos = await conn.getMultipleAccountsInfo(shortIds.map((id) => pda([S("series"), Buffer.from([0]), u16(id)])));
+    for (let index = 0; index < shortIds.length; index++) {
+      const id = shortIds[index];
+      const info = shortInfos[index];
       if (!info) { freeId = id; break; }
       const expiryTs = Number(info.data.readBigInt64LE(19)); // disc8+asset1+series2+strike8
-      if (expiryTs > t + 180) { liveId = id; break; }        // still usable
+      if (!FORCE_SHORT_SERIES && expiryTs > t + 180) { liveId = id; break; } // still usable
     }
     if (liveId !== null) {
       console.log(`  short-dated series ${liveId} still live — skipping`);

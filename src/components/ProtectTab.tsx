@@ -4,6 +4,7 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchQuoteReference, type QuoteReference } from "../data/marketData";
 import { quotePremium, payout as intrinsic, toFixed, fromFixed, maxLiability } from "../engine";
 import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock } from "../format";
+import type { ProtectDraft } from "../App";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 
@@ -16,13 +17,13 @@ const tok = (v: bigint) => Number(v) / 1e6;
 export default function ProtectTab({
   renewal,
   onRenewalConsumed,
-  initialAssetId,
-  onInitialAssetConsumed,
+  initialDraft,
+  onInitialDraftConsumed,
 }: {
   renewal?: { assetId: number; quantity: number } | null;
   onRenewalConsumed?: () => void;
-  initialAssetId?: number | null;
-  onInitialAssetConsumed?: () => void;
+  initialDraft?: ProtectDraft | null;
+  onInitialDraftConsumed?: () => void;
 } = {}) {
   const c = useChain();
   const [assetId, setAssetId] = useState(0);
@@ -36,12 +37,13 @@ export default function ProtectTab({
   const userChoseAsset = useRef(false);
 
   useEffect(() => {
-    if (initialAssetId == null || renewal) return;
+    if (!initialDraft || renewal) return;
     choseInitialAsset.current = true;
-    setAssetId(initialAssetId);
-    setSeriesId(null);
-    onInitialAssetConsumed?.();
-  }, [initialAssetId, onInitialAssetConsumed, renewal]);
+    setAssetId(initialDraft.assetId);
+    setSeriesId(initialDraft.seriesId ?? null);
+    if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
+    onInitialDraftConsumed?.();
+  }, [initialDraft, onInitialDraftConsumed, renewal]);
 
   // Open the demo on an executable market when one is available. This only
   // chooses the initial asset; a user's explicit asset selection is preserved.
@@ -103,6 +105,9 @@ export default function ProtectTab({
     : null;
   const notional = selected && qty > 0n ? maxLiability(qty, selected.strike) : 0n;
   const premiumPct = est && notional > 0n ? fromFixed(est.premium) / fromFixed(notional) : 0;
+  const premiumPerUnit = est && qty > 0n ? fromFixed(est.premium) / fromFixed(qty) : 0;
+  const breakeven = selected ? Math.max(0, fromFixed(selected.strike) - premiumPerUnit) : 0;
+  const maxNet = est ? fromFixed(notional) - fromFixed(est.premium) : 0;
 
   const tooBig = !!selected && qty > selected.maxContractSize;
   const closed = !!selected && now > selected.purchaseCutoffTs;
@@ -128,6 +133,9 @@ export default function ProtectTab({
 
   return (
     <>
+      <div className="app-page-head">
+        <div><div className="card-title">Buy downside protection</div><h1>Protect</h1><p>Choose a published floor, review the estimated economics, then submit a fresh signed quote to the Devnet program.</p></div>
+      </div>
       {isRenewal && (
         <div className="callout" style={{ marginBottom: 16 }}>
           🔄 Renewing coverage — this is a <strong>fresh quote</strong>. Quantity is prefilled;
@@ -165,7 +173,7 @@ export default function ProtectTab({
       <div className="callout" style={{ marginTop: 14 }}>
         {asset.kind === "EquityToken"
           ? "Coverage references the underlying listed-stock benchmark — an oracle observation, not an exchange close. Token-market discounts are excluded."
-          : "Coverage references a specified token-market median (Jupiter). This is an issuer mark for a private company, not an independently observed public benchmark."}
+          : "Coverage follows the ANTHROPIC token market price using a Jupiter 5-minute median. It does not track the private company’s valuation."}
       </div>
 
       <div style={{ height: 18 }} />
@@ -204,7 +212,7 @@ export default function ProtectTab({
             <span className="v mono">{c.tokenBalance.toLocaleString()} oUSD</span>
           </div>
           <div className="disclosure" style={{ marginTop: 10 }}>
-            Buying protection never moves or escrows your tokens.
+            You do not need to deposit or prove ownership of the underlying token. Holdings are optional context; Optket never moves or escrows them.
           </div>
           {marketError && (
             <div className="callout warn" role="alert" style={{ marginTop: 10 }}>
@@ -244,7 +252,7 @@ export default function ProtectTab({
                     <div className="between">
                       <strong className="mono">{fmtPrice(s.strike)}</strong>
                       {s.shortDated
-                        ? <span className="pill amber">demo · {fmtDuration(s.expiryTs - now)}</span>
+                        ? <span className="pill blue">Devnet · {fmtDuration(s.expiryTs - now)}</span>
                         : <span className="pill gray">weekly</span>}
                     </div>
                     <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>Est. premium</div>
@@ -260,8 +268,8 @@ export default function ProtectTab({
               <div className="kv"><span className="k">Remaining</span><span className="v mono">{fmtDuration(secsLeft)}</span></div>
               <div className="kv"><span className="k">Exercise cutoff</span><span className="v mono">{fmtClock(selected.exerciseCutoffTs)}</span></div>
               {selected.shortDated && (
-                <div className="callout warn" style={{ marginTop: 10 }}>
-                  Short-dated demo series — exists so the expiry and refund paths can be seen without waiting a week.
+                <div className="callout" style={{ marginTop: 10 }}>
+                  Short-dated Devnet series — a genuine onchain contract with the same collateral and settlement rules as the weekly series.
                 </div>
               )}
             </>
@@ -286,17 +294,24 @@ export default function ProtectTab({
             <div className="stat-value sm mono">{est ? fmtPct(premiumPct) : "—"}</div>
           </div>
         </div>
+        <div className="protection-summary" aria-label="Protection economics">
+          <div><span>Breakeven reference</span><strong className="mono">{est ? fmtUsd(breakeven) : "—"}</strong></div>
+          <div><span>Maximum payout</span><strong className="mono">{est ? `${tok(notional).toFixed(2)} oUSD` : "—"}</strong></div>
+          <div><span>Maximum net payoff</span><strong className="mono">{est ? `${maxNet.toFixed(2)} oUSD` : "—"}</strong></div>
+        </div>
         <div className="hr" />
         <div className="grid cols-2">
           <div>
             <div className="kv"><span className="k">Reference</span><span className="v">{asset.benchmarkLabel}</span></div>
             <div className="kv"><span className="k">Settlement</span><span className="v">{asset.kind === "EquityToken" ? "next qualifying observation after request" : "5-min Jupiter median"}</span></div>
             <div className="kv"><span className="k">Collateral</span><span className="v">reserved onchain before issue</span></div>
-            <div className="kv"><span className="k">Outage fallback</span><span className="v">disclosed demo refund</span></div>
+            <div className="kv"><span className="k">Reference failure</span><span className="v">contractual refund rule</span></div>
           </div>
           <div className="card" style={{ background: "var(--bg)", margin: 0 }}>
             <div className="card-title">If it settles at…</div>
             {selected && est && qty > 0n ? (
+              <>
+              <p className="payoff-explainer">Below the floor, each $1 fall in the settlement reference pays $1 per protected unit, up to the contractual maximum.</p>
               <table className="log">
                 <thead><tr><th>Reference</th><th>Payout</th><th>Net</th></tr></thead>
                 <tbody>
@@ -314,14 +329,14 @@ export default function ProtectTab({
                   })}
                 </tbody>
               </table>
+              </>
             ) : <div className="empty">Enter a quantity.</div>}
           </div>
         </div>
         <div className="hr" />
         <div className="between">
           <div className="disclosure">
-            The binding premium is signed by the quote service at purchase (60s validity) and verified onchain.
-            Fees and rent are sponsored — you need no SOL.
+            This preview is an estimate. Buy requests a fresh signed quote, then submits that locked premium onchain within its 60-second validity. Fees and rent are sponsored — you need no SOL.
           </div>
           <button className="btn primary" disabled={!canBuy} onClick={buy}>
             {c.busy
@@ -336,9 +351,9 @@ export default function ProtectTab({
         {c.error && <div className="callout warn" style={{ marginTop: 12 }}>{c.error}</div>}
         {done && (
           <div className="callout" style={{ marginTop: 12 }}>
-            ✓ Confirmed onchain —{" "}
+            ✓ Confirmed onchain{c.lastPurchasePremium != null ? ` at ${c.lastPurchasePremium.toFixed(2)} oUSD` : ""} —{" "}
             <a className="mono" href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">{done.slice(0, 24)}… ↗</a>
-            {" "}· see it in Portfolio.
+            {" "}· see it in Positions.
           </div>
         )}
       </div>

@@ -49,7 +49,7 @@ export const VERIFIED_ASSETS: VerifiedAsset[] = [
     program: "Token-2022",
     decimals: 9,
     scaledMultiplier: 1.0,
-    benchmarkLabel: "Issuer mark (PreStocks SPV, private company)",
+    benchmarkLabel: "ANTHROPIC token market price (Jupiter 5-minute median)",
     underlying: "Anthropic PBC (private)",
     jupiter: true,
     verifiedAt: "2026-09-18",

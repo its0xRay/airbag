@@ -6,7 +6,7 @@ import { VERIFIED_ASSETS } from "../data/assets";
  * touched a contract this wallet owns. There is no local activity log; if it
  * isn't on-chain, it isn't here.
  */
-export default function HistoryTab() {
+export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
   const c = useChain();
 
   if (!c.connected) {
@@ -14,6 +14,10 @@ export default function HistoryTab() {
   }
 
   return (
+    <>
+    <div className="app-page-head">
+      <div><div className="card-title">Verifiable activity</div><h1>Onchain</h1><p>Confirmed Devnet signatures touching contracts owned by the connected wallet. No local or sample activity is inserted.</p></div>
+    </div>
     <div className="card">
       <div className="between" style={{ marginBottom: 4 }}>
         <div className="card-title" style={{ margin: 0 }}>Onchain activity</div>
@@ -25,12 +29,12 @@ export default function HistoryTab() {
 
       {c.history.length === 0 ? (
         <div className="empty">
-          No transactions yet. Buy protection in the Protect tab and it will appear here within seconds.
+          <strong>No onchain activity yet.</strong><br />Create a position and its confirmed signature will appear here.<div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={onProtect}>Buy protection</button></div>
         </div>
       ) : (
         <table className="log">
           <thead>
-            <tr><th>When</th><th>Contract</th><th>Asset</th><th>Slot</th><th>Signature</th></tr>
+            <tr><th>When</th><th>Action</th><th>Asset</th><th>Contract</th><th>Status</th><th>Signature</th></tr>
           </thead>
           <tbody>
             {c.history.map((h) => (
@@ -38,11 +42,11 @@ export default function HistoryTab() {
                 <td className="mono faint">
                   {h.blockTime ? new Date(h.blockTime * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </td>
-                <td className="mono">#{h.contractId.toString()}</td>
+                <td>Contract transaction</td>
                 <td>{VERIFIED_ASSETS[h.assetId]?.symbol ?? h.assetId}</td>
-                <td className="mono faint">{h.slot.toLocaleString()}</td>
+                <td className="mono">#{h.contractId.toString()}</td>
+                <td>{h.err ? <span className="pill red">failed</span> : <span className="pill green">confirmed</span>}</td>
                 <td>
-                  {h.err && <span className="pill red" style={{ marginRight: 6 }}>failed</span>}
                   <a className="mono" href={explorerUrl("tx", h.signature)} target="_blank" rel="noreferrer">
                     {h.signature.slice(0, 16)}… ↗
                   </a>
@@ -53,5 +57,6 @@ export default function HistoryTab() {
         </table>
       )}
     </div>
+    </>
   );
 }

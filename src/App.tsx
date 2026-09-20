@@ -4,20 +4,24 @@ import Landing from "./components/Landing";
 import ProtectTab from "./components/ProtectTab";
 import PortfolioTab from "./components/PortfolioTab";
 import CompareTab from "./components/CompareTab";
-import CalculatorTab from "./components/CalculatorTab";
 import UnderwriterTab from "./components/UnderwriterTab";
 import HistoryTab from "./components/HistoryTab";
 import WalletBar, { NETWORK } from "./components/WalletBar";
 
-type Tab = "home" | "protect" | "portfolio" | "compare" | "calculator" | "underwriter" | "history";
+type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history";
+
+export interface ProtectDraft {
+  assetId: number;
+  seriesId?: number;
+  quantity?: number;
+}
 
 const TABS: [Tab, string][] = [
   ["protect", "Protect"],
-  ["portfolio", "Portfolio"],
-  ["compare", "Compare"],
-  ["calculator", "Calculator"],
-  ["underwriter", "Underwriter"],
-  ["history", "History"],
+  ["portfolio", "Positions"],
+  ["compare", "Markets"],
+  ["underwriter", "Risk"],
+  ["history", "Onchain"],
 ];
 
 export default function App() {
@@ -26,7 +30,7 @@ export default function App() {
   const chainError = useChain((s) => s.error);
   const clearError = useChain((s) => s.clearError);
   const [tab, setTab] = useState<Tab>("home");
-  const [protectAssetId, setProtectAssetId] = useState<number | null>(null);
+  const [protectDraft, setProtectDraft] = useState<ProtectDraft | null>(null);
   // A renewal jumps to Protect with the quantity prefilled — the quote itself
   // is always fresh, so no terms carry over from the old contract (§18).
   const [renewal, setRenewal] = useState<{ assetId: number; quantity: number } | null>(null);
@@ -74,7 +78,7 @@ export default function App() {
           {TABS.map(([t, label]) => (
             <button
               key={t}
-              className={"tab" + (tab === t ? " active" : "")}
+              className={"tab" + (t === "compare" ? " group-start" : "") + (tab === t ? " active" : "")}
               onClick={() => setTab(t)}
               aria-current={tab === t ? "page" : undefined}
             >
@@ -93,23 +97,22 @@ export default function App() {
         </div>
       )}
 
-      {tab === "home" && <Landing onLaunch={(t, assetId) => {
-        if (t === "protect") setProtectAssetId(assetId ?? null);
+      {tab === "home" && <Landing onLaunch={(t, draft) => {
+        if (t === "protect") setProtectDraft(draft ?? null);
         setTab(t as Tab);
       }} />}
       {tab === "protect" && (
         <ProtectTab
           renewal={renewal}
           onRenewalConsumed={() => setRenewal(null)}
-          initialAssetId={protectAssetId}
-          onInitialAssetConsumed={() => setProtectAssetId(null)}
+          initialDraft={protectDraft}
+          onInitialDraftConsumed={() => setProtectDraft(null)}
         />
       )}
-      {tab === "portfolio" && <PortfolioTab onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} />}
+      {tab === "portfolio" && <PortfolioTab onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} onProtect={(assetId) => { setProtectDraft({ assetId }); setTab("protect"); }} />}
       {tab === "compare" && <CompareTab />}
-      {tab === "calculator" && <CalculatorTab />}
       {tab === "underwriter" && <UnderwriterTab />}
-      {tab === "history" && <HistoryTab />}
+      {tab === "history" && <HistoryTab onProtect={() => { setProtectDraft({ assetId: 1 }); setTab("protect"); }} />}
     </div>
   );
 }

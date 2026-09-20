@@ -18,7 +18,7 @@ const STATUS_TONE: Record<string, string> = {
  * Positions read straight from the program (PRD §13.5) plus the coverage
  * tracker (§16). Every action here is a real transaction.
  */
-export default function PortfolioTab({ onRenew }: { onRenew: (assetId: number, quantity: number) => void }) {
+export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number) => void }) {
   const c = useChain();
   const [assetId, setAssetId] = useState(0);
   const asset = VERIFIED_ASSETS[assetId];
@@ -38,8 +38,11 @@ export default function PortfolioTab({ onRenew }: { onRenew: (assetId: number, q
 
   return (
     <>
+      <div className="app-page-head">
+        <div><div className="card-title">Your protection</div><h1>Positions</h1><p>Contracts owned by the connected Devnet wallet. Holdings are optional context and never change coverage.</p></div>
+        <span className="pill gray mono" title={c.address ?? undefined}>{c.address ? `${c.address.slice(0, 5)}…${c.address.slice(-4)}` : "Connected"}</span>
+      </div>
       <RemindersPanel onRenew={onRenew} />
-      <HoldingsCard />
 
       <div className="row" style={{ marginBottom: 16 }}>
         {VERIFIED_ASSETS.map((a, i) => (
@@ -62,17 +65,23 @@ export default function PortfolioTab({ onRenew }: { onRenew: (assetId: number, q
           <div><div className="stat-label">Protection beyond holdings</div><div className={"stat-value sm mono " + (excess > 0 ? "neg" : "")}>{excess.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div></div>
         </div>
         <div className="disclosure" style={{ marginTop: 10 }}>
-          Informational only — the tracker never modifies contracts. Look up a wallet above to compare
+          Informational only — the tracker never modifies contracts. Use the optional wallet inspector below to compare
           against real {asset.symbol} holdings.
         </div>
       </div>
 
       <div style={{ height: 14 }} />
       {mine.length === 0 ? (
-        <div className="card empty">No {asset.symbol} contracts yet. Buy protection in the Protect tab.</div>
+        <div className="card empty"><strong>No {asset.symbol} protection yet.</strong><br />Create a fully reserved onchain position.<div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId)}>Protect {asset.symbol}</button></div></div>
       ) : (
         mine.map((k) => <ContractCard key={k.address} contract={k} />)
       )}
+
+      <details className="secondary-tool">
+        <summary>Inspect mainnet token holdings</summary>
+        <p>This optional read-only tool can inspect any Solana address. It is separate from the connected Devnet wallet and does not modify a position.</p>
+        <HoldingsCard />
+      </details>
     </>
   );
 }
@@ -153,8 +162,8 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
 
       {open && expired && k.pendingQuantity === 0n && (
         <div className="disclosure" style={{ marginTop: 12 }}>
-          Past expiry — the keeper settles remaining quantity automatically, or applies the disclosed
-          demo refund if no qualifying reference exists.
+          Past expiry — the keeper settles remaining quantity automatically, or applies the contractual
+          failed-reference refund if no qualifying reference exists.
         </div>
       )}
     </div>

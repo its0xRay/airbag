@@ -297,16 +297,16 @@ async function faucet(address: string) {
   return { grantedSol: 0, reason: "fees and rent are sponsored", tokensMinted, tokenBalance, tokenError };
 }
 
-// ---- short-dated series rotation ----
-// The weekly series follow PRD §7, but a judge shouldn't have to wait a week to
-// see expiry settlement. Keep one short-dated series per asset alive at all
-// times, rolled under a fresh id as each expires. Requires ADMIN_SECRET.
+// ---- short-dated Devnet series rotation ----
+// Keep one genuine, fully collateralized short-dated series per asset alive so
+// the complete lifecycle can be exercised without waiting a week. These use the
+// same quote, purchase and settlement paths as every other series.
 const SHORT_ID_MIN = 9;
 const SHORT_ID_MAX = 108;
 const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 45);
 const SHORT_STRIKES: Record<number, { strike: number; maxSize: number }> = {
-  0: { strike: 215, maxSize: 100 },
-  1: { strike: 1000, maxSize: 20 },
+  0: { strike: Number(process.env.SHORT_STRIKE_0 || 230), maxSize: 100 },
+  1: { strike: Number(process.env.SHORT_STRIKE_1 || 1050), maxSize: 20 },
 };
 const fx = (n: number) => BigInt(Math.round(n * 1e6));
 
@@ -496,12 +496,15 @@ const server = createServer(async (req, res) => {
       if (!tx || !buyer) return json(res, 400, { error: "tx and buyer required" });
       return json(res, 200, await sponsor(String(tx), String(buyer)));
     }
-    /** Every live series across both assets in ONE rpc call, including the
-     *  short-dated demo ids, so the UI can discover what's purchasable. */
+    /** Every live series across both assets in bounded RPC batches, including
+     *  all rotating short-dated Devnet ids. */
     if (req.method === "GET" && url.pathname === "/series/all") {
       const ids: Array<{ assetId: number; seriesId: number }> = [];
-      for (const assetId of [0, 1]) for (const seriesId of [0, 1, ...Array.from({ length: 30 }, (_, i) => SHORT_ID_MIN + i)]) ids.push({ assetId, seriesId });
-      const infos = await conn.getMultipleAccountsInfo(ids.map((k) => seriesPda(k.assetId, k.seriesId)));
+      for (const assetId of [0, 1]) for (const seriesId of [0, 1, ...Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i)]) ids.push({ assetId, seriesId });
+      const infos = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        infos.push(...await conn.getMultipleAccountsInfo(ids.slice(i, i + 100).map((k) => seriesPda(k.assetId, k.seriesId))));
+      }
       const now = nowSec();
       const out = infos
         .map((info, i) => (info ? { ...decodeSeries(info.data as Buffer), ...ids[i] } : null))
@@ -558,7 +561,7 @@ server.listen(PORT, async () => {
   } catch (e) {
     console.warn("  trial budget status unavailable:", (e as Error).message);
   }
-  // keep an expiry demo permanently available
+  // keep a short lifecycle series permanently available
   await rotateShortSeries();
   setInterval(rotateShortSeries, 120_000);
 });

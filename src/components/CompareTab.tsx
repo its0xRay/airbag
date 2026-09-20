@@ -40,8 +40,13 @@ export default function CompareTab() {
 
   return (
     <>
-      <div className="callout" style={{ marginBottom: 16 }}>
-        🟢 <strong>Live mainnet data</strong> — real Token-2022 mints, real Jupiter prices, and the real scaled-balance multiplier (verified {asset.verifiedAt}). The Optket contract stays a demo per §1; this reference/identity layer is real.
+      <div className="app-page-head">
+        <div><div className="card-title">Reference architecture</div><h1>Markets</h1><p>Separate the Devnet protection contract from the live mainnet identity and market data it references.</p></div>
+      </div>
+      <div className="environment-strip" style={{ marginBottom: 16 }}>
+        <span><strong>Contract</strong> Solana Devnet</span>
+        <span><strong>Market data</strong> Live mainnet</span>
+        <span><strong>Verified</strong> {asset.verifiedAt}</span>
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
         {VERIFIED_ASSETS.map((a) => (
@@ -52,7 +57,7 @@ export default function CompareTab() {
       <div className="grid cols-2">
         <div className="card">
           <div className="between" style={{ marginBottom: 4 }}>
-            <div className="card-title" style={{ margin: 0 }}>Token vs {equity ? "stock" : "issuer mark"} — {asset.symbol}</div>
+            <div className="card-title" style={{ margin: 0 }}>{equity ? "Token vs stock benchmark" : "Token protection reference"} — {asset.symbol}</div>
             {market?.available ? <span className="pill green">live</span> : <span className="pill amber">{loading ? "loading…" : "unavailable"}</span>}
           </div>
           <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>{asset.name} · {asset.benchmarkLabel}</div>
@@ -62,7 +67,7 @@ export default function CompareTab() {
           {market?.available && (
             <>
               <div className="grid cols-3">
-                <Stat label={equity ? "Stock benchmark" : "Issuer mark"} value={bench != null ? fmtUsd(bench) : "—"} />
+                <Stat label={equity ? "Stock benchmark" : "Token reference"} value={(equity ? bench : token) != null ? fmtUsd((equity ? bench : token)!) : "—"} />
                 <Stat label="Token market" value={token != null ? fmtUsd(token) : "—"} />
                 <Stat label="Basis" value={basis != null ? (basis >= 0 ? "+" : "") + fmtPct(basis) : "—"} tone={basis != null && basis < 0 ? "neg" : "pos"} />
               </div>
@@ -73,14 +78,14 @@ export default function CompareTab() {
               <div className="callout" style={{ marginTop: 14 }}>
                 {equity
                   ? <>A stock-benchmark contract references the underlying NVDA stock and <strong>excludes the token-market basis</strong> shown here ({basis != null ? fmtPct(Math.abs(basis)) : "—"} right now).</>
-                  : <>This is an <strong>issuer mark</strong> for a private company — not an executable price and not an independent public benchmark (§15).</>}
+                  : <>Protection settles against the <strong>ANTHROPIC token market price</strong> using a Jupiter 5-minute median. It does not track the private company’s valuation.</>}
               </div>
             </>
           )}
         </div>
 
         <div className="card">
-          <div className="card-title">§4 verification — {asset.symbol}</div>
+          <div className="card-title">Token verification — {asset.symbol}</div>
           <div className="kv"><span className="k">Mint (mainnet)</span><span className="v mono" style={{ fontSize: 11 }}><a href={solscan} target="_blank" rel="noreferrer">{asset.mint.slice(0, 6)}…{asset.mint.slice(-4)}</a></span></div>
           <div className="kv"><span className="k">Token program</span><span className="v">{asset.program} <span className="pill green">verified</span></span></div>
           <div className="kv"><span className="k">Decimals</span><span className="v mono">{asset.decimals}</span></div>
@@ -89,7 +94,7 @@ export default function CompareTab() {
           <div className="kv"><span className="k">Underlying</span><span className="v">{asset.underlying}</span></div>
           <div className="kv"><span className="k">Jupiter coverage</span><span className="v">{asset.jupiter ? <span className="pill green">yes</span> : "no"}</span></div>
           <div className="disclosure" style={{ marginTop: 10 }}>
-            Raw Token-2022 amounts are multiplied by the live scaled factor to get share-equivalents (§4.1) — applied when reading real holdings.
+            The scaled factor converts raw Token-2022 balances into the share-equivalent amount shown in holdings.
           </div>
         </div>
       </div>

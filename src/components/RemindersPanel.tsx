@@ -61,7 +61,7 @@ export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number,
         <button
           className={"btn sm " + (external ? "primary" : "ghost")}
           onClick={() => setExternal(!external)}
-          title="External delivery requires its own explicit opt-in (PRD §18)"
+          title="External delivery requires its own explicit opt-in"
         >
           {external ? "✓ Email reminders on (demo)" : "Enable email reminders (opt-in)"}
         </button>

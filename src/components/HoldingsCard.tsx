@@ -59,7 +59,7 @@ export default function HoldingsCard() {
       </div>
       <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>
         Look up any wallet's actual balance of the verified assets. Raw Token-2022 amounts are
-        converted to share-equivalents with the live scaled multiplier (§4.1).
+        converted to share-equivalents using the token’s current scaled-balance multiplier.
       </div>
 
       <form onSubmit={lookup} className="row" style={{ gap: 10, flexWrap: "wrap" }}>
@@ -130,7 +130,7 @@ export default function HoldingsCard() {
           {imported && (
             <div className="callout" style={{ marginTop: 12 }}>
               Using your {imported} balance as reference exposure in the coverage tracker. Your
-              contracts are unchanged — holdings are read-only and never modify coverage (§16).
+              contracts are unchanged — holdings are read-only and never modify coverage.
             </div>
           )}
 

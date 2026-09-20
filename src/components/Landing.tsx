@@ -4,8 +4,9 @@ import { fetchMarket, fetchQuoteReference, type Market, type QuoteReference } fr
 import { explorerUrl } from "../onchain/store";
 import { OPTKET_PROGRAM_ID } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
-import { quotePremium, toFixed } from "../engine";
+import { payout, quotePremium, toFixed } from "../engine";
 import { fmtClock, fmtPrice, fmtUsd } from "../format";
+import type { ProtectDraft } from "../App";
 
 const NETWORK = /devnet/.test(import.meta.env.VITE_RPC_URL || "") ? "devnet" : "localnet";
 const SVC = normalizeServiceUrl(import.meta.env.VITE_QUOTE_SVC);
@@ -14,7 +15,8 @@ const tok = (v: bigint) => Number(v) / 1e6;
 
 type MarketState = Record<string, Market | null>;
 type ReferenceState = Record<number, QuoteReference | null>;
-type AppTab = "protect" | "portfolio" | "compare" | "calculator" | "underwriter" | "history";
+type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history";
+const LANDING_ASSET_ORDER = [1, 0] as const;
 
 interface PublicSeries {
   assetId: number;
@@ -51,7 +53,7 @@ function statusLabel(reference: QuoteReference | null, loading: boolean): string
 export default function Landing({
   onLaunch,
 }: {
-  onLaunch: (tab: AppTab, assetId?: number) => void;
+  onLaunch: (tab: AppTab, draft?: ProtectDraft) => void;
 }) {
   const [markets, setMarkets] = useState<MarketState>({});
   const [references, setReferences] = useState<ReferenceState>({});
@@ -59,6 +61,10 @@ export default function Landing({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const [heroAssetId, setHeroAssetId] = useState(1);
+  const [heroSeriesId, setHeroSeriesId] = useState<number | null>(null);
+  const [heroQty, setHeroQty] = useState("1");
+  const [heroSettlement, setHeroSettlement] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,12 +106,49 @@ export default function Landing({
     for (const assetId of VERIFIED_ASSETS.map((_, i) => i)) {
       out[assetId] = series
         .filter((s) => s.assetId === assetId && s.purchaseCutoffTs > now)
-        .sort((a, b) => Number(a.shortDated) - Number(b.shortDated) || a.expiryTs - b.expiryTs)[0] ?? null;
+        .sort((a, b) => a.expiryTs - b.expiryTs || (b.strike > a.strike ? 1 : -1))[0] ?? null;
     }
     return out;
   }, [series, now]);
 
-  const preferredAssetId = references[0]?.available ? 0 : references[1]?.available ? 1 : undefined;
+  const heroAsset = VERIFIED_ASSETS[heroAssetId];
+  const heroReference = references[heroAssetId] ?? null;
+  const heroOptions = series
+    .filter((s) => s.assetId === heroAssetId && s.purchaseCutoffTs > now)
+    .sort((a, b) => a.expiryTs - b.expiryTs || (b.strike > a.strike ? 1 : -1));
+  const heroSeries = heroOptions.find((s) => s.seriesId === heroSeriesId) ?? heroOptions[0] ?? null;
+  const heroQtyN = Number(heroQty) > 0 ? Number(heroQty) : 0;
+  const heroSpot = heroReference?.available ? heroReference.price : null;
+  const heroEstimate = heroSeries && heroSpot && heroQtyN > 0
+    ? quotePremium(heroAssetId, toFixed(heroQtyN), heroSeries.strike, toFixed(heroSpot), Math.max(heroSeries.expiryTs - now, 60))
+    : null;
+  const heroSettlementN = Number(heroSettlement) > 0
+    ? Number(heroSettlement)
+    : heroSpot ?? (heroSeries ? tok(heroSeries.strike) : 0);
+  const heroPayout = heroSeries && heroQtyN > 0
+    ? payout(toFixed(heroQtyN), heroSeries.strike, toFixed(heroSettlementN))
+    : 0n;
+  const heroPremiumN = heroEstimate ? tok(heroEstimate.premium) : 0;
+  const heroNet = tok(heroPayout) - heroPremiumN;
+  const heroBreakeven = heroSeries && heroQtyN > 0
+    ? Math.max(0, tok(heroSeries.strike) - heroPremiumN / heroQtyN)
+    : 0;
+  const chartSpot = heroSpot ?? (heroSeries ? tok(heroSeries.strike) : 1);
+  const chartMin = Math.max(0, chartSpot * 0.6);
+  const chartMax = chartSpot * 1.2;
+  const chartPoints = heroSeries && heroEstimate && heroQtyN > 0
+    ? Array.from({ length: 25 }, (_, i) => {
+        const reference = chartMin + ((chartMax - chartMin) * i) / 24;
+        const value = tok(payout(toFixed(heroQtyN), heroSeries.strike, toFixed(reference))) - heroPremiumN;
+        return { reference, value };
+      })
+    : [];
+  const chartMaxAbs = Math.max(1, ...chartPoints.map((p) => Math.abs(p.value)));
+  const chartPolyline = chartPoints.map((p, i) => {
+    const x = (i / Math.max(1, chartPoints.length - 1)) * 100;
+    const y = 50 - (p.value / chartMaxAbs) * 42;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
 
   return (
     <main className="lp">
@@ -123,58 +166,91 @@ export default function Landing({
             </h1>
 
             <p className="lp-sub">
-              Fixed-cost downside protection for tokenized stocks and PreStocks. Choose a floor,
-              pay one premium, and keep the asset.
+              Buy a programmable downside floor for tokenized stocks and PreStocks on Solana.
+              Pay one premium, keep the token, and receive the difference if its protection
+              reference finishes below your floor.
             </p>
 
             <div className="lp-cta-row">
-              <button className="btn primary lg" onClick={() => onLaunch("protect", preferredAssetId)}>
+              <button className="btn primary lg" onClick={() => onLaunch("protect", { assetId: 1 })}>
                 Try the demo <span className="arrow" aria-hidden="true">→</span>
               </button>
-              <a className="btn lg" href="#payout">How protection pays</a>
+              <a className="btn lg" href="#how-it-works">How it works</a>
             </div>
 
             <div className="lp-meta" aria-label="Demo status">
-              <span>Solana {NETWORK}</span>
-              <span>External market references</span>
+              <span>No extension, seed phrase, or SOL</span>
+              <span>Real {NETWORK} transactions</span>
               <span className="demo-label">oUSD <small>demo · no real value</small></span>
             </div>
           </div>
 
-          <aside className="lp-payoff" id="payout" aria-label="Contract payout formula">
-            <div className="lp-kicker">Contract payout formula</div>
-            <h2>Know the downside before you buy.</h2>
-            <p>If the settlement reference finishes below your floor, Optket pays the difference.</p>
+          <aside className="lp-payoff lp-builder" id="payout" aria-label="Interactive protection calculator">
+            <div className="lp-builder-head">
+              <div><div className="lp-kicker">Explore protection</div><h2>Set a floor. See the payoff.</h2></div>
+              <span className="pill gray">No wallet needed</span>
+            </div>
 
-            <div className="lp-payoff-terms">
-              <div><span>Protected</span><strong className="mono">1 NVDAx</strong></div>
-              <div><span>Price floor</span><strong className="mono">$215.00</strong></div>
-              <div><span>Settlement reference</span><strong className="mono">$200.00</strong></div>
+            <div className="lp-segmented" aria-label="Asset">
+              {LANDING_ASSET_ORDER.map((id) => <button key={id} className={heroAssetId === id ? "active" : ""} onClick={() => { setHeroAssetId(id); setHeroSeriesId(null); setHeroSettlement(""); }}>{VERIFIED_ASSETS[id].symbol}</button>)}
             </div>
-            <div className="lp-payoff-equation mono">($215 − $200) × 1</div>
-            <div className="lp-payoff-result">
-              <span>Payout</span>
-              <strong className="mono">15.00 <small>demo oUSD</small></strong>
+
+            <div className="lp-builder-inputs">
+              <label className="field"><span className="lbl">Protected quantity</span><input className="input" type="number" min="0.01" step="0.01" inputMode="decimal" value={heroQty} onChange={(e) => setHeroQty(e.target.value)} /></label>
+              <label className="field"><span className="lbl">Price floor</span><select className="input" value={heroSeries?.seriesId ?? ""} onChange={(e) => setHeroSeriesId(Number(e.target.value))}>{heroOptions.map((s) => <option key={s.seriesId} value={s.seriesId}>{fmtPrice(s.strike)} · {s.shortDated ? "short-dated Devnet" : "weekly"}</option>)}</select></label>
             </div>
-            <div className="lp-payoff-foot">
-              <span>Maximum payout</span><strong className="mono">215.00 demo oUSD</strong>
-            </div>
-            <p className="lp-payoff-note">Example values explain the contract formula. Current quote terms appear in the demo.</p>
+
+            {loading && !heroSeries ? <div className="lp-builder-loading" aria-busy="true"><div className="lp-skel line" /><div className="lp-skel line short" /></div> : !heroSeries ? <div className="lp-reference-state"><strong>No purchasable series.</strong><p>The operator must publish a fresh series before protection can be quoted.</p></div> : (
+              <>
+                <label className="field lp-settlement"><span className="lbl">Hypothetical settlement reference</span><div className="lp-range-row"><input type="range" min={chartMin} max={chartMax} step={Math.max(0.01, chartSpot / 200)} value={heroSettlementN} onChange={(e) => setHeroSettlement(Number(e.target.value).toFixed(2))} /><input className="input mono" type="number" min="0" step="0.01" inputMode="decimal" value={heroSettlement || heroSettlementN.toFixed(2)} onChange={(e) => setHeroSettlement(e.target.value)} /></div></label>
+                <div className="lp-mini-chart" aria-label="Net protection payoff across settlement prices"><svg viewBox="0 0 100 100" role="img"><title>Net protection payoff curve</title><line x1="0" x2="100" y1="50" y2="50" /><polyline points={chartPolyline} /></svg><span>Lower reference</span><span>Higher reference</span></div>
+                <div className="lp-builder-results">
+                  <div><span>Estimated premium</span><strong className="mono">{heroEstimate ? `${heroPremiumN.toFixed(2)} oUSD` : "Unavailable"}</strong></div>
+                  <div><span>Gross payout</span><strong className="mono">{tok(heroPayout).toFixed(2)} oUSD</strong></div>
+                  <div><span>Net protection payoff</span><strong className={"mono " + (heroNet >= 0 ? "pos" : "neg")}>{heroEstimate ? `${heroNet >= 0 ? "+" : ""}${heroNet.toFixed(2)} oUSD` : "—"}</strong></div>
+                  <div><span>Breakeven reference</span><strong className="mono">{heroEstimate ? fmtUsd(heroBreakeven) : "—"}</strong></div>
+                </div>
+                <p className="lp-payoff-note">Hypothetical settlement, not a prediction. Premium is an estimate from model v2; the binding signed quote is requested at purchase.</p>
+                <button className="btn primary lp-card-action" disabled={!heroEstimate || heroQtyN <= 0} onClick={() => onLaunch("protect", { assetId: heroAssetId, seriesId: heroSeries.seriesId, quantity: heroQtyN })}>Protect this position <span className="arrow" aria-hidden="true">→</span></button>
+                <div className="lp-builder-source"><span>{heroAsset.kind === "PreStocks" ? "Jupiter 5-minute token median" : "NVIDIA stock benchmark"}</span><span className="mono">{heroSpot ? fmtUsd(heroSpot) : statusLabel(heroReference, loading)}</span></div>
+              </>
+            )}
           </aside>
+        </div>
+      </section>
+
+      <section className="lp-section lp-thesis" id="why-protect">
+        <div className="lp-thesis-copy">
+          <div className="lp-kicker">Why Optket</div>
+          <h2 className="lp-display">Tokenized stocks are onchain. Their protection should be too.</h2>
+          <p className="lp-lede">
+            PreStocks such as ANTHROPIC do not have a traditional listed-options market. Tokenized
+            public equities also need protection that settles beside the asset instead of inside a brokerage account.
+          </p>
+        </div>
+        <div className="lp-thesis-points" aria-label="Why Optket belongs on Solana">
+          {[
+            ["Keep the token", "The protected asset stays in your wallet and keeps its upside."],
+            ["Fixed cost", "Pay one premium upfront. There is no buyer margin or liquidation."],
+            ["Solana-native lifecycle", "Purchase, collateral reservation, exercise, and payout are recorded onchain."],
+          ].map(([title, body]) => (
+            <article className="lp-thesis-point" key={title}><h3>{title}</h3><p>{body}</p></article>
+          ))}
         </div>
       </section>
 
       <section className="lp-section" id="availability">
         <div className="lp-section-head">
           <div className="lp-kicker">Available protection</div>
-          <h2 className="lp-h2">Only fresh references produce executable quotes.</h2>
+          <h2 className="lp-h2">Choose the reference that represents the risk.</h2>
           <p className="lp-lede">
-            NVDAx follows supported equity sessions. ANTHROPIC follows its 24/7 token market.
-            Closed or stale references pause new purchases instead of reusing an old price.
+            ANTHROPIC protection follows its 24/7 token market. NVDAx follows the NVIDIA stock
+            benchmark during supported equity sessions.
           </p>
         </div>
         <div className="lp-grid two">
-          {VERIFIED_ASSETS.map((asset, assetId) => {
+          {LANDING_ASSET_ORDER.map((assetId) => {
+            const asset = VERIFIED_ASSETS[assetId];
             const reference = references[assetId] ?? null;
             const activeSeries = seriesByAsset[assetId];
             const premium = reference?.available && activeSeries
@@ -197,15 +273,16 @@ export default function Landing({
                   <>
                     <div className="lp-price-row">
                       <span className="lp-price mono">{fmtUsd(reference.price)}</span>
-                      <span className="faint">Executable reference</span>
+                      <span className="faint">{asset.kind === "PreStocks" ? "Executable token reference" : "Executable stock benchmark"}</span>
                     </div>
                     <div className="lp-live-rows">
                       <div className="kv"><span className="k">Price floor</span><span className="v mono">{activeSeries ? fmtPrice(activeSeries.strike) : "No active series"}</span></div>
-                      <div className="kv"><span className="k">Est. premium · 1 token</span><span className="v mono">{premium ? `${tok(premium.premium).toFixed(2)} oUSD` : "—"}</span></div>
+                      <div className="kv"><span className="k">Modelled premium · 1 token</span><span className="v mono">{premium ? `${tok(premium.premium).toFixed(2)} oUSD` : "—"}</span></div>
                       <div className="kv"><span className="k">Expiry</span><span className="v mono">{activeSeries ? fmtClock(activeSeries.expiryTs) : "—"}</span></div>
                       <div className="kv"><span className="k">Source</span><span className="v mono">{reference.source}</span></div>
                     </div>
-                    <button className="btn primary lp-card-action" onClick={() => onLaunch("protect", assetId)}>
+                    <button className="lp-text-link" onClick={() => onLaunch("underwriter")}>See premium basis</button>
+                    <button className="btn primary lp-card-action" onClick={() => onLaunch("protect", { assetId })}>
                       Protect {asset.symbol} <span className="arrow" aria-hidden="true">→</span>
                     </button>
                   </>
@@ -213,7 +290,7 @@ export default function Landing({
                   <div className="lp-reference-state">
                     <strong>{isClosed ? "The underlying equity session is closed." : reference.reason}</strong>
                     {readOnlyBenchmark != null && (
-                      <div className="kv"><span className="k">Latest market benchmark · read-only</span><span className="v mono">{fmtUsd(readOnlyBenchmark)}</span></div>
+                      <div className="kv"><span className="k">Latest stock benchmark · read-only</span><span className="v mono">{fmtUsd(readOnlyBenchmark)}</span></div>
                     )}
                     {isClosed && reference.nextOpen && (
                       <div className="kv"><span className="k">Quotes resume</span><span className="v mono">{fmtClock(reference.nextOpen)}</span></div>
@@ -231,22 +308,7 @@ export default function Landing({
             );
           })}
         </div>
-      </section>
-
-      <section className="lp-section" id="why-protect">
-        <div className="lp-section-head">
-          <div className="lp-kicker">Why protect?</div>
-          <h2 className="lp-h2">Stay invested without leaving the downside open.</h2>
-        </div>
-        <div className="lp-grid three">
-          {[
-            ["Fixed cost", "Pay one premium upfront. The buyer has no ongoing margin."],
-            ["No buyer liquidation", "Market moves cannot liquidate the protection buyer."],
-            ["Keep the token", "The underlying remains in your wallet and retains its upside."],
-          ].map(([title, body]) => (
-            <article className="lp-benefit" key={title}><h3>{title}</h3><p>{body}</p></article>
-          ))}
-        </div>
+        <p className="lp-quiet-note">New quotes require a fresh qualifying reference. Closed or stale markets pause purchases instead of reusing an old price.</p>
       </section>
 
       <section className="lp-section" id="how-it-works">
@@ -259,7 +321,7 @@ export default function Landing({
             ["Choose your floor", "Select the asset, protected quantity, price floor, and expiry."],
             ["Pay one premium", "Review the exact cost before the signed quote is submitted."],
             ["Keep holding", "The underlying token never enters an Optket vault."],
-            ["Exercise or settle", "A qualifying reference determines the onchain payout."],
+            ["Exercise or settle", "The agreed market reference determines the onchain payout."],
           ].map(([title, body], i) => (
             <article className="lp-step" key={title}>
               <div className="lp-step-n" aria-hidden="true">{i + 1}</div><h3>{title}</h3><p>{body}</p>
@@ -270,11 +332,11 @@ export default function Landing({
 
       <section className="lp-section" id="assets">
         <div className="lp-section-head">
-          <div className="lp-kicker">What exactly is protected?</div>
-          <h2 className="lp-h2">One protection primitive. Two reference models.</h2>
+          <div className="lp-kicker">What determines the payout?</div>
+          <h2 className="lp-h2">Two assets. Two distinct market references.</h2>
           <p className="lp-lede">
-            The reference determines the risk the contract covers. Optket makes that distinction
-            explicit before purchase.
+            Each contract states which market it follows before you buy. That choice determines
+            exactly which downside the protection covers.
           </p>
         </div>
 
@@ -284,57 +346,80 @@ export default function Landing({
             <button className="btn sm lp-retry" onClick={load}>Retry market data</button>
           </div>
         ) : (
-          <div className="lp-reference-table-wrap">
-            <table className="lp-reference-table">
-              <thead><tr><th scope="col">Protection detail</th><th scope="col">NVDAx</th><th scope="col">ANTHROPIC</th></tr></thead>
-              <tbody>
-                <tr><th scope="row">Token</th><td>NVIDIA xStock</td><td>Anthropic PreStocks</td></tr>
-                <tr>
-                  <th scope="row">Current token market</th>
-                  <td className="mono">{markets.nvdax?.usdPrice != null ? fmtUsd(markets.nvdax.usdPrice) : loading ? "Checking…" : "Unavailable"}</td>
-                  <td className="mono">{markets.anthropic?.usdPrice != null ? fmtUsd(markets.anthropic.usdPrice) : loading ? "Checking…" : "Unavailable"}</td>
-                </tr>
-                <tr><th scope="row">Protection reference</th><td>NVIDIA stock benchmark</td><td>Tradable ANTHROPIC token price</td></tr>
-                <tr><th scope="row">Quote availability</th><td>{statusLabel(references[0] ?? null, loading)}</td><td>{statusLabel(references[1] ?? null, loading)}</td></tr>
-                <tr><th scope="row">Market hours</th><td>Supported equity sessions</td><td>24/7 token market</td></tr>
-                <tr><th scope="row">Data path</th><td>Pyth benchmark with disclosed real fallback</td><td>Jupiter token observations</td></tr>
-                <tr><th scope="row">Token depeg covered?</th><td>No</td><td>Yes, subject to reference rules</td></tr>
-                <tr>
-                  <th scope="row">Verified mint</th>
-                  <td><a className="mono" href={`https://solscan.io/token/${VERIFIED_ASSETS[0].mint}`} target="_blank" rel="noreferrer">{truncate(VERIFIED_ASSETS[0].mint, 5)} ↗</a></td>
-                  <td><a className="mono" href={`https://solscan.io/token/${VERIFIED_ASSETS[1].mint}`} target="_blank" rel="noreferrer">{truncate(VERIFIED_ASSETS[1].mint, 5)} ↗</a></td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="lp-reference-cards">
+            <article className="lp-reference-card">
+              <div className="lp-reference-card-head">
+                <div><span className="lp-reference-kind">PreStocks</span><h3>ANTHROPIC</h3></div>
+                <span className="pill green">24/7 token market</span>
+              </div>
+              <p className="lp-reference-summary">Covers movements in the tradable token’s own market price.</p>
+              <dl>
+                <div><dt>Token market</dt><dd className="mono">{markets.anthropic?.usdPrice != null ? fmtUsd(markets.anthropic.usdPrice) : loading ? "Checking…" : "Unavailable"}</dd></div>
+                <div><dt>Payout reference</dt><dd>Jupiter token observations</dd></div>
+                <div><dt>Token-price downside</dt><dd>Covered</dd></div>
+                <div><dt>Quote status</dt><dd>{statusLabel(references[1] ?? null, loading)}</dd></div>
+              </dl>
+            </article>
+            <article className="lp-reference-card">
+              <div className="lp-reference-card-head">
+                <div><span className="lp-reference-kind">xStock</span><h3>NVDAx</h3></div>
+                <span className="pill gray">Equity sessions</span>
+              </div>
+              <p className="lp-reference-summary">Covers the NVIDIA stock benchmark, not a discount in the xStock token market.</p>
+              <dl>
+                <div><dt>Token market</dt><dd className="mono">{markets.nvdax?.usdPrice != null ? fmtUsd(markets.nvdax.usdPrice) : loading ? "Checking…" : "Unavailable"}</dd></div>
+                <div><dt>Stock benchmark</dt><dd className="mono">{markets.nvdax?.benchmark != null ? fmtUsd(markets.nvdax.benchmark) : loading ? "Checking…" : "Unavailable"}</dd></div>
+                <div><dt>Payout reference</dt><dd>Pyth; Jupiter stock benchmark if Hermes is unavailable</dd></div>
+                <div><dt>Quote status</dt><dd>{statusLabel(references[0] ?? null, loading)}</dd></div>
+              </dl>
+            </article>
           </div>
         )}
         <div className="lp-note">
-          <p className="disclosure">NVDAx token-market discounts are excluded. ANTHROPIC protection follows the token market itself.</p>
+          <p className="disclosure">The contract reference—not the token label—defines the protected risk.</p>
           <button className="btn ghost sm" onClick={() => onLaunch("compare")}>Compare current references</button>
         </div>
       </section>
 
       <section className="lp-section" id="onchain-proof">
         <div className="lp-section-head">
-          <div className="lp-kicker">Protocol proof</div>
-          <h2 className="lp-h2">The lifecycle is enforced, not simulated.</h2>
-          <p className="lp-lede">Program state, collateral reservations, exercise requests, and settlements are recorded on Solana devnet.</p>
+          <div className="lp-kicker">Built for the full lifecycle</div>
+          <h2 className="lp-h2">Protection from purchase to payout.</h2>
+          <p className="lp-lede">Underwriters supply per-asset collateral pools and earn premiums. Optket reserves each contract’s maximum payout before issuing protection.</p>
         </div>
-        <div className="lp-grid four">
-          {[
-            ["Onchain program", `Deployed on Solana ${NETWORK}.`],
-            ["Collateral", "Maximum contractual payout is reserved when protection is issued."],
-            ["Settlement", "A fresh qualifying reference is required before payout."],
-            ["Exercise", "Partial or full exercise is recorded onchain."],
-          ].map(([title, body]) => (
-            <article className="lp-proof" key={title}><h3>{title}</h3><p>{body}</p></article>
-          ))}
+        <div className="lp-proof-layout">
+          <div className="lp-proof-list">
+            {[
+              ["Onchain program", `Deployed on Solana ${NETWORK}.`],
+              ["Fully reserved", "The maximum contractual payout is locked against the position."],
+              ["Flexible exercise", "Exercise all or part of the protected quantity before the cutoff."],
+              ["Automated settlement", "A permissionless keeper completes eligible exercises and expiries."],
+            ].map(([title, body]) => (
+              <article className="lp-proof-row" key={title}><h3>{title}</h3><p>{body}</p></article>
+            ))}
+          </div>
+          <div className="lp-faq" aria-label="Settlement questions">
+            <div className="lp-kicker">Settlement, plainly</div>
+            <details>
+              <summary>Can I exercise before expiry?</summary>
+              <p>Yes. Full and partial exercise are available before the exercise cutoff.</p>
+            </details>
+            <details>
+              <summary>What is a qualifying reference?</summary>
+              <p>A fresh external observation that satisfies the contract’s source, timing, and validation rules.</p>
+            </details>
+            <details>
+              <summary>What if no valid reference exists?</summary>
+              <p>The contract applies its disclosed failed-reference refund rule rather than inventing a settlement price. NVDAx does not promise weekend settlement.</p>
+            </details>
+          </div>
         </div>
         <div className="lp-proof-actions">
           <a className="lp-program-link" href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">
             View deployed program <span className="mono">{truncate(OPTKET_PROGRAM_ID.toBase58(), 6)}</span> ↗
           </a>
           <button className="btn ghost sm" onClick={() => onLaunch("history")}>Open transaction history</button>
+          <button className="btn ghost sm" onClick={() => onLaunch("underwriter")}>View underwriter economics</button>
         </div>
       </section>
 
@@ -346,9 +431,9 @@ export default function Landing({
         <div className="lp-grid four">
           {[
             ["real", "External references", "Market data and qualifying settlement observations come from external sources."],
-            ["real", "Real onchain actions", `Purchases, exercises, and settlements execute on ${NETWORK}.`],
+            ["real", "Onchain actions", `Purchases, collateral reservations, exercises, and settlements execute on ${NETWORK}.`],
             ["demo", "Demo oUSD", "Premiums and payouts use a demo token with no redemption value. Real USDC is rejected."],
-            ["demo", "No executed hedging", "Underwriting costs are modelled; market hedges are not executed."],
+            ["demo", "Modelled pricing", "Pricing assumptions are disclosed. External market hedges are not executed on devnet."],
           ].map(([kind, title, body]) => (
             <article className="lp-trust" key={title}>
               <h3><span className={"lp-trust-dot " + kind} aria-hidden="true" />{title}</h3><p>{body}</p>
@@ -359,18 +444,17 @@ export default function Landing({
 
       <section className="lp-section" id="product-depth">
         <div className="lp-section-head">
-          <div className="lp-kicker">Product depth</div>
-          <h2 className="lp-h2">Protection is the front door. The full workflow is already here.</h2>
+          <div className="lp-kicker">Explore Optket</div>
+          <h2 className="lp-h2">Follow every position from quote to settlement.</h2>
         </div>
         <div className="lp-grid three">
           {[
-            ["portfolio", "Portfolio", "Track active protection, pending exercises, holdings, and renewals."],
-            ["compare", "Compare", "See token prices, benchmark basis, and exactly what each contract covers."],
-            ["calculator", "Calculator", "Explore floors, premiums, and payout scenarios."],
-            ["underwriter", "Underwriter", "Inspect collateral, reserves, premiums, payouts, and modelled costs."],
-            ["history", "History", "Open the Solana signatures behind each contract lifecycle."],
-          ].map(([tab, title, body]) => (
-            <button className="lp-depth" key={tab} onClick={() => onLaunch(tab as AppTab)}>
+            ["portfolio", "Positions", "Track active protection, pending exercises, holdings, and renewals."],
+            ["compare", "Markets", "See token prices, stock benchmarks, and exactly what each contract covers."],
+            ["underwriter", "Risk", "Inspect collateral, reserves, premiums, payouts, and modelled costs."],
+            ["history", "Onchain", "Open the Solana signatures behind each contract lifecycle."],
+          ].map(([tab, title, body], index) => (
+            <button className={"lp-depth" + (index === 0 ? " feature" : "")} key={tab} onClick={() => onLaunch(tab as AppTab)}>
               <span><strong>{title}</strong><small>{body}</small></span>
               <span className="arrow" aria-hidden="true">→</span>
             </button>
@@ -383,7 +467,7 @@ export default function Landing({
           <h2 className="lp-h2">Open a protection position in under a minute.</h2>
           <p className="lp-lede">The browser-only demo wallet receives demo oUSD. Fees and rent are sponsored—no extension, seed phrase, or SOL required.</p>
           <div className="lp-cta-row">
-            <button className="btn primary lg" onClick={() => onLaunch("protect", preferredAssetId)}>
+            <button className="btn primary lg" onClick={() => onLaunch("protect", { assetId: 1 })}>
               Try the demo <span className="arrow" aria-hidden="true">→</span>
             </button>
           </div>
