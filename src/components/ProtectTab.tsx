@@ -26,7 +26,7 @@ export default function ProtectTab({
   onInitialDraftConsumed?: () => void;
 } = {}) {
   const c = useChain();
-  const [assetId, setAssetId] = useState(0);
+  const [assetId, setAssetId] = useState(1);
   const [seriesId, setSeriesId] = useState<number | null>(null);
   const [qtyStr, setQtyStr] = useState("1");
   const [reference, setReference] = useState<QuoteReference | null>(null);
@@ -255,7 +255,7 @@ export default function ProtectTab({
                         ? <span className="pill blue">Devnet · {fmtDuration(s.expiryTs - now)}</span>
                         : <span className="pill gray">weekly</span>}
                     </div>
-                    <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>Est. premium</div>
+                    <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>Estimated premium</div>
                     <div className="stat-value sm mono">{q ? tok(q.premium).toFixed(2) : "—"}</div>
                   </button>
                 );
@@ -264,9 +264,9 @@ export default function ProtectTab({
           )}
           {selected && (
             <>
-              <div className="kv" style={{ marginTop: 14 }}><span className="k">Expiry</span><span className="v mono">{fmtClock(selected.expiryTs)}</span></div>
+              <div className="kv" style={{ marginTop: 14 }}><span className="k">Expiry · your local time</span><span className="v mono">{fmtClock(selected.expiryTs)}</span></div>
               <div className="kv"><span className="k">Remaining</span><span className="v mono">{fmtDuration(secsLeft)}</span></div>
-              <div className="kv"><span className="k">Exercise cutoff</span><span className="v mono">{fmtClock(selected.exerciseCutoffTs)}</span></div>
+              <div className="kv"><span className="k">Exercise cutoff · your local time</span><span className="v mono">{fmtClock(selected.exerciseCutoffTs)}</span></div>
               {selected.shortDated && (
                 <div className="callout" style={{ marginTop: 10 }}>
                   Short-dated Devnet series — a genuine onchain contract with the same collateral and settlement rules as the weekly series.
@@ -315,15 +315,20 @@ export default function ProtectTab({
               <table className="log">
                 <thead><tr><th>Reference</th><th>Payout</th><th>Net</th></tr></thead>
                 <tbody>
-                  {[1.05, 1.0, 0.85, 0.7].map((m) => {
-                    const ref = toFixed((spotReal ?? tok(selected.strike)) * m);
+                  {[
+                    { label: "Current", value: spotReal ?? tok(selected.strike) },
+                    { label: "Floor", value: tok(selected.strike) },
+                    { label: "Breakeven", value: breakeven },
+                    { label: "Downside", value: (spotReal ?? tok(selected.strike)) * 0.85 },
+                  ].filter((row, index, rows) => rows.findIndex((candidate) => Math.abs(candidate.value - row.value) < 0.005) === index).map((row) => {
+                    const ref = toFixed(row.value);
                     const p = intrinsic(qty, selected.strike, ref);
                     const net = p - est.premium;
                     return (
-                      <tr key={m}>
-                        <td className="mono">{fmtUsd(fromFixed(ref))}</td>
-                        <td className="mono">{tok(p).toFixed(2)}</td>
-                        <td className={"mono " + (net >= 0n ? "pos" : "neg")}>{net >= 0n ? "+" : ""}{tok(net).toFixed(2)}</td>
+                      <tr key={row.label}>
+                        <td><span className="mono">{fmtUsd(fromFixed(ref))}</span><span className="scenario-label">{row.label}</span></td>
+                        <td className="mono">{tok(p).toFixed(2)} oUSD</td>
+                        <td className={"mono " + (net >= 0n ? "pos" : "neg")}>{net >= 0n ? "+" : "−"}{Math.abs(tok(net)).toFixed(2)} oUSD</td>
                       </tr>
                     );
                   })}

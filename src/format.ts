@@ -14,7 +14,17 @@ export function fmtPrice(v: bigint, dp = 2): string {
 }
 
 export function fmtUsd(n: number, dp = 2): string {
-  return "$" + n.toLocaleString(undefined, { maximumFractionDigits: dp, minimumFractionDigits: dp });
+  if (!Number.isFinite(n)) return "--";
+  const clean = Math.abs(n) < 0.5 * 10 ** -dp ? 0 : n;
+  return "$" + clean.toLocaleString("en-US", { maximumFractionDigits: dp, minimumFractionDigits: dp });
+}
+
+/** Demo settlement-token accounting. Never imply that oUSD is real USD. */
+export function fmtOusd(n: number, dp = 2): string {
+  if (!Number.isFinite(n)) return "--";
+  const clean = Math.abs(n) < 0.5 * 10 ** -dp ? 0 : n;
+  const sign = clean < 0 ? "−" : "";
+  return `${sign}${Math.abs(clean).toLocaleString("en-US", { maximumFractionDigits: dp, minimumFractionDigits: dp })} oUSD`;
 }
 
 export function fmtPct(n: number, dp = 1): string {

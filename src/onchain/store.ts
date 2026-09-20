@@ -4,7 +4,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  OptketClient, associatedTokenAddress,
+  OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress,
   type ContractAcct, type PoolAcct, type SeriesAcct,
 } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
@@ -35,6 +35,14 @@ export interface HistoryEntry {
   blockTime: number | null;
   contractId: bigint;
   assetId: number;
+  err: boolean;
+}
+
+/** One confirmed transaction that invoked the deployed Optket program. */
+export interface ProgramHistoryEntry {
+  signature: string;
+  slot: number;
+  blockTime: number | null;
   err: boolean;
 }
 
@@ -150,6 +158,7 @@ interface ChainState {
   seriesList: SeriesInfo[];
   contracts: ContractAcct[];
   history: HistoryEntry[];
+  programHistory: ProgramHistoryEntry[];
   /** Real mainnet holdings (share-equivalents) imported by the user, per asset.
    *  Read-only context for the coverage tracker (§16) — never changes a contract. */
   exposure: Record<number, number>;
@@ -190,6 +199,7 @@ export const useChain = create<ChainState>((set, get) => ({
   seriesList: [],
   contracts: [],
   history: [],
+  programHistory: [],
   exposure: { 0: 0, 1: 0 },
   setExposure: (assetId, shareEquiv) =>
     set((s) => ({ exposure: { ...s.exposure, [assetId]: shareEquiv } })),
@@ -241,8 +251,9 @@ export const useChain = create<ChainState>((set, get) => ({
     // Real transaction history: every signature that touched a contract the
     // user owns (§13.7) — no local log, straight from the chain.
     const history: HistoryEntry[] = [];
-    await Promise.all(
-      contracts.slice(0, 12).map(async (c) => {
+    const programHistory: ProgramHistoryEntry[] = [];
+    await Promise.all([
+      ...contracts.slice(0, 12).map(async (c) => {
         try {
           const sigs = await conn.getSignaturesForAddress(new PublicKey(c.address), { limit: 12 });
           for (const s of sigs) {
@@ -253,8 +264,22 @@ export const useChain = create<ChainState>((set, get) => ({
           }
         } catch { /* rpc hiccup — keep what we have */ }
       }),
-    );
+      (async () => {
+        try {
+          const sigs = await conn.getSignaturesForAddress(OPTKET_PROGRAM_ID, { limit: 40 });
+          for (const s of sigs) {
+            programHistory.push({
+              signature: s.signature,
+              slot: s.slot,
+              blockTime: s.blockTime ?? null,
+              err: !!s.err,
+            });
+          }
+        } catch { /* rpc hiccup — keep the wallet-scoped data */ }
+      })(),
+    ]);
     history.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
+    programHistory.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
     const sol = await conn.getBalance(burner.publicKey);
     let tokens = 0;
     try {
@@ -269,6 +294,7 @@ export const useChain = create<ChainState>((set, get) => ({
       seriesList,
       contracts,
       history,
+      programHistory,
       solBalance: sol / 1e9,
       tokenBalance: tokens,
       trial,

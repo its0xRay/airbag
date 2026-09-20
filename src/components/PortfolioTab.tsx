@@ -20,7 +20,7 @@ const STATUS_TONE: Record<string, string> = {
  */
 export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number) => void }) {
   const c = useChain();
-  const [assetId, setAssetId] = useState(0);
+  const [assetId, setAssetId] = useState(1);
   const asset = VERIFIED_ASSETS[assetId];
 
   if (!c.connected) {

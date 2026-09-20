@@ -26,6 +26,9 @@ const TABS: [Tab, string][] = [
 
 export default function App() {
   const connected = useChain((s) => s.connected);
+  const connect = useChain((s) => s.connect);
+  const busy = useChain((s) => s.busy);
+  const status = useChain((s) => s.status);
   const refresh = useChain((s) => s.refresh);
   const chainError = useChain((s) => s.error);
   const clearError = useChain((s) => s.clearError);
@@ -34,6 +37,16 @@ export default function App() {
   // A renewal jumps to Protect with the quantity prefilled — the quote itself
   // is always fresh, so no terms carry over from the old contract (§18).
   const [renewal, setRenewal] = useState<{ assetId: number; quantity: number } | null>(null);
+
+  const launch = async (nextTab: Exclude<Tab, "home">, draft?: ProtectDraft) => {
+    if (busy) return;
+    if (nextTab === "protect") setProtectDraft(draft ?? null);
+    if (!useChain.getState().connected) {
+      await connect();
+      if (!useChain.getState().connected) return;
+    }
+    setTab(nextTab);
+  };
 
   // Keep onchain state fresh while the user is looking at it.
   useEffect(() => {
@@ -66,7 +79,9 @@ export default function App() {
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
-            <button className="btn primary" onClick={() => setTab("protect")}>Try demo</button>
+            <button className="btn primary" disabled={busy} aria-busy={busy} onClick={() => launch("protect", { assetId: 1 })}>
+              {busy ? status || "Starting…" : "Launch app"}
+            </button>
           </>
         ) : (
           <WalletBar />
@@ -88,7 +103,7 @@ export default function App() {
         </nav>
       )}
 
-      {tab !== "home" && chainError && (
+      {chainError && (
         <div className="callout warn" role="alert" style={{ margin: "14px 16px" }}>
           <div className="between">
             <span>{chainError}</span>
@@ -97,10 +112,7 @@ export default function App() {
         </div>
       )}
 
-      {tab === "home" && <Landing onLaunch={(t, draft) => {
-        if (t === "protect") setProtectDraft(draft ?? null);
-        setTab(t as Tab);
-      }} />}
+      {tab === "home" && <Landing onLaunch={(t, draft) => launch(t as Exclude<Tab, "home">, draft)} launching={busy} launchStatus={status} />}
       {tab === "protect" && (
         <ProtectTab
           renewal={renewal}

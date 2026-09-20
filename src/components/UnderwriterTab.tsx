@@ -1,7 +1,7 @@
 import { useChain } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { ASSUMPTIONS } from "../engine";
-import { fmtUsd, fmtPct } from "../format";
+import { fmtOusd, fmtPct } from "../format";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 
@@ -52,18 +52,18 @@ export default function UnderwriterTab() {
               </div>
 
               <div className="risk-metrics">
-                <div><span>Available capital</span><strong className="mono">{fmtUsd(available, 0)}</strong></div>
-                <div><span>Reserved collateral</span><strong className="mono">{fmtUsd(reserved, 0)}</strong></div>
+                <div><span>Available capital</span><strong className="mono">{fmtOusd(available, 0)}</strong></div>
+                <div><span>Reserved collateral</span><strong className="mono">{fmtOusd(reserved, 0)}</strong></div>
                 <div><span>Utilization</span><strong className="mono">{fmtPct(utilization)}</strong></div>
-                <div><span>Pending exercise</span><strong className="mono">{fmtUsd(tok(p.pendingExercise), 0)}</strong></div>
+                <div><span>Pending exercise</span><strong className="mono">{fmtOusd(tok(p.pendingExercise), 0)}</strong></div>
               </div>
               <div className="bar" aria-label={`Pool utilization ${fmtPct(utilization)}`}><span style={{ width: fmtPct(utilization), background: "var(--blue)" }} /></div>
 
               <div className="risk-columns">
-                <div><h3>Devnet activity since deployment</h3><div className="kv"><span className="k">Premium receipts</span><span className="v mono">{fmtUsd(premiums)}</span></div><div className="kv"><span className="k">Gross payouts</span><span className="v mono">{fmtUsd(payouts)}</span></div><div className="kv"><span className="k">Failed-reference refunds</span><span className="v mono">{fmtUsd(refunds)}</span></div><div className="kv"><span className="k">Realized net</span><span className={"v mono " + (realized >= 0 ? "pos" : "neg")}>{fmtUsd(realized)}</span></div></div>
-                <div><h3>Modelled economics · v{m.version}</h3><div className="kv"><span className="k">Execution and funding</span><span className="v mono">−{fmtUsd(exec)}</span></div><div className="kv"><span className="k">Operating expense</span><span className="v mono">−{fmtUsd(ops)}</span></div><div className="kv"><span className="k">Capital opportunity cost</span><span className="v mono">−{fmtUsd(capital)}</span></div><div className="kv"><span className="k">Risk allowance</span><span className="v mono">−{fmtUsd(risk)}</span></div><div className="kv"><span className="k">Modelled hedge cost</span><span className="v mono">{m.hedgeAvailable ? `−${fmtUsd(hedgeCost)}` : "n/a"}</span></div><div className="kv"><span className="k">Modelled net after costs</span><span className={"v mono " + (modelledNet >= 0 ? "pos" : "neg")}>{fmtUsd(modelledNet)}</span></div></div>
+                <div><h3>Realized Devnet test activity</h3><div className="kv"><span className="k">Premium receipts</span><span className="v mono">{fmtOusd(premiums)}</span></div><div className="kv"><span className="k">Gross payouts</span><span className="v mono">{fmtOusd(payouts)}</span></div><div className="kv"><span className="k">Failed-reference refunds</span><span className="v mono">{fmtOusd(refunds)}</span></div><div className="kv"><span className="k">Realized test net</span><span className={"v mono " + (realized >= 0 ? "pos" : "neg")}>{fmtOusd(realized)}</span></div></div>
+                <div><h3>Modelled economics · v{m.version}</h3><div className="kv"><span className="k">Execution and funding</span><span className="v mono">{fmtOusd(-exec)}</span></div><div className="kv"><span className="k">Operating expense</span><span className="v mono">{fmtOusd(-ops)}</span></div><div className="kv"><span className="k">Capital opportunity cost</span><span className="v mono">{fmtOusd(-capital)}</span></div><div className="kv"><span className="k">Risk allowance</span><span className="v mono">{fmtOusd(-risk)}</span></div><div className="kv"><span className="k">Modelled hedge cost</span><span className="v mono">{m.hedgeAvailable ? fmtOusd(-hedgeCost) : "n/a"}</span></div><div className="kv"><span className="k">Modelled net after costs</span><span className={"v mono " + (modelledNet >= 0 ? "pos" : "neg")}>{fmtOusd(modelledNet)}</span></div></div>
               </div>
-              <p className="disclosure">Stress scenario: a 20% reference decline could consume up to <span className="mono neg">{fmtUsd(reserved * 0.2, 0)}</span> of the currently reserved amount. This is analysis, not an executed market result.</p>
+              <p className="disclosure">Stress scenario: a 20% reference decline could consume up to <span className="mono neg">{fmtOusd(reserved * 0.2, 0)}</span> of the currently reserved amount. This is analysis, not an executed market result.</p>
             </section>
           );
         })}

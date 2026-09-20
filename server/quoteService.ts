@@ -298,16 +298,27 @@ async function faucet(address: string) {
 }
 
 // ---- short-dated Devnet series rotation ----
-// Keep one genuine, fully collateralized short-dated series per asset alive so
-// the complete lifecycle can be exercised without waiting a week. These use the
-// same quote, purchase and settlement paths as every other series.
+// Keep two genuine, fully collateralized short-dated floors per asset alive so
+// the complete lifecycle and strike selection can be exercised without waiting
+// a week. These use the same quote, purchase and settlement paths as every
+// other series.
 const SHORT_ID_MIN = 9;
-const SHORT_ID_MAX = 108;
+// u16 leaves ample runway beyond the hackathon. We discover the first unused id
+// once at startup, then /series/all reads only the two current short-series ids.
+const SHORT_ID_MAX = Number(process.env.SHORT_SERIES_ID_MAX || 4095);
 const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 45);
-const SHORT_STRIKES: Record<number, { strike: number; maxSize: number }> = {
-  0: { strike: Number(process.env.SHORT_STRIKE_0 || 230), maxSize: 100 },
-  1: { strike: Number(process.env.SHORT_STRIKE_1 || 1050), maxSize: 20 },
-};
+const SHORT_TIERS = [
+  {
+    0: { strike: Number(process.env.SHORT_STRIKE_0 || 215), maxSize: 100 },
+    1: { strike: Number(process.env.SHORT_STRIKE_1 || 1000), maxSize: 20 },
+  },
+  {
+    0: { strike: Number(process.env.SHORT_STRIKE_0_ALT || 205), maxSize: 100 },
+    1: { strike: Number(process.env.SHORT_STRIKE_1_ALT || 950), maxSize: 20 },
+  },
+] as const;
+const activeShortIds = new Map<number, number>();
+let nextShortId: number | null = null;
 const fx = (n: number) => BigInt(Math.round(n * 1e6));
 
 function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSize: number, expiry: number) {
@@ -330,28 +341,50 @@ async function rotateShortSeries() {
   if (!payer) return;
   try {
     const t = nowSec();
-    const ids = Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i);
-    // one batch at a time (getMultipleAccounts caps at 100 keys)
-    let liveId: number | null = null;
-    let freeId: number | null = null;
-    for (let i = 0; i < ids.length && liveId === null && freeId === null; i += 100) {
-      const chunk = ids.slice(i, i + 100);
-      const infos = await conn.getMultipleAccountsInfo(chunk.map((id) => seriesPda(0, id)));
-      for (let k = 0; k < chunk.length; k++) {
-        const info = infos[k];
-        if (!info) { freeId = chunk[k]; break; }
-        const expiryTs = Number((info.data as Buffer).readBigInt64LE(19));
-        if (expiryTs > t + 240) { liveId = chunk[k]; break; } // still usable
+    if (nextShortId === null) {
+      const ids = Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i);
+      // Startup-only discovery. Existing ids are contiguous; stop at the first
+      // gap and retain the newest usable id matching each configured floor.
+      discovery: for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        const infos = await conn.getMultipleAccountsInfo(chunk.map((id) => seriesPda(0, id)));
+        for (let k = 0; k < chunk.length; k++) {
+          const info = infos[k];
+          if (!info) {
+            nextShortId = chunk[k];
+            break discovery;
+          }
+          const s = decodeSeries(info.data as Buffer);
+          if (s.active && s.expiryTs > t + 240) {
+            SHORT_TIERS.forEach((tier, tierIndex) => {
+              if (s.strike === fx(tier[0].strike)) activeShortIds.set(tierIndex, s.seriesId);
+            });
+          }
+        }
       }
+      if (nextShortId === null) throw new Error(`short-series id range exhausted at ${SHORT_ID_MAX}`);
     }
-    if (liveId !== null || freeId === null) return;
-    const expiry = t + SHORT_MINUTES * 60;
-    for (const assetId of [0, 1]) {
-      const cfgS = SHORT_STRIKES[assetId];
-      const tx = new Transaction().add(createSeriesIx(assetId, freeId, cfgS.strike, cfgS.maxSize, expiry));
+
+    for (let tierIndex = 0; tierIndex < SHORT_TIERS.length; tierIndex++) {
+      const currentId = activeShortIds.get(tierIndex);
+      if (currentId != null) {
+        const current = await fetchSeries(0, currentId).catch(() => null);
+        if (current?.active && current.expiryTs > t + 240) continue;
+      }
+      if (nextShortId > SHORT_ID_MAX) throw new Error(`short-series id range exhausted at ${SHORT_ID_MAX}`);
+      const seriesId = nextShortId++;
+      const expiry = t + SHORT_MINUTES * 60;
+      const tier = SHORT_TIERS[tierIndex];
+      // Both assets are created atomically so a failed transaction cannot leave
+      // a half-published id behind.
+      const tx = new Transaction().add(
+        createSeriesIx(0, seriesId, tier[0].strike, tier[0].maxSize, expiry),
+        createSeriesIx(1, seriesId, tier[1].strike, tier[1].maxSize, expiry),
+      );
       await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" });
+      activeShortIds.set(tierIndex, seriesId);
+      console.log(`[rotate] published tier ${tierIndex + 1} short series id ${seriesId} (${SHORT_MINUTES}m) for both assets`);
     }
-    console.log(`[rotate] published short-dated series id ${freeId} (${SHORT_MINUTES}m) for both assets`);
   } catch (e) {
     console.warn("[rotate] failed:", (e as Error).message);
   }
@@ -496,15 +529,13 @@ const server = createServer(async (req, res) => {
       if (!tx || !buyer) return json(res, 400, { error: "tx and buyer required" });
       return json(res, 200, await sponsor(String(tx), String(buyer)));
     }
-    /** Every live series across both assets in bounded RPC batches, including
-     *  all rotating short-dated Devnet ids. */
+    /** Weekly series plus the two currently purchasable short-dated floors.
+     *  The active-id registry is rebuilt from chain state at service startup. */
     if (req.method === "GET" && url.pathname === "/series/all") {
       const ids: Array<{ assetId: number; seriesId: number }> = [];
-      for (const assetId of [0, 1]) for (const seriesId of [0, 1, ...Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i)]) ids.push({ assetId, seriesId });
-      const infos = [];
-      for (let i = 0; i < ids.length; i += 100) {
-        infos.push(...await conn.getMultipleAccountsInfo(ids.slice(i, i + 100).map((k) => seriesPda(k.assetId, k.seriesId))));
-      }
+      const currentShortIds = [...new Set(activeShortIds.values())];
+      for (const assetId of [0, 1]) for (const seriesId of [0, 1, ...currentShortIds]) ids.push({ assetId, seriesId });
+      const infos = await conn.getMultipleAccountsInfo(ids.map((k) => seriesPda(k.assetId, k.seriesId)));
       const now = nowSec();
       const out = infos
         .map((info, i) => (info ? { ...decodeSeries(info.data as Buffer), ...ids[i] } : null))
