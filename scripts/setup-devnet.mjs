@@ -45,7 +45,7 @@ const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 20);
 const FORCE_SHORT_SERIES = process.env.FORCE_SHORT_SERIES === "1";
 const SHORT_PLAN = [
   [0, Number(process.env.SHORT_STRIKE_0 || 230), 100],
-  [1, Number(process.env.SHORT_STRIKE_1 || 1050), 20],
+  [1, Number(process.env.SHORT_STRIKE_1 || 1100), 20],
 ];
 // Real mainnet identities recorded on-chain (reference only — never escrowed).
 const REAL_ASSET_MINTS = {

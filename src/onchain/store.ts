@@ -4,8 +4,8 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress,
-  type ContractAcct, type PoolAcct, type SeriesAcct,
+  OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress, decodeOptketInstruction,
+  type ContractAcct, type ExerciseRequestAcct, type PoolAcct, type SeriesAcct,
 } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 
@@ -36,6 +36,7 @@ export interface HistoryEntry {
   contractId: bigint;
   assetId: number;
   err: boolean;
+  action: string;
 }
 
 /** One confirmed transaction that invoked the deployed Optket program. */
@@ -44,6 +45,33 @@ export interface ProgramHistoryEntry {
   slot: number;
   blockTime: number | null;
   err: boolean;
+  action: string;
+}
+
+export interface RequestTransaction {
+  signature: string;
+  blockTime: number | null;
+  err: boolean;
+  action: string;
+}
+
+async function decodeTransactionActions(connection: Connection, signatures: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(signatures)].slice(0, 100);
+  const actions = new Map<string, string>();
+  if (unique.length === 0) return actions;
+  try {
+    const transactions = await connection.getParsedTransactions(unique, { maxSupportedTransactionVersion: 0 });
+    transactions.forEach((transaction, index) => {
+      if (!transaction) return;
+      const labels = transaction.transaction.message.instructions.flatMap((instruction) => {
+        if (!("programId" in instruction) || !instruction.programId.equals(OPTKET_PROGRAM_ID) || !("data" in instruction)) return [];
+        const label = decodeOptketInstruction(instruction.data);
+        return label ? [label] : [];
+      });
+      if (labels.length > 0) actions.set(unique[index], [...new Set(labels)].join(" + "));
+    });
+  } catch { /* RPC may restrict transaction history; retain honest generic labels */ }
+  return actions;
 }
 
 async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
@@ -157,6 +185,8 @@ interface ChainState {
   /** Every live purchasable series (weekly + short-dated), from the service. */
   seriesList: SeriesInfo[];
   contracts: ContractAcct[];
+  requests: ExerciseRequestAcct[];
+  requestTransactions: Record<string, RequestTransaction[]>;
   history: HistoryEntry[];
   programHistory: ProgramHistoryEntry[];
   /** Real mainnet holdings (share-equivalents) imported by the user, per asset.
@@ -198,6 +228,8 @@ export const useChain = create<ChainState>((set, get) => ({
   series: {},
   seriesList: [],
   contracts: [],
+  requests: [],
+  requestTransactions: {},
   history: [],
   programHistory: [],
   exposure: { 0: 0, 1: 0 },
@@ -219,7 +251,7 @@ export const useChain = create<ChainState>((set, get) => ({
       // Fees and account rent are sponsored (§19), so the burner needs no SOL —
       // the faucet only mints the demo tokens used to pay premiums.
       set({ status: "claiming demo tokens…" });
-      await fetchJson(`${get().svcUrl}/faucet`, {
+      const faucet = await fetchJson<{ tokenBalance?: number }>(`${get().svcUrl}/faucet`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: burner.publicKey.toBase58() }),
       });
@@ -228,6 +260,7 @@ export const useChain = create<ChainState>((set, get) => ({
         burner, address: burner.publicKey.toBase58(), connected: true, demoMint,
         quoteAuthority: cfg.quoteAuthority,
         sponsor: trial?.budgetWallet ? new PublicKey(trial.budgetWallet) : null,
+        tokenBalance: faucet.tokenBalance ?? 0,
       });
       await get().refresh();
       set({ status: "" });
@@ -241,17 +274,25 @@ export const useChain = create<ChainState>((set, get) => ({
   refresh: async () => {
     const { client, conn, burner, demoMint, svcUrl } = get();
     if (!burner || !demoMint) return;
-    const [pool0, pool1, s00, s01, s10, s11, contracts, seriesList] = await Promise.all([
-      client.getPool(0), client.getPool(1),
-      client.getSeries(0, 0), client.getSeries(0, 1), client.getSeries(1, 0), client.getSeries(1, 1),
-      client.getContractsForBuyer(burner.publicKey),
-      loadSeries(svcUrl).catch(() => get().seriesList),
+    const current = get();
+    const [pool0, pool1, contracts, seriesList] = await Promise.all([
+      client.getPool(0).catch(() => current.pools[0] ?? null), client.getPool(1).catch(() => current.pools[1] ?? null),
+      client.getContractsForBuyer(burner.publicKey).catch(() => current.contracts),
+      loadSeries(svcUrl).catch(() => current.seriesList),
     ]);
+
+    const requests = await client.getRequestsForContracts(contracts.map((contract) => new PublicKey(contract.address))).catch(() => current.requests);
 
     // Real transaction history: every signature that touched a contract the
     // user owns (§13.7) — no local log, straight from the chain.
     const history: HistoryEntry[] = [];
     const programHistory: ProgramHistoryEntry[] = [];
+    const previousActions = new Map([
+      ...get().history.map((entry) => [entry.signature, entry.action] as const),
+      ...get().programHistory.map((entry) => [entry.signature, entry.action] as const),
+      ...Object.values(get().requestTransactions).flat().map((entry) => [entry.signature, entry.action] as const),
+    ]);
+    const requestTransactions: Record<string, RequestTransaction[]> = { ...get().requestTransactions };
     await Promise.all([
       ...contracts.slice(0, 12).map(async (c) => {
         try {
@@ -260,28 +301,56 @@ export const useChain = create<ChainState>((set, get) => ({
             history.push({
               signature: s.signature, slot: s.slot, blockTime: s.blockTime ?? null,
               contractId: c.contractId, assetId: c.assetId, err: !!s.err,
+              action: previousActions.get(s.signature) ?? "Contract instruction",
             });
           }
         } catch { /* rpc hiccup — keep what we have */ }
       }),
       (async () => {
         try {
-          const sigs = await conn.getSignaturesForAddress(OPTKET_PROGRAM_ID, { limit: 40 });
+          const sigs = await conn.getSignaturesForAddress(OPTKET_PROGRAM_ID, { limit: 30 });
           for (const s of sigs) {
             programHistory.push({
               signature: s.signature,
               slot: s.slot,
               blockTime: s.blockTime ?? null,
               err: !!s.err,
+              action: previousActions.get(s.signature) ?? "Program instruction",
             });
           }
         } catch { /* rpc hiccup — keep the wallet-scoped data */ }
       })(),
+      ...requests.slice(0, 20).map(async (request) => {
+        const cached = requestTransactions[request.address];
+        const finalActionPresent = cached?.some((entry) => entry.action.includes("settled") || entry.action.includes("failed"));
+        if (request.status !== "Pending" && finalActionPresent) return;
+        try {
+          const sigs = await conn.getSignaturesForAddress(new PublicKey(request.address), { limit: 4 });
+          requestTransactions[request.address] = sigs.map((s) => ({
+            signature: s.signature,
+            blockTime: s.blockTime ?? null,
+            err: !!s.err,
+            action: previousActions.get(s.signature) ?? "Exercise instruction",
+          }));
+        } catch { /* account remains valid proof if history lookup is unavailable */ }
+      }),
     ]);
+    const allSignatures = [
+      ...history.filter((entry) => entry.action === "Contract instruction").map((entry) => entry.signature),
+      ...programHistory.filter((entry) => entry.action === "Program instruction").map((entry) => entry.signature),
+      ...Object.values(requestTransactions).flat().filter((entry) => entry.action === "Exercise instruction").map((entry) => entry.signature),
+    ];
+    const actionBySignature = await decodeTransactionActions(conn, allSignatures);
+    for (const entry of history) entry.action = actionBySignature.get(entry.signature) ?? entry.action;
+    for (const entry of programHistory) entry.action = actionBySignature.get(entry.signature) ?? entry.action;
+    for (const entries of Object.values(requestTransactions)) {
+      for (const entry of entries) entry.action = actionBySignature.get(entry.signature) ?? entry.action;
+    }
     history.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
     programHistory.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
-    const sol = await conn.getBalance(burner.publicKey);
-    let tokens = 0;
+    let sol = current.solBalance;
+    try { sol = (await conn.getBalance(burner.publicKey)) / 1e9; } catch { /* preserve last confirmed balance */ }
+    let tokens = current.tokenBalance;
     try {
       const bal = await conn.getTokenAccountBalance(associatedTokenAddress(demoMint, burner.publicKey));
       tokens = bal.value.uiAmount || 0;
@@ -290,12 +359,13 @@ export const useChain = create<ChainState>((set, get) => ({
     try { trial = await fetchJson<ChainState["trial"]>(`${get().svcUrl}/trial/status`); } catch { /* service down */ }
     set({
       pools: { 0: pool0, 1: pool1 },
-      series: { [seriesKey(0, 0)]: s00, [seriesKey(0, 1)]: s01, [seriesKey(1, 0)]: s10, [seriesKey(1, 1)]: s11 },
       seriesList,
       contracts,
-      history,
-      programHistory,
-      solBalance: sol / 1e9,
+      requests,
+      requestTransactions,
+      history: history.length > 0 ? history : current.history,
+      programHistory: programHistory.length > 0 ? programHistory : current.programHistory,
+      solBalance: sol,
       tokenBalance: tokens,
       trial,
     });

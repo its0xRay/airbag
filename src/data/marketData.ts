@@ -26,6 +26,7 @@ export interface AvailableQuoteReference {
   assetId: number;
   price: number;
   source: string;
+  observedAt?: number;
   available: true;
 }
 
@@ -38,6 +39,13 @@ export interface UnavailableQuoteReference {
 }
 
 export type QuoteReference = AvailableQuoteReference | UnavailableQuoteReference;
+
+export function referenceSourceLabel(source: string): string {
+  if (source.startsWith("jupiter-stockdata:")) return "Jupiter xStocks benchmark";
+  if (source.startsWith("jupiter:")) return "Jupiter Price API";
+  if (source.startsWith("pyth:")) return "Pyth price feed";
+  return source;
+}
 
 export async function fetchQuoteReference(assetId: number): Promise<QuoteReference> {
   return fetchJson<QuoteReference>(`${SVC}/reference?assetId=${encodeURIComponent(assetId)}`);

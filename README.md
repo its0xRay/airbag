@@ -46,7 +46,8 @@ acceptance criteria, not a second implementation of the product.
 cd optket
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 27 engine, service-boundary and reference tests
+npm test           # engine, instruction-decoder, service-boundary and reference tests
+npm run typecheck:server # quote service + keeper TypeScript check
 npm run build      # production build
 ```
 
@@ -76,6 +77,10 @@ walk the journey: **select asset → choose quantity & strike → review scenari
 buy on-chain → monitor → request exercise → keeper settles → expire/refund →
 history.** Every step is a real devnet transaction with an explorer link; the
 keeper runs as its own service and settles against live references.
+
+The keeper exposes `GET /health` with its last successful tick, pending work,
+buffered reference sample counts and latest settlement signature. Configure the
+worker deployment to use this endpoint for health checks.
 
 ---
 

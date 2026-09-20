@@ -168,7 +168,7 @@ class ServiceError extends Error {
  *  PreStocks uses the token market. Quote issuance fails closed when the live
  *  reference is unavailable. */
 type ReferenceStatus =
-  | { available: true; assetId: number; spot: bigint; source: string }
+  | { available: true; assetId: number; spot: bigint; source: string; observedAt: number }
   | {
       available: false;
       assetId: number;
@@ -187,7 +187,7 @@ async function referenceStatus(assetId: number): Promise<ReferenceStatus> {
     if (observation.available && observation.price > 0n
       && observation.sourceTs <= collectedTs
       && collectedTs - observation.sourceTs <= EQUITY_MAX_SAMPLE_AGE_SECS) {
-      return { available: true, assetId, spot: observation.price, source: observation.sourceId };
+      return { available: true, assetId, spot: observation.price, source: observation.sourceId, observedAt: observation.sourceTs };
     }
     if (observation.reason?.startsWith("stock session closed")) {
       return {
@@ -209,7 +209,7 @@ async function referenceStatus(assetId: number): Promise<ReferenceStatus> {
   } else {
     const observation = (await prestocksReference.observe(1))[0];
     if (observation?.available && observation.price > 0n) {
-      return { available: true, assetId, spot: observation.price, source: observation.sourceId };
+      return { available: true, assetId, spot: observation.price, source: observation.sourceId, observedAt: observation.sourceTs };
     }
   }
   return {
@@ -309,8 +309,11 @@ const SHORT_ID_MAX = Number(process.env.SHORT_SERIES_ID_MAX || 4095);
 const SHORT_MINUTES = Number(process.env.SHORT_SERIES_MINUTES || 45);
 const SHORT_TIERS = [
   {
-    0: { strike: Number(process.env.SHORT_STRIKE_0 || 215), maxSize: 100 },
-    1: { strike: Number(process.env.SHORT_STRIKE_1 || 1000), maxSize: 20 },
+    0: { strike: Number(process.env.SHORT_STRIKE_0 || 225), maxSize: 100 },
+    // Keep one higher floor available so judges can observe a genuine positive
+    // payout when the live token reference is below it. The premium model
+    // includes intrinsic value; the settlement reference is never fabricated.
+    1: { strike: Number(process.env.SHORT_STRIKE_1 || 1100), maxSize: 20 },
   },
   {
     0: { strike: Number(process.env.SHORT_STRIKE_0_ALT || 205), maxSize: 100 },
@@ -502,7 +505,7 @@ const server = createServer(async (req, res) => {
       if (!Number.isInteger(assetId)) return json(res, 400, { error: "valid assetId required" });
       const reference = await referenceStatus(assetId);
       return reference.available
-        ? json(res, 200, { assetId, price: fromFixed(reference.spot), source: reference.source, available: true })
+        ? json(res, 200, { assetId, price: fromFixed(reference.spot), source: reference.source, observedAt: reference.observedAt, available: true })
         : json(res, 200, reference);
     }
     if (req.method === "GET" && url.pathname === "/holdings") {

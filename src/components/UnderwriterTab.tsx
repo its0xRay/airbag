@@ -34,20 +34,12 @@ export default function UnderwriterTab() {
           const total = available + reserved;
           const utilization = total > 0 ? reserved / total : 0;
 
-          // modelled loadings against committed reserve
-          const exec = (reserved * m.executionFundingBps) / 10_000;
-          const ops = (reserved * m.opsBps) / 10_000;
-          const capital = (reserved * m.capitalCostBps) / 10_000;
-          const risk = (reserved * m.riskAllowanceBps) / 10_000;
-          const hedgeCost = m.hedgeAvailable ? (reserved * m.hedgeCostBps) / 10_000 : 0;
-          const modelledNet = realized - exec - ops - capital - risk - hedgeCost;
-
           return (
             <section className="risk-section" key={a.key}>
               <div className="risk-head">
                 <div><span className="lp-reference-kind">{a.kind === "PreStocks" ? "PreStocks" : "xStock"}</span><h2>{a.symbol}</h2></div>
                 <span className={"pill " + (m.hedgeAvailable ? "blue" : "gray")}>
-                  {m.hedgeAvailable ? "external hedge path identified" : "no executable external hedge"}
+                  {m.hedgeAvailable ? "external hedge venue identified" : "no executable external hedge"}
                 </span>
               </div>
 
@@ -61,9 +53,9 @@ export default function UnderwriterTab() {
 
               <div className="risk-columns">
                 <div><h3>Realized Devnet test activity</h3><div className="kv"><span className="k">Premium receipts</span><span className="v mono">{fmtOusd(premiums)}</span></div><div className="kv"><span className="k">Gross payouts</span><span className="v mono">{fmtOusd(payouts)}</span></div><div className="kv"><span className="k">Failed-reference refunds</span><span className="v mono">{fmtOusd(refunds)}</span></div><div className="kv"><span className="k">Realized test net</span><span className={"v mono " + (realized >= 0 ? "pos" : "neg")}>{fmtOusd(realized)}</span></div></div>
-                <div><h3>Modelled economics · v{m.version}</h3><div className="kv"><span className="k">Execution and funding</span><span className="v mono">{fmtOusd(-exec)}</span></div><div className="kv"><span className="k">Operating expense</span><span className="v mono">{fmtOusd(-ops)}</span></div><div className="kv"><span className="k">Capital opportunity cost</span><span className="v mono">{fmtOusd(-capital)}</span></div><div className="kv"><span className="k">Risk allowance</span><span className="v mono">{fmtOusd(-risk)}</span></div><div className="kv"><span className="k">Modelled hedge cost</span><span className="v mono">{m.hedgeAvailable ? fmtOusd(-hedgeCost) : "n/a"}</span></div><div className="kv"><span className="k">Modelled net after costs</span><span className={"v mono " + (modelledNet >= 0 ? "pos" : "neg")}>{fmtOusd(modelledNet)}</span></div></div>
+                <div><h3>Current pricing assumptions · v{m.version}</h3><div className="kv"><span className="k">Execution and funding</span><span className="v mono">{m.executionFundingBps} bps</span></div><div className="kv"><span className="k">Operating expense</span><span className="v mono">{m.opsBps} bps</span></div><div className="kv"><span className="k">Capital opportunity cost</span><span className="v mono">{m.capitalCostBps} bps</span></div><div className="kv"><span className="k">Risk allowance</span><span className="v mono">{m.riskAllowanceBps} bps</span></div><div className="kv"><span className="k">Hedge cost assumption</span><span className="v mono">{m.hedgeCostBps} bps</span></div><div className="kv"><span className="k">Executable hedge</span><span className="v">{m.hedgeAvailable ? "Not executed by Optket" : "Unavailable"}</span></div></div>
               </div>
-              <p className="disclosure">Stress scenario: a 20% reference decline could consume up to <span className="mono neg">{fmtOusd(reserved * 0.2, 0)}</span> of the currently reserved amount. This is analysis, not an executed market result.</p>
+              <p className="disclosure">Lifetime realized activity and current pricing assumptions are shown separately; they are not netted across different accounting periods. Stress scenario: a 20% reference decline could consume up to <span className="mono neg">{fmtOusd(reserved * 0.2, 0)}</span> of the currently reserved amount.</p>
             </section>
           );
         })}

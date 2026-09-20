@@ -31,6 +31,34 @@ const DISC = {
   expire_refund: [254, 82, 2, 76, 59, 107, 145, 112],
 } as const;
 
+const INSTRUCTION_LABELS: Record<keyof typeof DISC, string> = {
+  initialize_config: "Protocol initialized",
+  set_pause: "Purchase pause updated",
+  set_roles: "Protocol roles updated",
+  init_asset: "Asset initialized",
+  create_series: "Series published",
+  fund_pool: "Pool funded",
+  purchase: "Protection purchased",
+  request_exercise: "Exercise requested",
+  settle_exercise_equity: "Exercise settled",
+  settle_exercise_prestocks: "Exercise settled",
+  fail_exercise: "Exercise reference failed",
+  settle_expiry_equity: "Expiry settled",
+  settle_expiry_prestocks: "Expiry settled",
+  expire_refund: "Expiry refunded",
+};
+
+/** Decode the first Anchor discriminator from a real transaction instruction. */
+export function decodeOptketInstruction(data: string): string | null {
+  let bytes: Uint8Array;
+  try { bytes = bs58.decode(data); } catch { return null; }
+  if (bytes.length < 8) return null;
+  for (const [name, discriminator] of Object.entries(DISC) as Array<[keyof typeof DISC, readonly number[]]>) {
+    if (discriminator.every((value, index) => bytes[index] === value)) return INSTRUCTION_LABELS[name];
+  }
+  return null;
+}
+
 // ---------- byte writers (browser-safe) ----------
 const u8 = (v: number) => Uint8Array.of(v & 0xff);
 function u16(v: number) { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v, true); return b; }
@@ -174,6 +202,19 @@ export class OptketClient {
   async getPendingRequests(): Promise<ExerciseRequestAcct[]> {
     const accts = await this.conn.getProgramAccounts(this.programId, { filters: [{ memcmp: { offset: 0, bytes: discB58(ACCT_DISC.ExerciseRequest) } }] });
     return accts.map((a) => decodeRequest(a.pubkey.toBase58(), a.account.data)).filter((r) => r.status === "Pending");
+  }
+
+  /** Every exercise request belonging to one of the supplied contracts. */
+  async getRequestsForContracts(contracts: PublicKey[]): Promise<ExerciseRequestAcct[]> {
+    if (contracts.length === 0) return [];
+    const wanted = new Set(contracts.map((contract) => contract.toBase58()));
+    const accts = await this.conn.getProgramAccounts(this.programId, {
+      filters: [{ memcmp: { offset: 0, bytes: discB58(ACCT_DISC.ExerciseRequest) } }],
+    });
+    return accts
+      .map((a) => decodeRequest(a.pubkey.toBase58(), a.account.data))
+      .filter((request) => wanted.has(request.contract.toBase58()))
+      .sort((a, b) => b.requestTs - a.requestTs);
   }
 
   /** All contracts owned by `buyer` (memcmp on the buyer field at offset 16). */

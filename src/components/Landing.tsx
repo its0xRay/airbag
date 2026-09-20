@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { VERIFIED_ASSETS } from "../data/assets";
-import { fetchMarket, fetchQuoteReference, type Market, type QuoteReference } from "../data/marketData";
+import { fetchMarket, fetchQuoteReference, referenceSourceLabel, type Market, type QuoteReference } from "../data/marketData";
 import { explorerUrl } from "../onchain/store";
 import { OPTKET_PROGRAM_ID } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
@@ -287,7 +287,8 @@ export default function Landing({
                       <div className="kv"><span className="k">Price floor</span><span className="v mono">{activeSeries ? fmtPrice(activeSeries.strike) : "No active series"}</span></div>
                       <div className="kv"><span className="k">Estimated premium · 1 token</span><span className="v mono">{premium ? `${tok(premium.premium).toFixed(2)} oUSD` : "—"}</span></div>
                       <div className="kv"><span className="k">Expiry · your local time</span><span className="v mono">{activeSeries ? fmtClock(activeSeries.expiryTs) : "—"}</span></div>
-                      <div className="kv"><span className="k">Source</span><span className="v mono">{reference.source}</span></div>
+                      <div className="kv"><span className="k">Source</span><span className="v">{referenceSourceLabel(reference.source)}</span></div>
+                      {reference.observedAt != null && <div className="kv"><span className="k">Observed · your local time</span><span className="v mono">{new Date(reference.observedAt * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}</span></div>}
                     </div>
                     <details className="lp-premium-basis">
                       <summary>See premium basis</summary>
@@ -406,7 +407,7 @@ export default function Landing({
               ["Onchain program", `Deployed on Solana ${NETWORK}.`],
               ["Fully reserved", "The maximum contractual payout is locked against the position."],
               ["Flexible exercise", "Exercise all or part of the protected quantity before the cutoff."],
-              ["Automated settlement", "A permissionless keeper completes eligible exercises and expiries."],
+              ["Automated settlement", "A publisher-authorized reference keeper completes eligible exercises and expiries."],
             ].map(([title, body]) => (
               <article className="lp-proof-row" key={title}><h3>{title}</h3><p>{body}</p></article>
             ))}

@@ -5,6 +5,7 @@ import type { ContractAcct } from "../client/optketProgram";
 import { fmtPrice, fmtDuration, fmtClock } from "../format";
 import HoldingsCard from "./HoldingsCard";
 import RemindersPanel from "./RemindersPanel";
+import { useNowSeconds } from "../useNowSeconds";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 const qty = (v: bigint) => tok(v).toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -90,12 +91,23 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
   const c = useChain();
   const asset = VERIFIED_ASSETS[k.assetId];
   const [exQty, setExQty] = useState("");
-  const now = Math.floor(Date.now() / 1000);
+  const [exerciseTx, setExerciseTx] = useState<string | null>(null);
+  const now = useNowSeconds();
   const open = k.status === "Active" || k.status === "PartiallySettled";
   const beforeCutoff = now <= k.exerciseCutoffTs;
   const expired = now >= k.expiryTs;
   const amount = parseFloat(exQty);
   const valid = amount > 0 && amount <= tok(k.remainingQuantity);
+  const requests = c.requests.filter((request) => request.contract.toBase58() === k.address);
+
+  async function requestExercise() {
+    setExerciseTx(null);
+    try {
+      await c.requestExercise(k.address, k.assetId, k.nextRequestNonce, amount);
+      setExerciseTx(useChain.getState().lastTx);
+      setExQty("");
+    } catch { /* the shared error callout retains the entered quantity */ }
+  }
 
   return (
     <div className="card">
@@ -128,6 +140,44 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
         <div><div className="stat-label">Original quantity</div><div className="stat-value sm mono">{qty(k.originalQuantity)}</div></div>
       </div>
 
+      <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
+        <div className="lifecycle-row">
+          <span className="lifecycle-dot complete" aria-hidden="true" />
+          <div><strong>Protection purchased</strong><span>{tok(k.premiumPaid).toFixed(2)} oUSD premium · {fmtClock(k.createdTs)}</span></div>
+        </div>
+        {requests.map((request) => {
+          const transactions = c.requestTransactions[request.address] ?? [];
+          return (
+            <div className="lifecycle-request" key={request.address}>
+              <div className="lifecycle-row">
+                <span className={"lifecycle-dot " + (request.status === "Pending" ? "pending" : "complete")} aria-hidden="true" />
+                <div>
+                  <strong>{request.status === "Pending" ? "Exercise awaiting reference" : request.status === "Settled" ? "Exercise settled" : "Reference window failed"}</strong>
+                  <span>{qty(request.quantity)} requested · {fmtClock(request.requestTs)}</span>
+                </div>
+                <a className="pill blue" href={explorerUrl("address", request.address)} target="_blank" rel="noreferrer">request account ↗</a>
+              </div>
+              {request.status === "Settled" && (
+                <div className="lifecycle-result">
+                  <div><span>Settlement reference</span><strong className="mono">{fmtPrice(request.settlementReference)}</strong></div>
+                  <div><span>Payout</span><strong className="mono pos">{tok(request.payout).toFixed(2)} oUSD</strong></div>
+                </div>
+              )}
+              {request.status === "Failed" && <div className="disclosure">No qualifying reference arrived in the contractual window. The requested quantity returned to active coverage.</div>}
+              {transactions.length > 0 && (
+                <div className="lifecycle-transactions">
+                  {transactions.map((transaction) => (
+                    <a key={transaction.signature} href={explorerUrl("tx", transaction.signature)} target="_blank" rel="noreferrer">
+                      {transaction.action} · <span className="mono">{transaction.signature.slice(0, 10)}…</span> ↗
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
           {qty(k.pendingQuantity)} pending — the keeper settles it against the next qualifying
@@ -148,7 +198,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
               className="btn"
               style={{ alignSelf: "flex-end" }}
               disabled={!valid || c.busy}
-              onClick={() => c.requestExercise(k.address, k.assetId, k.nextRequestNonce, amount).catch(() => {})}
+              onClick={requestExercise}
             >
               Request exercise
             </button>
@@ -157,6 +207,11 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
             Irrevocable once submitted. Settles at intrinsic value against the next qualifying
             reference; remaining time value is forfeited and unrequested quantity stays protected.
           </div>
+          {exerciseTx && (
+            <div className="callout" role="status" style={{ marginTop: 10 }}>
+              Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Waiting for the next qualifying reference.
+            </div>
+          )}
         </>
       )}
 

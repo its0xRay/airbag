@@ -107,7 +107,7 @@ describe("optket", () => {
     assert.ok(pool.availableCapital.eq(price(500_000)));
   });
 
-  async function purchase(quoteId: number) {
+  async function purchase(quoteId: number, paymentAccount: PublicKey = buyerToken) {
     const series = await program.account.series.fetch(seriesPda);
     const q = {
       buyer: buyer.publicKey,
@@ -146,7 +146,7 @@ describe("optket", () => {
       .accounts({
         buyer: buyer.publicKey, payer: buyer.publicKey, config: configPda, asset: assetPda,
         series: seriesPda, pool: poolPda, vault: vaultPda,
-        buyerToken, demoMint, quoteMarker: markerPda, contract: contractPda,
+        buyerToken: paymentAccount, demoMint, quoteMarker: markerPda, contract: contractPda,
         instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
       })
       .instruction();
@@ -211,8 +211,11 @@ describe("optket", () => {
   it("rejects a purchase paid with a non-demo mint (real-USDC guard, PRD §22)", async () => {
     const otherMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
     const otherAta = await getOrCreateAssociatedTokenAccount(provider.connection, admin, otherMint, buyer.publicKey);
-    // The buyer_token account is constrained to `demoMint`; supplying an account
-    // on a different mint fails the has_one / token::mint constraint.
-    assert.ok(otherAta.address); // presence check; full negative flow mirrors purchase() with otherAta
+    try {
+      await purchase(3, otherAta.address);
+      assert.fail("expected wrong-mint purchase rejection");
+    } catch (e) {
+      assert.match(String(e), /ConstraintTokenMint|token mint|custom program error|0x7d3/i);
+    }
   });
 });

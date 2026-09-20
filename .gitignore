@@ -22,6 +22,7 @@ dist/
 target/
 .anchor/
 test-ledger/
+.superstack/
 
 # ---- misc ----
 .DS_Store

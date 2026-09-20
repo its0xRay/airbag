@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChain, explorerUrl, type SeriesInfo } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
-import { fetchQuoteReference, type QuoteReference } from "../data/marketData";
+import { fetchQuoteReference, referenceSourceLabel, type QuoteReference } from "../data/marketData";
 import { quotePremium, payout as intrinsic, toFixed, fromFixed, maxLiability } from "../engine";
 import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock } from "../format";
 import type { ProtectDraft } from "../App";
+import { useNowSeconds } from "../useNowSeconds";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 
@@ -39,6 +40,8 @@ export default function ProtectTab({
   useEffect(() => {
     if (!initialDraft || renewal) return;
     choseInitialAsset.current = true;
+    // Parent navigation supplies a one-shot draft that must hydrate local form state.
+    // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(initialDraft.assetId);
     setSeriesId(initialDraft.seriesId ?? null);
     if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
@@ -61,6 +64,8 @@ export default function ProtectTab({
 
   useEffect(() => {
     if (!renewal) return;
+    // Renewal navigation intentionally replaces the editable form draft.
+    // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(renewal.assetId);
     setSeriesId(null);
     setQtyStr(String(renewal.quantity));
@@ -73,6 +78,8 @@ export default function ProtectTab({
 
   useEffect(() => {
     let alive = true;
+    // Clear the previous asset's quote while the new external reference loads.
+    // oxlint-disable-next-line react/set-state-in-effect
     setReference(null);
     setMarketError(null);
     fetchQuoteReference(assetId)
@@ -98,7 +105,7 @@ export default function ProtectTab({
   const referenceReady = reference?.available === true;
   const spot = spotReal != null ? toFixed(spotReal) : 0n;
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = useNowSeconds();
   const secsLeft = selected ? selected.expiryTs - now : 0;
   const est = selected && qty > 0n && spot > 0n
     ? quotePremium(assetId, qty, selected.strike, spot, Math.max(secsLeft, 60))
@@ -204,7 +211,13 @@ export default function ProtectTab({
           {reference?.available && (
             <div className="kv">
               <span className="k">Reference source</span>
-              <span className="v mono">{reference.source}</span>
+              <span className="v">{referenceSourceLabel(reference.source)}</span>
+            </div>
+          )}
+          {reference?.available && reference.observedAt != null && (
+            <div className="kv">
+              <span className="k">Observed · your local time</span>
+              <span className="v mono">{new Date(reference.observedAt * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}</span>
             </div>
           )}
           <div className="kv">
@@ -299,6 +312,23 @@ export default function ProtectTab({
           <div><span>Maximum payout</span><strong className="mono">{est ? `${tok(notional).toFixed(2)} oUSD` : "—"}</strong></div>
           <div><span>Maximum net payoff</span><strong className="mono">{est ? `${maxNet.toFixed(2)} oUSD` : "—"}</strong></div>
         </div>
+        {est && (
+          <details className="premium-basis">
+            <summary>See premium basis</summary>
+            <p>The signed quote uses the same versioned model. Basis-point components are applied to maximum contractual liability.</p>
+            <div className="premium-basis-grid">
+              <div><span>Modelled put value</span><strong className="mono">{est.components.volatility.toFixed(1)} bps</strong></div>
+              <div><span>Jump and event risk</span><strong className="mono">{est.components.jumpEvent.toFixed(1)} bps</strong></div>
+              <div><span>Early exercise</span><strong className="mono">{est.components.earlyExercise.toFixed(1)} bps</strong></div>
+              <div><span>Hedge assumption</span><strong className="mono">{est.components.hedge.toFixed(1)} bps</strong></div>
+              <div><span>Execution and funding</span><strong className="mono">{est.components.executionFunding.toFixed(1)} bps</strong></div>
+              <div><span>Operations</span><strong className="mono">{est.components.ops.toFixed(1)} bps</strong></div>
+              <div><span>Capital cost</span><strong className="mono">{est.components.capitalCost.toFixed(1)} bps</strong></div>
+              <div><span>Risk allowance</span><strong className="mono">{est.components.riskAllowance.toFixed(1)} bps</strong></div>
+              <div className="premium-total"><span>Total estimated rate</span><strong className="mono">{est.rateBps.toFixed(1)} bps</strong></div>
+            </div>
+          </details>
+        )}
         <div className="hr" />
         <div className="grid cols-2">
           <div>

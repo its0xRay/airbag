@@ -22,7 +22,6 @@ export default function CompareTab() {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true); setErr(null); setMarket(null);
     const load = () => fetchMarket(asset.mint)
       .then((m) => { if (alive) { setMarket(m); setLoading(false); } })
       .catch((e) => { if (alive) { setErr(String(e.message || e)); setLoading(false); } });
@@ -50,7 +49,7 @@ export default function CompareTab() {
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
         {VERIFIED_ASSETS.map((a) => (
-          <button key={a.key} className={"btn sm " + (a.key === assetKey ? "primary" : "ghost")} onClick={() => setAssetKey(a.key)}>{a.symbol}</button>
+          <button key={a.key} className={"btn sm " + (a.key === assetKey ? "primary" : "ghost")} onClick={() => { setAssetKey(a.key); setLoading(true); setErr(null); setMarket(null); }}>{a.symbol}</button>
         ))}
       </div>
 
@@ -74,7 +73,7 @@ export default function CompareTab() {
               <div className="hr" />
               <div className="kv"><span className="k">24h token change</span><span className={"v mono " + ((market.priceChange24h ?? 0) >= 0 ? "pos" : "neg")}>{market.priceChange24h != null ? (market.priceChange24h >= 0 ? "+" : "") + market.priceChange24h.toFixed(2) + "%" : "—"}</span></div>
               <div className="kv"><span className="k">Jupiter liquidity</span><span className="v mono">{market.liquidity != null ? fmtUsd(market.liquidity, 0) : "—"}</span></div>
-              <div className="kv"><span className="k">Source time (live)</span><span className="v mono">{market.updatedAt ? new Date(market.updatedAt).toLocaleTimeString() : "—"}</span></div>
+              <div className="kv"><span className="k">Source time · your local time</span><span className="v mono">{market.updatedAt ? new Date(market.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }) : "—"}</span></div>
               <div className="callout" style={{ marginTop: 14 }}>
                 {equity
                   ? <>A stock-benchmark contract references the underlying NVDA stock and <strong>excludes the token-market basis</strong> shown here ({basis != null ? fmtPct(Math.abs(basis)) : "—"} right now).</>

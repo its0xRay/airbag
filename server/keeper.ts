@@ -18,6 +18,7 @@ import {
   Connection, PublicKey, Transaction,
   TransactionInstruction, sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { createServer } from "node:http";
 import { loadKey, loadAdmin } from "./keys";
 import {
   OptketClient, pdas, associatedTokenAddress, type Observation,
@@ -48,6 +49,15 @@ const KEEPER_KEYPAIR = new URL("./publisher-authority.json", import.meta.url).pa
 const EXPIRY_REFUND_GRACE_SECS = Number(process.env.EXPIRY_REFUND_GRACE_SECS || 300);
 const SAMPLE_RETENTION_SECS = 900;
 const sampleBuffer: Record<number, Observation[]> = { 0: [], 1: [] };
+const keeperStatus = {
+  ready: false,
+  lastTickAt: 0,
+  lastSuccessfulTickAt: 0,
+  lastError: null as string | null,
+  pendingRequests: 0,
+  dueExpiries: 0,
+  lastSettlement: null as null | { signature: string; action: string; at: number },
+};
 
 async function collectSamples() {
   const t = nowSec();
@@ -189,6 +199,7 @@ async function ensurePublisherRole() {
 
 async function settleRequests() {
   const requests = await client.getPendingRequests();
+  keeperStatus.pendingRequests = requests.length;
   for (const req of requests) {
     try {
       const contract = await client.getContractByAddress(req.contract);
@@ -200,6 +211,7 @@ async function settleRequests() {
         if (nowSec() > req.windowEnd) {
           const ix = client.failExerciseIx(publisher.publicKey, req.contract, contract.assetId, req.nonce);
           const sig = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [publisher], { commitment: "confirmed" });
+          keeperStatus.lastSettlement = { signature: sig, action: "exercise reference failed", at: nowSec() };
           console.log(`✓ failed elapsed request: contract #${contract.contractId} req #${req.nonce} → quantity restored — ${sig.slice(0, 12)}…`);
         } else {
           console.log(`… reference unavailable for contract #${contract.contractId} req #${req.nonce} — waiting (window open until ${new Date(req.windowEnd * 1000).toISOString()})`);
@@ -211,6 +223,7 @@ async function settleRequests() {
         ? client.settleExerciseEquityIx(publisher.publicKey, req.contract, contract.assetId, req.nonce, buyerToken, demoMint, ref.single!)
         : client.settleExercisePrestocksIx(publisher.publicKey, req.contract, contract.assetId, req.nonce, buyerToken, demoMint, ref.many!);
       const sig = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [publisher], { commitment: "confirmed" });
+      keeperStatus.lastSettlement = { signature: sig, action: "exercise settled", at: nowSec() };
       console.log(`✓ settled exercise: contract #${contract.contractId} req #${req.nonce} qty ${Number(req.quantity) / 1e6} via ${ref.source} — ${sig.slice(0, 12)}…`);
     } catch (e) {
       console.warn(`× exercise settle failed (contract ${req.contract.toBase58().slice(0, 8)} req ${req.nonce}): ${(e as Error).message}`);
@@ -221,6 +234,7 @@ async function settleRequests() {
 async function settleExpiries() {
   const now = nowSec();
   const open = await client.getOpenContracts();
+  keeperStatus.dueExpiries = open.filter((c) => c.expiryTs <= now && c.pendingQuantity === 0n && c.remainingQuantity > 0n).length;
   for (const c of open) {
     if (c.expiryTs > now || c.pendingQuantity !== 0n || c.remainingQuantity === 0n) continue;
     try {
@@ -233,6 +247,7 @@ async function settleExpiries() {
         if (now > c.expiryTs + EXPIRY_REFUND_GRACE_SECS) {
           const ix = client.expireRefundIx(publisher.publicKey, new PublicKey(c.address), c.assetId, buyerToken, demoMint);
           const sig = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [publisher], { commitment: "confirmed" });
+          keeperStatus.lastSettlement = { signature: sig, action: "expiry refunded", at: nowSec() };
           console.log(`✓ refunded contract #${c.contractId} — no qualifying expiry reference (§11.2) — ${sig.slice(0, 12)}…`);
         } else {
           console.log(`… expiry reference not yet available for contract #${c.contractId} — waiting before refund`);
@@ -243,6 +258,7 @@ async function settleExpiries() {
         ? client.settleExpiryEquityIx(publisher.publicKey, new PublicKey(c.address), c.assetId, buyerToken, demoMint, ref.single!)
         : client.settleExpiryPrestocksIx(publisher.publicKey, new PublicKey(c.address), c.assetId, buyerToken, demoMint, ref.many!);
       const sig = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [publisher], { commitment: "confirmed" });
+      keeperStatus.lastSettlement = { signature: sig, action: "expiry settled", at: nowSec() };
       console.log(`✓ settled expiry: contract #${c.contractId} qty ${Number(c.remainingQuantity) / 1e6} via ${ref.source} — ${sig.slice(0, 12)}…`);
     } catch (e) {
       console.warn(`× expiry settle failed (contract #${c.contractId}): ${(e as Error).message}`);
@@ -251,13 +267,37 @@ async function settleExpiries() {
 }
 
 async function tick() {
+  keeperStatus.lastTickAt = nowSec();
   try {
     await collectSamples();   // keep the expiry window populated with real data
     await settleRequests();
     await settleExpiries();
+    keeperStatus.lastSuccessfulTickAt = nowSec();
+    keeperStatus.lastError = null;
   } catch (e) {
-    console.warn("keeper tick error:", (e as Error).message);
+    keeperStatus.lastError = (e as Error).message;
+    console.warn("keeper tick error:", keeperStatus.lastError);
   }
+}
+
+function startHealthServer() {
+  const port = Number(process.env.PORT || 8080);
+  createServer((req, res) => {
+    if (req.url !== "/health") {
+      res.writeHead(404, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: "not found" }));
+    }
+    const age = keeperStatus.lastSuccessfulTickAt ? nowSec() - keeperStatus.lastSuccessfulTickAt : null;
+    const healthy = keeperStatus.ready && age !== null && age <= Math.max(60, Math.ceil(POLL_MS / 1000) * 4);
+    res.writeHead(healthy ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(JSON.stringify({
+      ok: healthy,
+      ...keeperStatus,
+      lastSuccessfulTickAgeSeconds: age,
+      samples: { equity: sampleBuffer[0].length, prestocks: sampleBuffer[1].length },
+      publisher: publisher.publicKey.toBase58(),
+    }));
+  }).listen(port, () => console.log(`  health:    :${port}/health`));
 }
 
 async function main() {
@@ -265,6 +305,7 @@ async function main() {
   console.log(`  RPC:       ${RPC}`);
   console.log(`  keeper key ${publisher.publicKey.toBase58()}`);
   console.log("  references live (Pyth session + Jupiter); no synthetic reference path");
+  startHealthServer();
   // keeper needs a little SOL for fees on localnet
   try { const bal = await conn.getBalance(publisher.publicKey); if (bal < 1e8) { await conn.confirmTransaction(await conn.requestAirdrop(publisher.publicKey, 1e9), "confirmed"); } } catch { /* devnet: fund manually */ }
   // A hosted keeper must survive an RPC blip at boot rather than exiting: the
@@ -281,6 +322,7 @@ async function main() {
     }
   }
   console.log(`  polling every ${POLL_MS}ms — settling pending requests & due expiries…\n`);
+  keeperStatus.ready = true;
   await tick();
   setInterval(tick, POLL_MS);
 }

@@ -4,6 +4,7 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchMarket, type Market } from "../data/marketData";
 import { quotePremium, payout as intrinsic, toFixed, fromFixed } from "../engine";
 import { fmtPrice, fmtUsd } from "../format";
+import { useNowSeconds } from "../useNowSeconds";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 
@@ -39,7 +40,7 @@ export default function CalculatorTab() {
   const spotReal = asset.kind === "EquityToken" ? (market?.benchmark ?? market?.usdPrice) : market?.usdPrice;
   const qty = parseFloat(qtyStr) > 0 ? toFixed(parseFloat(qtyStr)) : 0n;
   const ref = parseFloat(refStr) > 0 ? toFixed(parseFloat(refStr)) : 0n;
-  const now = Math.floor(Date.now() / 1000);
+  const now = useNowSeconds();
 
   const est = selected && qty > 0n && spotReal
     ? quotePremium(assetId, qty, selected.strike, toFixed(spotReal), Math.max(selected.expiryTs - now, 60))
