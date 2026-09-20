@@ -18,7 +18,7 @@ export default function UnderwriterTab() {
   return (
     <>
       <div className="callout warn" style={{ marginBottom: 16 }}>
-        Realized figures are read live from the on-chain pool accounts. Cost and hedge lines are
+        Realized figures are read live from the onchain pool accounts. Cost and hedge lines are
         <strong> modelled</strong> from versioned assumptions — not executed.
       </div>
 

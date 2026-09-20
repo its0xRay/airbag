@@ -20,7 +20,9 @@ export default function WalletBar() {
 
   return (
     <div className="row">
-      <span className="pill green mono hide-sm">{c.tokenBalance.toLocaleString()} oUSD</span>
+      <span className="pill green mono demo-balance hide-sm">
+        {c.tokenBalance.toLocaleString()} oUSD <small>demo</small>
+      </span>
       <a
         className="pill blue mono"
         href={explorerUrl("address", c.address || "")}
@@ -30,7 +32,7 @@ export default function WalletBar() {
       >
         {c.address ? truncate(c.address) : ""} ↗
       </a>
-      <button className="btn ghost sm" disabled={c.busy} onClick={() => c.refresh()} aria-label="Refresh on-chain data">
+      <button className="btn ghost sm" disabled={c.busy} onClick={() => c.refresh()} aria-label="Refresh onchain data">
         {c.busy ? "…" : "↻"}
       </button>
     </div>

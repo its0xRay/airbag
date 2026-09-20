@@ -12,7 +12,6 @@ import WalletBar, { NETWORK } from "./components/WalletBar";
 type Tab = "home" | "protect" | "portfolio" | "compare" | "calculator" | "underwriter" | "history";
 
 const TABS: [Tab, string][] = [
-  ["home", "Home"],
   ["protect", "Protect"],
   ["portfolio", "Portfolio"],
   ["compare", "Compare"],
@@ -31,7 +30,7 @@ export default function App() {
   // is always fresh, so no terms carry over from the old contract (§18).
   const [renewal, setRenewal] = useState<{ assetId: number; quantity: number } | null>(null);
 
-  // Keep on-chain state fresh while the user is looking at it.
+  // Keep onchain state fresh while the user is looking at it.
   useEffect(() => {
     if (!connected) return;
     const t = setInterval(() => { refresh().catch(() => {}); }, 12000);
@@ -39,36 +38,52 @@ export default function App() {
   }, [connected, refresh]);
 
   return (
-    <div className="app">
-      <header className="header">
+    <div className={"app" + (tab === "home" ? " home-mode" : "")}>
+      <header className={"header" + (tab === "home" ? " public-header" : " app-header")}>
         <button className="logo" onClick={() => setTab("home")} aria-label="Optket home">
           <span className="dot" aria-hidden="true" /> Optket
-          <span className="pill gray hide-sm" style={{ marginLeft: 6 }}>{NETWORK}</span>
+          {tab !== "home" && (
+            <span
+              className="pill gray hide-sm"
+              style={{ marginLeft: 6 }}
+              title="Demo environment. oUSD has no real value."
+            >
+              {NETWORK} demo
+            </span>
+          )}
         </button>
         <div className="spacer" />
-        <WalletBar />
+        {tab === "home" ? (
+          <>
+            <nav className="public-nav" aria-label="Product">
+              <a href="#why-protect">Why protect</a>
+              <a href="#how-it-works">How it works</a>
+              <a href="#onchain-proof">Onchain proof</a>
+              <a href="#assets">Assets</a>
+            </nav>
+            <button className="btn primary" onClick={() => setTab("protect")}>Try demo</button>
+          </>
+        ) : (
+          <WalletBar />
+        )}
       </header>
 
-      <div className="simbanner">
-        DEVNET — every action here is a real on-chain transaction. Collateral and payouts use
-        oUSD, which has no monetary value (true of all devnet assets). Real USDC is rejected
-        by the program; hedging is modelled, not executed.
-      </div>
+      {tab !== "home" && (
+        <nav className="tabs" aria-label="Application sections">
+          {TABS.map(([t, label]) => (
+            <button
+              key={t}
+              className={"tab" + (tab === t ? " active" : "")}
+              onClick={() => setTab(t)}
+              aria-current={tab === t ? "page" : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
 
-      <nav className="tabs" aria-label="Sections">
-        {TABS.map(([t, label]) => (
-          <button
-            key={t}
-            className={"tab" + (tab === t ? " active" : "")}
-            onClick={() => setTab(t)}
-            aria-current={tab === t ? "page" : undefined}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      {chainError && (
+      {tab !== "home" && chainError && (
         <div className="callout warn" role="alert" style={{ margin: "14px 16px" }}>
           <div className="between">
             <span>{chainError}</span>

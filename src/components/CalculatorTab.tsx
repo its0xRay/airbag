@@ -70,7 +70,7 @@ export default function CalculatorTab() {
           </label>
           <div style={{ height: 12 }} />
           <label className="field">
-            <span className="lbl">Series (published on-chain)</span>
+            <span className="lbl">Series (published onchain)</span>
             <select className="input" value={selected?.seriesId ?? ""} onChange={(e) => setSeriesId(Number(e.target.value))}>
               {options.map((s) => (
                 <option key={s.seriesId} value={s.seriesId}>

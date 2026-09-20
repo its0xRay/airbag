@@ -24,7 +24,7 @@ export default function PortfolioTab({ onRenew }: { onRenew: (assetId: number, q
   const asset = VERIFIED_ASSETS[assetId];
 
   if (!c.connected) {
-    return <div className="card empty">Connect the demo wallet to see your on-chain positions.</div>;
+    return <div className="card empty">Connect the demo wallet to see your onchain positions.</div>;
   }
 
   const mine = c.contracts.filter((k) => k.assetId === assetId);

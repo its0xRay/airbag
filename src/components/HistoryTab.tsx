@@ -10,13 +10,13 @@ export default function HistoryTab() {
   const c = useChain();
 
   if (!c.connected) {
-    return <div className="card empty">Connect the demo wallet to see your on-chain history.</div>;
+    return <div className="card empty">Connect the demo wallet to see your onchain history.</div>;
   }
 
   return (
     <div className="card">
       <div className="between" style={{ marginBottom: 4 }}>
-        <div className="card-title" style={{ margin: 0 }}>On-chain activity</div>
+        <div className="card-title" style={{ margin: 0 }}>Onchain activity</div>
         <button className="btn ghost sm" disabled={c.busy} onClick={() => c.refresh()}>Refresh</button>
       </div>
       <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>

@@ -219,7 +219,7 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
 
       <div style={{ height: 18 }} />
       <div className="card">
-        <div className="card-title">4 · Review & buy on-chain</div>
+        <div className="card-title">4 · Review & buy onchain</div>
         <div className="grid cols-3">
           <div>
             <div className="stat-label">Protected notional</div>
@@ -239,7 +239,7 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
           <div>
             <div className="kv"><span className="k">Reference</span><span className="v">{asset.benchmarkLabel}</span></div>
             <div className="kv"><span className="k">Settlement</span><span className="v">{asset.kind === "EquityToken" ? "next qualifying observation after request" : "5-min Jupiter median"}</span></div>
-            <div className="kv"><span className="k">Collateral</span><span className="v">reserved on-chain before issue</span></div>
+            <div className="kv"><span className="k">Collateral</span><span className="v">reserved onchain before issue</span></div>
             <div className="kv"><span className="k">Outage fallback</span><span className="v">disclosed demo refund</span></div>
           </div>
           <div className="card" style={{ background: "var(--bg)", margin: 0 }}>
@@ -268,7 +268,7 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
         <div className="hr" />
         <div className="between">
           <div className="disclosure">
-            The binding premium is signed by the quote service at purchase (60s validity) and verified on-chain.
+            The binding premium is signed by the quote service at purchase (60s validity) and verified onchain.
             Fees and rent are sponsored — you need no SOL.
           </div>
           <button className="btn primary" disabled={!canBuy} onClick={buy}>
@@ -278,7 +278,7 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
         {c.error && <div className="callout warn" style={{ marginTop: 12 }}>{c.error}</div>}
         {done && (
           <div className="callout" style={{ marginTop: 12 }}>
-            ✓ Confirmed on-chain —{" "}
+            ✓ Confirmed onchain —{" "}
             <a className="mono" href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">{done.slice(0, 24)}… ↗</a>
             {" "}· see it in Portfolio.
           </div>
