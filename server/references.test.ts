@@ -19,6 +19,7 @@ describe("reference integrity", () => {
     const observation = await new PythEquityAdapter(0, "NVDA", "feed").observe();
     expect(observation.available).toBe(false);
     expect(observation.reason).toMatch(/session closed/);
+    expect(observation.nextOpen).toBe(2_000_000_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

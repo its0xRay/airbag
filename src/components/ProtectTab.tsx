@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useChain, explorerUrl, type SeriesInfo } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchQuoteReference, type QuoteReference } from "../data/marketData";
@@ -13,7 +13,17 @@ const tok = (v: bigint) => Number(v) / 1e6;
  * model the quote service uses, and the binding signed quote is fetched and
  * verified on-chain at purchase time (§8).
  */
-export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: { assetId: number; quantity: number } | null; onRenewalConsumed?: () => void } = {}) {
+export default function ProtectTab({
+  renewal,
+  onRenewalConsumed,
+  initialAssetId,
+  onInitialAssetConsumed,
+}: {
+  renewal?: { assetId: number; quantity: number } | null;
+  onRenewalConsumed?: () => void;
+  initialAssetId?: number | null;
+  onInitialAssetConsumed?: () => void;
+} = {}) {
   const c = useChain();
   const [assetId, setAssetId] = useState(0);
   const [seriesId, setSeriesId] = useState<number | null>(null);
@@ -22,6 +32,30 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
   const [marketError, setMarketError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [isRenewal, setIsRenewal] = useState(false);
+  const choseInitialAsset = useRef(false);
+  const userChoseAsset = useRef(false);
+
+  useEffect(() => {
+    if (initialAssetId == null || renewal) return;
+    choseInitialAsset.current = true;
+    setAssetId(initialAssetId);
+    setSeriesId(null);
+    onInitialAssetConsumed?.();
+  }, [initialAssetId, onInitialAssetConsumed, renewal]);
+
+  // Open the demo on an executable market when one is available. This only
+  // chooses the initial asset; a user's explicit asset selection is preserved.
+  useEffect(() => {
+    if (renewal || choseInitialAsset.current) return;
+    choseInitialAsset.current = true;
+    let alive = true;
+    Promise.all([fetchQuoteReference(0), fetchQuoteReference(1)])
+      .then(([equity, prestock]) => {
+        if (alive && !userChoseAsset.current && !equity.available && prestock.available) setAssetId(1);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [renewal]);
 
   useEffect(() => {
     if (!renewal) return;
@@ -45,7 +79,7 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
         setReference(nextReference);
       })
       .catch(() => {
-        if (alive) setMarketError("The live reference service is currently unavailable.");
+        if (alive) setMarketError("The reference service could not be reached.");
       });
     return () => { alive = false; };
   }, [assetId]);
@@ -58,9 +92,9 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
     options.find((s) => s.seriesId === seriesId) ?? options[0];
 
   const qty = parseFloat(qtyStr) > 0 ? toFixed(parseFloat(qtyStr)) : 0n;
-  const spotReal = reference?.price;
-  const referenceReady = reference?.available === true && spotReal != null;
-  const spot = referenceReady ? toFixed(spotReal) : 0n;
+  const spotReal = reference?.available ? reference.price : undefined;
+  const referenceReady = reference?.available === true;
+  const spot = spotReal != null ? toFixed(spotReal) : 0n;
 
   const now = Math.floor(Date.now() / 1000);
   const secsLeft = selected ? selected.expiryTs - now : 0;
@@ -107,7 +141,12 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
           <button
             key={a.key}
             className={"asset-tile" + (i === assetId ? " active" : "")}
-            onClick={() => { setAssetId(i); setSeriesId(null); setDone(null); }}
+            onClick={() => {
+              userChoseAsset.current = true;
+              setAssetId(i);
+              setSeriesId(null);
+              setDone(null);
+            }}
             aria-pressed={i === assetId}
           >
             <div className={"asset-icon " + (a.kind === "EquityToken" ? "eq" : "pre")}>{a.symbol.slice(0, 3)}</div>
@@ -149,10 +188,12 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
             <span className="v mono">{selected ? tok(selected.maxContractSize).toLocaleString() : "—"}</span>
           </div>
           <div className="kv">
-            <span className="k">Live {asset.kind === "EquityToken" ? "benchmark" : "token market"}</span>
-            <span className="v mono">{spotReal != null ? fmtUsd(spotReal) : "loading…"}</span>
+            <span className="k">Executable {asset.kind === "EquityToken" ? "benchmark" : "token reference"}</span>
+            <span className="v mono">
+              {spotReal != null ? fmtUsd(spotReal) : reference ? "Not quoting" : marketError ? "Unavailable" : "Checking…"}
+            </span>
           </div>
-          {reference && (
+          {reference?.available && (
             <div className="kv">
               <span className="k">Reference source</span>
               <span className="v mono">{reference.source}</span>
@@ -168,6 +209,17 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
           {marketError && (
             <div className="callout warn" role="alert" style={{ marginTop: 10 }}>
               {marketError} New quotes are disabled until a fresh reference returns.
+            </div>
+          )}
+          {reference && !reference.available && (
+            <div
+              className={"callout" + (reference.status === "session_closed" ? "" : " warn")}
+              role={reference.status === "session_closed" ? "status" : "alert"}
+              style={{ marginTop: 10 }}
+            >
+              {reference.status === "session_closed"
+                ? `The supported equity session is closed.${reference.nextOpen ? ` Quotes resume ${fmtClock(reference.nextOpen)}.` : ""}`
+                : reference.reason}
             </div>
           )}
         </div>
@@ -272,7 +324,13 @@ export default function ProtectTab({ renewal, onRenewalConsumed }: { renewal?: {
             Fees and rent are sponsored — you need no SOL.
           </div>
           <button className="btn primary" disabled={!canBuy} onClick={buy}>
-            {c.busy ? c.status || "Working…" : !referenceReady ? "Reference unavailable" : tooBig ? "Above max size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : "Buy protection"}
+            {c.busy
+              ? c.status || "Working…"
+              : reference && !reference.available && reference.status === "session_closed"
+                ? "Equity session closed"
+                : !referenceReady
+                  ? "Reference unavailable"
+                  : tooBig ? "Above max size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : "Buy protection"}
           </button>
         </div>
         {c.error && <div className="callout warn" style={{ marginTop: 12 }}>{c.error}</div>}

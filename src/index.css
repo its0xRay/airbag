@@ -286,31 +286,34 @@ table.log tr:hover td { background: var(--bg-elev2); }
 }
 .demo-label small { font-family: var(--sans); font-size: 10px; color: #f0d492; }
 
-/* --- live protection preview --- */
-.lp-protection {
+/* --- payout formula --- */
+.lp-payoff {
   background: var(--bg-elev); border: 1px solid var(--border-strong);
   border-radius: var(--radius); padding: clamp(18px, 3vw, 24px);
 }
-.lp-protection-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.lp-protection-asset { margin-top: 10px; font-size: 22px; font-weight: 680; letter-spacing: -0.02em; }
-.lp-protection-price {
-  display: flex; flex-direction: column; gap: 4px; padding: 22px 0 18px;
-  border-bottom: 1px solid var(--border);
-}
-.lp-protection-price strong { font-size: 34px; line-height: 1.15; letter-spacing: -0.035em; }
-.lp-protection-price .faint { font-size: 11.5px; }
-.lp-protection-terms { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 1px; background: var(--border); }
-.lp-protection-terms > div {
-  display: flex; flex-direction: column; gap: 5px; padding: 14px 0;
+.lp-payoff h2 { margin-top: 10px; font-size: 22px; letter-spacing: -0.02em; }
+.lp-payoff > p { margin: 8px 0 0; color: var(--text-dim); font-size: 13px; }
+.lp-payoff-terms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 22px; background: var(--border); }
+.lp-payoff-terms > div {
+  display: flex; flex-direction: column; gap: 5px; padding: 12px;
   background: var(--bg-elev);
 }
-.lp-protection-terms > div:nth-child(even) { padding-left: 16px; }
-.lp-protection-terms span { color: var(--text-faint); font-size: 11.5px; }
-.lp-protection-terms strong { font-size: 13.5px; }
-.lp-protection-foot {
-  display: flex; justify-content: space-between; gap: 12px; padding-top: 14px;
-  border-top: 1px solid var(--border); color: var(--text-dim); font-size: 11.5px;
+.lp-payoff-terms span { color: var(--text-faint); font-size: 11px; }
+.lp-payoff-terms strong { font-size: 13px; }
+.lp-payoff-equation {
+  margin-top: 16px; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--text-dim); font-size: 13px; text-align: center;
 }
+.lp-payoff-result {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 18px 0; border-bottom: 1px solid var(--border);
+}
+.lp-payoff-result > span { color: var(--text-dim); font-size: 12px; }
+.lp-payoff-result > strong { color: var(--accent); font-size: 26px; letter-spacing: -0.025em; }
+.lp-payoff-result small { color: var(--text-dim); font-family: var(--sans); font-size: 11px; font-weight: 600; }
+.lp-payoff-foot { display: flex; justify-content: space-between; gap: 12px; padding-top: 14px; font-size: 11.5px; }
+.lp-payoff-foot span { color: var(--text-faint); }
+.lp-payoff-note { font-size: 11.5px !important; }
 
 /* --- section scaffolding --- */
 .lp-section { padding: clamp(48px, 7vw, 76px) 0; border-bottom: 1px solid var(--border); }
@@ -337,26 +340,21 @@ table.log tr:hover td { background: var(--bg-elev2); }
 .lp-benefit h3 { font-size: 14.5px; }
 .lp-benefit p { margin: 8px 0 0; color: var(--text-dim); font-size: 13px; line-height: 1.55; }
 
-/* --- onchain lifecycle --- */
-.lp-chain-flow {
-  display: grid; grid-template-columns: repeat(6, 1fr); overflow: hidden;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elev);
-}
-.lp-chain-step {
-  position: relative; display: flex; min-height: 112px; flex-direction: column; justify-content: space-between;
-  padding: 18px; border-right: 1px solid var(--border);
-}
-.lp-chain-step:last-child { border-right: none; }
-.lp-chain-step > .mono { color: var(--accent); font-size: 11px; }
-.lp-chain-step strong { max-width: 13ch; font-size: 13px; line-height: 1.35; }
-.lp-chain-arrow { position: absolute; right: -8px; top: 50%; z-index: 1; color: var(--text-faint); transform: translateY(-50%); }
 .lp-program-link {
   display: inline-flex; align-items: center; gap: 10px; min-height: 40px; margin-top: 16px;
   color: var(--text-dim); font-size: 12.5px; font-weight: 600;
 }
 .lp-program-link:hover { color: var(--text); }
 
-/* --- live market proof cards --- */
+/* --- executable availability --- */
+.lp-availability { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.lp-card-action { width: 100%; min-height: 42px; margin-top: 16px; }
+.lp-reference-state { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.lp-reference-state > strong { display: block; font-size: 14px; }
+.lp-reference-state > p { margin: 12px 0 0; color: var(--text-dim); font-size: 12.5px; }
+.lp-reference-state .kv { margin-top: 10px; }
+
+/* --- market and reference detail --- */
 .lp-live { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .lp-live-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .lp-sym { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
@@ -379,6 +377,15 @@ table.log tr:hover td { background: var(--bg-elev2); }
 .lp-skel.price { height: 30px; width: 58%; margin-top: 18px; }
 .lp-skel.line { margin-top: 12px; width: 100%; }
 .lp-skel.short { width: 62%; }
+
+.lp-reference-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elev); }
+.lp-reference-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px; }
+.lp-reference-table th, .lp-reference-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.lp-reference-table tr:last-child th, .lp-reference-table tr:last-child td { border-bottom: none; }
+.lp-reference-table thead th { color: var(--text); font-size: 12px; font-weight: 650; }
+.lp-reference-table tbody th { width: 24%; color: var(--text-faint); font-size: 11.5px; font-weight: 550; }
+.lp-reference-table tbody td { width: 38%; color: var(--text-dim); }
+.lp-retry { margin-top: 12px; }
 
 /* --- numbered steps --- */
 .lp-step { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
@@ -412,6 +419,12 @@ table.log tr:hover td { background: var(--bg-elev2); }
 .lp-trust-dot.real { background: var(--accent); box-shadow: 0 0 8px rgba(74, 222, 128, 0.5); }
 .lp-trust-dot.demo { background: var(--amber); box-shadow: 0 0 8px rgba(245, 196, 81, 0.45); }
 
+/* --- protocol proof --- */
+.lp-proof { min-height: 142px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elev); }
+.lp-proof h3 { color: var(--accent); font-size: 13.5px; }
+.lp-proof p { margin: 24px 0 0; color: var(--text-dim); font-size: 12.5px; line-height: 1.55; }
+.lp-proof-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+
 /* --- product depth --- */
 .lp-depth {
   display: flex; align-items: center; justify-content: space-between; min-height: 106px;
@@ -442,25 +455,16 @@ table.log tr:hover td { background: var(--bg-elev2); }
   .lp-hero-grid { grid-template-columns: 1fr; }
   .lp-grid.four { grid-template-columns: repeat(2, 1fr); }
   .lp-grid.three { grid-template-columns: 1fr; }
-  .lp-chain-flow { grid-template-columns: repeat(3, 1fr); }
-  .lp-chain-step:nth-child(3) { border-right: none; }
-  .lp-chain-step:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
-  .lp-chain-step:nth-child(3) .lp-chain-arrow { display: none; }
 }
 @media (max-width: 640px) {
   .public-nav { display: none; }
   .lp-grid.two, .lp-grid.four { grid-template-columns: 1fr; }
   .lp-title { max-width: 100%; }
   .lp-cta-row .btn { width: 100%; justify-content: center; text-align: center; }
-  .lp-chain-flow { grid-template-columns: repeat(2, 1fr); }
-  .lp-chain-step { border-bottom: 1px solid var(--border); }
-  .lp-chain-step:nth-child(odd) { border-right: 1px solid var(--border); }
-  .lp-chain-step:nth-child(even) { border-right: none; }
-  .lp-chain-step:nth-child(n+5) { border-bottom: none; }
-  .lp-chain-step:nth-child(3) .lp-chain-arrow { display: block; }
-  .lp-chain-step:nth-child(even) .lp-chain-arrow { display: none; }
-  .lp-protection-terms { grid-template-columns: 1fr; }
-  .lp-protection-terms > div:nth-child(even) { padding-left: 0; }
+  .lp-payoff-terms { grid-template-columns: 1fr; }
+  .lp-payoff-result { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .lp-proof-actions { align-items: stretch; flex-direction: column; }
+  .lp-proof-actions .btn { min-height: 42px; }
 }
 .callout { background: var(--blue-dim); border: 1px solid #244066; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 12.5px; color: #bcd3f2; }
 .callout.warn { background: var(--amber-dim); border-color: #574515; color: #f0d492; }

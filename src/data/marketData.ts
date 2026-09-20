@@ -22,12 +22,22 @@ export async function fetchMarket(mint: string): Promise<Market> {
   return fetchJson<Market>(`${SVC}/market?mint=${encodeURIComponent(mint)}`);
 }
 
-export interface QuoteReference {
+export interface AvailableQuoteReference {
   assetId: number;
   price: number;
   source: string;
   available: true;
 }
+
+export interface UnavailableQuoteReference {
+  assetId: number;
+  available: false;
+  status: "session_closed" | "stale" | "source_unavailable";
+  reason: string;
+  nextOpen?: number;
+}
+
+export type QuoteReference = AvailableQuoteReference | UnavailableQuoteReference;
 
 export async function fetchQuoteReference(assetId: number): Promise<QuoteReference> {
   return fetchJson<QuoteReference>(`${SVC}/reference?assetId=${encodeURIComponent(assetId)}`);

@@ -26,6 +26,7 @@ export default function App() {
   const chainError = useChain((s) => s.error);
   const clearError = useChain((s) => s.clearError);
   const [tab, setTab] = useState<Tab>("home");
+  const [protectAssetId, setProtectAssetId] = useState<number | null>(null);
   // A renewal jumps to Protect with the quantity prefilled — the quote itself
   // is always fresh, so no terms carry over from the old contract (§18).
   const [renewal, setRenewal] = useState<{ assetId: number; quantity: number } | null>(null);
@@ -92,8 +93,18 @@ export default function App() {
         </div>
       )}
 
-      {tab === "home" && <Landing onLaunch={(t) => setTab(t as Tab)} />}
-      {tab === "protect" && <ProtectTab renewal={renewal} onRenewalConsumed={() => setRenewal(null)} />}
+      {tab === "home" && <Landing onLaunch={(t, assetId) => {
+        if (t === "protect") setProtectAssetId(assetId ?? null);
+        setTab(t as Tab);
+      }} />}
+      {tab === "protect" && (
+        <ProtectTab
+          renewal={renewal}
+          onRenewalConsumed={() => setRenewal(null)}
+          initialAssetId={protectAssetId}
+          onInitialAssetConsumed={() => setProtectAssetId(null)}
+        />
+      )}
       {tab === "portfolio" && <PortfolioTab onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} />}
       {tab === "compare" && <CompareTab />}
       {tab === "calculator" && <CalculatorTab />}

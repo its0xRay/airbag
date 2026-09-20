@@ -17,6 +17,7 @@ export interface RefObservation {
   confidence?: bigint;  // where available
   available: boolean;
   reason?: string;      // why unavailable, when applicable
+  nextOpen?: number;    // next supported session, when the source provides it
   sourceId: string;
   verification: string;
 }
@@ -79,7 +80,11 @@ export class PythEquityAdapter {
       if (!session.open) {
         // No qualifying observation exists while the supported equity session
         // is closed. Never re-stamp a last print as if it occurred now.
-        return { ...base, reason: `stock session closed (next open ${session.nextOpen ?? "?"})` };
+        return {
+          ...base,
+          reason: `stock session closed (next open ${session.nextOpen ?? "?"})`,
+          nextOpen: session.nextOpen,
+        };
       }
       // 1) Preferred: Pyth Hermes (canonical oracle). Public Hermes now
       //    requires auth — set PYTH_HERMES to an authorized endpoint to use it.

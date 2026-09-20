@@ -156,13 +156,28 @@ async function marketData(mint: string) {
 }
 
 class ServiceError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly details?: Record<string, unknown>,
+  ) { super(message); }
 }
 
 /** Live spot for premium pricing (§8.3): equity uses the stock benchmark,
  *  PreStocks uses the token market. Quote issuance fails closed when the live
  *  reference is unavailable. */
-async function liveSpot(assetId: number): Promise<{ spot: bigint; source: string }> {
+type ReferenceStatus =
+  | { available: true; assetId: number; spot: bigint; source: string }
+  | {
+      available: false;
+      assetId: number;
+      status: "session_closed" | "stale" | "source_unavailable";
+      reason: string;
+      nextOpen?: number;
+    };
+
+async function referenceStatus(assetId: number): Promise<ReferenceStatus> {
   const asset = VERIFIED_ASSETS[assetId];
   if (!asset) throw new ServiceError("unknown asset", 404);
 
@@ -172,15 +187,37 @@ async function liveSpot(assetId: number): Promise<{ spot: bigint; source: string
     if (observation.available && observation.price > 0n
       && observation.sourceTs <= collectedTs
       && collectedTs - observation.sourceTs <= EQUITY_MAX_SAMPLE_AGE_SECS) {
-      return { spot: observation.price, source: observation.sourceId };
+      return { available: true, assetId, spot: observation.price, source: observation.sourceId };
+    }
+    if (observation.reason?.startsWith("stock session closed")) {
+      return {
+        available: false,
+        assetId,
+        status: "session_closed",
+        reason: "The supported equity session is closed.",
+        nextOpen: observation.nextOpen,
+      };
+    }
+    if (observation.available) {
+      return {
+        available: false,
+        assetId,
+        status: "stale",
+        reason: "The latest benchmark observation is too old for an executable quote.",
+      };
     }
   } else {
     const observation = (await prestocksReference.observe(1))[0];
     if (observation?.available && observation.price > 0n) {
-      return { spot: observation.price, source: observation.sourceId };
+      return { available: true, assetId, spot: observation.price, source: observation.sourceId };
     }
   }
-  throw new ServiceError("reference unavailable — no executable quote was issued", 503);
+  return {
+    available: false,
+    assetId,
+    status: "source_unavailable",
+    reason: "No fresh qualifying reference is available. New quotes are paused.",
+  };
 }
 
 // ---- signed quotes (§8) ----
@@ -193,7 +230,16 @@ async function buildSignedQuote(buyer: string, assetId: number, seriesId: number
   const now = nowSec();
   if (now > s.purchaseCutoffTs) throw new Error("purchase window has closed");
 
-  const { spot, source } = await liveSpot(assetId);
+  const reference = await referenceStatus(assetId);
+  if (!reference.available) {
+    throw new ServiceError(
+      reference.reason,
+      503,
+      reference.status,
+      reference.nextOpen ? { nextOpen: reference.nextOpen } : undefined,
+    );
+  }
+  const { spot, source } = reference;
   const { premium } = quotePremium(assetId, quantity, s.strike, spot, s.expiryTs - now);
 
   const quoteId = quoteCounter++;
@@ -421,8 +467,10 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/reference") {
       const assetId = Number(url.searchParams.get("assetId"));
       if (!Number.isInteger(assetId)) return json(res, 400, { error: "valid assetId required" });
-      const reference = await liveSpot(assetId);
-      return json(res, 200, { assetId, price: fromFixed(reference.spot), source: reference.source, available: true });
+      const reference = await referenceStatus(assetId);
+      return reference.available
+        ? json(res, 200, { assetId, price: fromFixed(reference.spot), source: reference.source, available: true })
+        : json(res, 200, reference);
     }
     if (req.method === "GET" && url.pathname === "/holdings") {
       const owner = url.searchParams.get("owner");
@@ -484,7 +532,12 @@ const server = createServer(async (req, res) => {
     }
     return json(res, 404, { error: "not found" });
   } catch (e) {
-    return json(res, e instanceof ServiceError ? e.status : 400, { error: String((e as Error).message || e) });
+    const serviceError = e instanceof ServiceError ? e : null;
+    return json(res, serviceError?.status ?? 400, {
+      error: String((e as Error).message || e),
+      ...(serviceError?.code ? { code: serviceError.code } : {}),
+      ...(serviceError?.details ?? {}),
+    });
   }
 });
 
