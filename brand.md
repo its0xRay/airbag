@@ -52,7 +52,9 @@ Amber signals warnings or unavailable data, not the normal Devnet environment.
 The public page combines Set-COM's lighter typography and restrained colour with
 Optimus's flat numbered rows. Keep one contained Protect workspace; supporting
 benefits, asset descriptions and product links use separators rather than cards.
-The process selector explains mechanics only; it never depicts a simulated transaction.
+The scroll-led walkthrough pairs readable steps with a sticky mechanism diagram.
+Mobile, short viewports and reduced-motion settings show all diagrams inline.
+These explain mechanics only; they never depict simulated transactions.
 
 - Radius: `--radius` 12px (cards), `--radius-sm` 8px (buttons, inputs), 100px (pills).
 - **Borders, not shadows.** The system is flat-with-1px-borders; don't add shadows
@@ -63,6 +65,8 @@ The process selector explains mechanics only; it never depicts a simulated trans
 - Micro-feedback only: `0.12s ease` on `transform`/`background`/`border-color`.
 - Never `transition: all`. Never longer than 300ms for interactive elements.
 - All motion sits behind `@media (prefers-reduced-motion: no-preference)`.
+- Walkthrough diagrams use 200ms transitions and a 250ms progress line. Reading
+  text stays stationary; scrolling is never locked or forced.
 
 ## Voice
 

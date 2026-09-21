@@ -1,4 +1,4 @@
-import { useState } from "react";
+import ProtectionWalkthrough from "./ProtectionWalkthrough";
 import ProtectTab from "./ProtectTab";
 import AssetLogo from "./AssetLogo";
 import { VERIFIED_ASSETS } from "../data/assets";
@@ -7,19 +7,12 @@ import { OPTKET_PROGRAM_ID } from "../client/optketProgram";
 import type { ProtectDraft } from "../App";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history";
-const steps = [
-  ["Choose a floor", "Set your protection", "Choose an asset, quantity, price floor and expiry. Explore the payout before connecting your wallet."],
-  ["Pay once", "One premium upfront", "Buy with a fresh signed quote. Your maximum contractual payout is reserved onchain when the position is issued."],
-  ["Keep holding", "Your tokens stay with you", "The underlying never enters an Optket vault. Protection is a separate contract, without buyer margin or liquidation."],
-  ["Exercise or settle", "Payout against the reference", "Request partial or full exercise before the cutoff, or let the keeper settle at expiry. Payout uses the verified reference and your contract’s floor."],
-] as const;
 
 export default function Landing({ onLaunch }: {
   onLaunch: (tab: AppTab, draft?: ProtectDraft) => void | Promise<void>;
   launching?: boolean;
   launchStatus?: string;
 }) {
-  const [step, setStep] = useState(0);
   return (
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
@@ -47,15 +40,7 @@ export default function Landing({ onLaunch }: {
         </div>
       </section>
 
-      <section className="lp-section" id="how-it-works">
-        <div className="lp-section-head"><div className="lp-kicker">How it works</div><h2 className="lp-h2">Choose, pay, hold, settle.</h2></div>
-        <div className="lp-process">
-          <div className="lp-process-steps" role="group" aria-label="Explore how protection works">
-            {steps.map(([title], i) => <button key={title} type="button" aria-pressed={step === i} aria-controls="process-detail" onClick={() => setStep(i)}><span className="mono">0{i + 1}</span>{title}<span aria-hidden="true">↗</span></button>)}
-          </div>
-          <div className="lp-process-detail" id="process-detail" aria-live="polite"><span className="lp-kicker">How protection works · 0{step + 1}</span><h3>{steps[step][1]}</h3><p>{steps[step][2]}</p><a className="lp-text-link" href="#protection">Configure protection →</a></div>
-        </div>
-      </section>
+      <ProtectionWalkthrough />
 
       <section className="lp-section" id="assets">
         <div className="lp-section-head"><div className="lp-kicker">What determines the payout?</div><h2 className="lp-h2">The token’s market price.</h2><p className="lp-lede">Both assets use token-market observations. New NVDAx protection no longer depends on an open stock exchange.</p></div>
