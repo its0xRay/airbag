@@ -36,7 +36,7 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
   const protectedUnits = tok(activeProtected);
   const unprotected = Math.max(0, held - protectedUnits);
   const excess = Math.max(0, protectedUnits - held);
-  const hasCoverageData = mine.length > 0 || held > 0;
+  const hasCoverageData = protectedUnits > 0 || held > 0 || pending > 0n;
   const trackerScale = Math.max(held, protectedUnits, 1);
 
   return (
@@ -65,7 +65,7 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
         <div className="hr" />
         <div className="coverage-track" aria-label={`${protectedUnits} protected units, ${unprotected} unprotected units, ${excess} protected beyond holdings`}>
           {held > 0 && <span className="coverage-unprotected" style={{ width: `${Math.min(100, (unprotected / trackerScale) * 100)}%` }} />}
-          {protectedUnits > 0 && <span className="coverage-protected" style={{ width: `${Math.min(100, (Math.min(protectedUnits, held || protectedUnits) / trackerScale) * 100)}%` }} />}
+          {held > 0 && protectedUnits > 0 && <span className="coverage-protected" style={{ width: `${Math.min(100, (Math.min(protectedUnits, held) / trackerScale) * 100)}%` }} />}
           {excess > 0 && <span className="coverage-excess" style={{ width: `${Math.min(100, (excess / trackerScale) * 100)}%` }} />}
         </div>
         <div className="coverage-legend"><span className="protected">Protected</span><span className="unprotected">Unprotected</span>{excess > 0 && <span className="excess">Protected more than held</span>}</div>

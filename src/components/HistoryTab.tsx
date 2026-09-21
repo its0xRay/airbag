@@ -10,7 +10,7 @@ import { fmtAge } from "../format";
  */
 export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
   const c = useChain();
-  const [scope, setScope] = useState<"program" | "wallet">("program");
+  const [scope, setScope] = useState<"program" | "wallet">(c.history.length > 0 ? "wallet" : "program");
   const [visible, setVisible] = useState(10);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -58,7 +58,7 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
             <tbody>
               {c.programHistory.slice(0, visible).map((h) => (
                 <tr key={h.signature}>
-                  <td className="mono faint" title={h.blockTime ? new Date(h.blockTime * 1000).toLocaleString() : undefined}>{h.blockTime ? fmtAge(h.blockTime) : "—"}</td>
+                  <td className="mono faint" title={h.blockTime ? new Date(h.blockTime * 1000).toLocaleString() : undefined}>{h.blockTime ? fmtAge(h.blockTime).replace("updated ", "") : "—"}</td>
                   <td>{h.action}{h.err && <span className="pill red activity-failure">failed</span>}</td>
                   <td><a className="mono" href={explorerUrl("tx", h.signature)} target="_blank" rel="noreferrer">{h.signature.slice(0, 16)}… ↗</a></td>
                   <td><button className="copy-action" aria-label="Copy transaction signature" onClick={() => copySignature(h.signature)}>{copied === h.signature ? "Copied" : "Copy"}</button></td>
@@ -81,7 +81,7 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
             {c.history.map((h) => (
               <tr key={h.signature}>
                 <td className="mono faint" title={h.blockTime ? new Date(h.blockTime * 1000).toLocaleString() : undefined}>
-                  {h.blockTime ? fmtAge(h.blockTime) : "—"}
+                  {h.blockTime ? fmtAge(h.blockTime).replace("updated ", "") : "—"}
                 </td>
                 <td>{h.action}</td>
                 <td>{VERIFIED_ASSETS[h.assetId]?.symbol ?? h.assetId}</td>

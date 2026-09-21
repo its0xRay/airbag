@@ -56,16 +56,15 @@ export interface RequestTransaction {
 }
 
 async function decodeTransactionActions(connection: Connection, signatures: string[]): Promise<Map<string, string>> {
-  const unique = [...new Set(signatures)].slice(0, 100);
+  const unique = [...new Set(signatures)].slice(0, 30);
   const actions = new Map<string, string>();
   if (unique.length === 0) return actions;
-  // Public RPC providers commonly cap or throttle parsed-transaction batches.
-  // Decode small batches independently so one rejected batch does not erase
-  // labels for every otherwise-readable transaction.
-  for (let offset = 0; offset < unique.length; offset += 10) {
-    const batch = unique.slice(offset, offset + 10);
+  // Some public RPCs reject JSON-RPC batches even when individual reads work.
+  // Bound concurrent requests and preserve successful reads independently.
+  for (let offset = 0; offset < unique.length; offset += 2) {
+    const batch = unique.slice(offset, offset + 2);
     try {
-      const transactions = await connection.getParsedTransactions(batch, { maxSupportedTransactionVersion: 0 });
+      const transactions = await Promise.all(batch.map((signature) => connection.getParsedTransaction(signature, { maxSupportedTransactionVersion: 0 }).catch(() => null)));
       transactions.forEach((transaction, index) => {
         if (!transaction) return;
         const labels = transaction.transaction.message.instructions.flatMap((instruction) => {
@@ -346,12 +345,6 @@ export const useChain = create<ChainState>((set, get) => ({
       ...programHistory.filter((entry) => entry.action === "Program instruction").map((entry) => entry.signature),
       ...Object.values(requestTransactions).flat().filter((entry) => entry.action === "Exercise instruction").map((entry) => entry.signature),
     ];
-    const actionBySignature = await decodeTransactionActions(conn, allSignatures);
-    for (const entry of history) entry.action = actionBySignature.get(entry.signature) ?? entry.action;
-    for (const entry of programHistory) entry.action = actionBySignature.get(entry.signature) ?? entry.action;
-    for (const entries of Object.values(requestTransactions)) {
-      for (const entry of entries) entry.action = actionBySignature.get(entry.signature) ?? entry.action;
-    }
     history.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
     programHistory.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
     let sol = current.solBalance;
@@ -374,6 +367,17 @@ export const useChain = create<ChainState>((set, get) => ({
       solBalance: sol,
       tokenBalance: tokens,
       trial,
+    });
+    // Labels enrich confirmed history; RPC throttling must not block wallet
+    // readiness or a completed purchase from reaching its success state.
+    void decodeTransactionActions(conn, allSignatures).then((actions) => {
+      if (get().burner !== burner || get().conn !== conn || actions.size === 0) return;
+      const label = <T extends { signature: string; action: string }>(entry: T): T => ({ ...entry, action: actions.get(entry.signature) ?? entry.action });
+      set((latest) => ({
+        history: latest.history.map(label),
+        programHistory: latest.programHistory.map(label),
+        requestTransactions: Object.fromEntries(Object.entries(latest.requestTransactions).map(([address, entries]) => [address, entries.map(label)])),
+      }));
     });
   },
 

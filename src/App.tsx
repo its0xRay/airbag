@@ -20,7 +20,7 @@ const TABS: [Tab, string][] = [
   ["protect", "Protect"],
   ["portfolio", "Positions"],
   ["compare", "Markets"],
-  ["underwriter", "Risk"],
+  ["underwriter", "Pools"],
   ["history", "Onchain"],
 ];
 
@@ -115,6 +115,7 @@ export default function App() {
       {tab === "home" && <Landing onLaunch={(t, draft) => launch(t as Exclude<Tab, "home">, draft)} launching={busy} launchStatus={status} />}
       {tab === "protect" && (
         <ProtectTab
+          onViewPositions={() => setTab("portfolio")}
           renewal={renewal}
           onRenewalConsumed={() => setRenewal(null)}
           initialDraft={protectDraft}

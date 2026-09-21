@@ -208,15 +208,15 @@ export default function Landing({
             {loading && !heroSeries ? <div className="lp-builder-loading" aria-busy="true"><div className="lp-skel line" /><div className="lp-skel line short" /></div> : !heroSeries ? <div className="lp-reference-state"><strong>No purchasable series.</strong><p>The operator must publish a fresh series before protection can be quoted.</p></div> : (
               <>
                 <label className="field lp-settlement"><span className="lbl">Hypothetical settlement reference</span><div className="lp-range-row"><input type="range" min={chartMin} max={chartMax} step={Math.max(0.01, chartSpot / 200)} value={heroSettlementN} onChange={(e) => setHeroSettlement(Number(e.target.value).toFixed(2))} /><input className="input mono" type="text" inputMode="decimal" value={heroSettlement || heroSettlementN.toFixed(2)} onChange={(e) => setHeroSettlement(e.target.value)} /></div></label>
-                <div className="lp-mini-chart" aria-label="Net protection payoff across settlement prices">
-                  {heroEstimate ? <svg viewBox="0 0 100 100" role="img"><title>Net protection payoff curve</title><line className="zero" x1="0" x2="100" y1="50" y2="50" /><line className="marker current" x1={chartX(chartSpot)} x2={chartX(chartSpot)} y1="6" y2="94" /><line className="marker floor" x1={chartX(tok(heroSeries.strike))} x2={chartX(tok(heroSeries.strike))} y1="6" y2="94" /><line className="marker breakeven" x1={chartX(heroBreakeven)} x2={chartX(heroBreakeven)} y1="6" y2="94" /><polyline points={chartPolyline} /></svg> : <div className="lp-chart-unavailable"><strong>{heroUnavailableLabel}</strong><span>Select ANTHROPIC for an executable 24/7 token reference.</span></div>}
+                <div className="lp-mini-chart" aria-label="Payout minus premium across settlement prices">
+                  {heroEstimate ? <svg viewBox="0 0 100 100" role="img"><title>Payout minus premium curve</title><line className="zero" x1="0" x2="100" y1="50" y2="50" /><line className="marker current" x1={chartX(chartSpot)} x2={chartX(chartSpot)} y1="6" y2="94" /><line className="marker floor" x1={chartX(tok(heroSeries.strike))} x2={chartX(tok(heroSeries.strike))} y1="6" y2="94" /><line className="marker breakeven" x1={chartX(heroBreakeven)} x2={chartX(heroBreakeven)} y1="6" y2="94" /><polyline points={chartPolyline} /></svg> : <div className="lp-chart-unavailable"><strong>{heroUnavailableLabel}</strong><span>A qualifying reference is needed to estimate the premium.</span></div>}
                   <span>Lower reference</span><span>Higher reference</span>
                 </div>
                 {heroEstimate && <div className="lp-chart-legend"><span className="current">Current</span><span className="floor">Floor</span><span className="breakeven">Breakeven</span></div>}
                 <div className="lp-builder-results">
                   <div><span>Estimated premium</span><strong className="mono">{heroEstimate ? `${heroPremiumN.toFixed(2)} oUSD` : "Unavailable"}</strong></div>
-                  <div><span>Gross payout</span><strong className="mono">{tok(heroPayout).toFixed(2)} oUSD</strong></div>
-                  <div><span>Net protection payoff</span><strong className={"mono " + (heroNet >= 0 ? "pos" : "neg")}>{heroEstimate ? `${heroNet >= 0 ? "+" : ""}${heroNet.toFixed(2)} oUSD` : "—"}</strong></div>
+                  <div><span>Payout at selected price</span><strong className="mono">{tok(heroPayout).toFixed(2)} oUSD</strong></div>
+                  <div><span>Payout minus premium</span><strong className={"mono " + (heroNet >= 0 ? "pos" : "neg")}>{heroEstimate ? `${heroNet >= 0 ? "+" : ""}${heroNet.toFixed(2)} oUSD` : "—"}</strong></div>
                   <div><span>Breakeven reference</span><strong className="mono">{heroEstimate ? fmtUsd(heroBreakeven) : "—"}</strong></div>
                 </div>
                 <p className="lp-payoff-note">Estimated premium · binding quote locked for 60 seconds at purchase.</p>
@@ -488,7 +488,7 @@ export default function Landing({
           {[
             ["portfolio", "Positions", "Track active protection, pending exercises, holdings, and renewals."],
             ["compare", "Markets", "See token prices, stock benchmarks, and exactly what each contract covers."],
-            ["underwriter", "Risk", "Inspect collateral, reserves, premiums, payouts, and modelled costs."],
+            ["underwriter", "Pools", "Inspect collateral, reserves, premiums, payouts, and modelled costs."],
             ["history", "Onchain", "Open the Solana signatures behind each contract lifecycle."],
           ].map(([tab, title, body], index) => (
             <button className={"lp-depth" + (index === 0 ? " feature" : "")} key={tab} onClick={() => onLaunch(tab as AppTab)}>

@@ -737,3 +737,63 @@ table.log tr:hover td { background: var(--bg-elev2); }
 }
 .callout { background: var(--blue-dim); border: 1px solid #244066; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 12.5px; color: #bcd3f2; }
 .callout.warn { background: var(--amber-dim); border-color: #574515; color: #f0d492; }
+
+
+/* Protection workspace: analysis and a focused transaction ticket. */
+.protect-market-head { display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+.protect-assets { display:flex; gap:8px; }
+.reference-inline { display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--text-dim); }
+.reference-inline > strong { font-size:22px; color:var(--text); }
+.coverage-scope { font-size:14px; line-height:1.6; color:var(--text-dim); margin:18px 0 28px; max-width:800px; }
+.reference-explanation { color:var(--amber); font-size:14px; }
+.protect-layout { display:grid; grid-template-columns:minmax(0,1fr) 350px; gap:24px; align-items:start; }
+.protection-ticket { grid-column:2; grid-row:1; position:sticky; top:90px; padding:24px; }
+.protection-analysis { grid-column:1; grid-row:1; min-width:0; }
+.protection-ticket h2,.scenario-card h2 { font-size:20px; margin:0 0 20px; }
+.scenario-card h2 { margin-bottom:8px; }
+.scenario-card p { color:var(--text-dim); line-height:1.6; }
+.ticket-fields { border:0; padding:0; margin:0; min-width:0; }
+.ticket-label { font-size:13px; margin:22px 0 10px; color:var(--text-dim); }
+.protection-ticket .floor-list { gap:8px; }
+.protection-ticket .strike-option { display:flex; align-items:center; justify-content:space-between; padding:14px 12px; gap:10px; }
+.protection-ticket .floor-distance { font-size:12px; text-align:right; margin:0; }
+.ticket-expiry { display:grid; gap:12px; margin-top:18px; font-size:12px; }
+.ticket-expiry > div { display:flex; justify-content:space-between; gap:12px; }
+.ticket-expiry span,.ticket-balance,.ticket-footnote { color:var(--text-dim); }
+.ticket-expiry strong { font-weight:500; text-align:right; }
+.ticket-premium { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid var(--border); margin-top:22px; padding-top:20px; font-size:13px; }
+.ticket-premium strong { font-size:21px; }
+.ticket-balance { text-align:right; font-size:12px; margin:8px 0 18px; }
+.ticket-purchase .btn { width:100%; min-height:48px; }
+.ticket-footnote { font-size:12px; line-height:1.6; margin-bottom:0; }
+.scenario-card { padding:28px; }
+.scenario-results { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:28px 0; }
+.scenario-results span { display:block; color:var(--text-dim); font-size:12px; margin-bottom:10px; }
+.scenario-results strong { font-size:20px; }
+.scenario-card .payoff-chart { padding:0; border:0; background:none; }
+.scenario-card .payoff-chart svg { height:240px; overflow:hidden; }
+.payoff-chart .marker.breakeven { stroke:var(--accent); }
+.chart-thresholds { display:flex; gap:24px; font-size:12px; color:var(--text-dim); margin:12px 0 24px; }
+.chart-thresholds strong { color:var(--text); margin-left:5px; }
+.scenario-slider { display:block; }
+.scenario-slider > span { display:flex; justify-content:space-between; gap:12px; font-size:14px; margin-bottom:16px; }
+.scenario-slider input { width:100%; accent-color:var(--accent); min-height:32px; }
+.scenario-presets { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.scenario-note { font-size:12px; margin-top:24px; }
+.protection-details { margin-top:16px; }
+.protection-details summary { cursor:pointer; font-size:14px; font-weight:600; padding:4px 0; }
+.protection-details[open] summary { margin-bottom:20px; }
+.protection-details p { color:var(--text-dim); font-size:13px; line-height:1.7; }
+.protection-details .kv { font-size:13px; gap:20px; }
+.protection-details .kv strong { text-align:right; font-weight:500; }
+.protection-receipt { padding:32px; }
+.protection-receipt h2 { font-size:28px; }
+.receipt-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin:28px 0; }
+.receipt-metrics span,.receipt-metrics strong { display:block; }
+.receipt-metrics span { color:var(--text-dim); font-size:13px; margin-bottom:8px; }
+.risk-columns > details { padding:16px 0; border-top:1px solid var(--border); }
+.risk-columns > details summary { cursor:pointer; font-size:14px; font-weight:600; margin-bottom:16px; }
+@media (max-width:1000px) { .protect-layout { grid-template-columns:minmax(0,1fr) 320px; gap:16px; } .scenario-results { grid-template-columns:1fr; gap:12px; } .scenario-results > div { display:flex; align-items:center; justify-content:space-between; } .scenario-results span { margin:0; } }
+@media (max-width:760px) { .protect-layout { display:flex; flex-direction:column; } .protection-ticket,.protection-analysis { width:100%; } .protection-ticket { position:static; padding:20px; } .scenario-card { padding:20px; } .scenario-card .payoff-chart svg { height:180px; } .reference-inline { gap:8px; } .reference-inline > span { flex-basis:100%; } .ticket-purchase { position:sticky; bottom:8px; z-index:9; background:var(--bg-elev); padding:8px 0; } .receipt-metrics { grid-template-columns:1fr; } .scenario-slider > span { flex-wrap:wrap; } .chart-thresholds { flex-wrap:wrap; gap:10px; } }
+.mobile-buy-summary { display:none; }
+@media (max-width:760px) { .protect-workspace { padding-bottom:150px; } .mobile-buy-summary { display:grid; gap:10px; position:fixed; bottom:0; left:0; right:0; padding:14px 16px max(14px,env(safe-area-inset-bottom)); background:var(--bg-elev); border-top:1px solid var(--border-strong); z-index:15; } .mobile-buy-summary strong,.mobile-buy-summary span { display:block; font-size:12px; line-height:1.6; } .mobile-buy-summary span { color:var(--text-dim); } .mobile-buy-summary .btn { min-height:44px; } .protection-ticket .ticket-purchase { display:none; } }

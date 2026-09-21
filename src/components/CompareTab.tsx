@@ -41,12 +41,12 @@ export default function CompareTab() {
   return (
     <>
       <div className="app-page-head">
-        <div><div className="card-title">Reference architecture</div><h1>Markets</h1><p>Separate the Devnet protection contract from the live mainnet identity and market data it references.</p></div>
+        <div><div className="card-title">Reference architecture</div><h1>Markets</h1><p>Compare the token market with the reference used for protection.</p></div>
       </div>
       <div className="environment-strip" style={{ marginBottom: 16 }}>
         <span><strong>Contract</strong> Solana Devnet</span>
-        <span><strong>Market data</strong> Live mainnet</span>
-        <span title="Optket verified the mint identity, token program, decimals and conversion configuration."><strong>Token identity verified</strong> {asset.verifiedAt}</span>
+        <span><strong>Reference</strong> External market data</span>
+        <span title="Optket verified the mint identity, token program, decimals and conversion configuration."><strong>Token identity</strong> Mainnet · verified</span>
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
         {VERIFIED_ASSETS.map((a) => (
