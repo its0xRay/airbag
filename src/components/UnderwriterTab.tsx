@@ -16,7 +16,7 @@ export default function UnderwriterTab() {
         <div><div className="card-title">Pool risk & capital</div><h1>Pools</h1><p>Collateral and realized activity come from Devnet pool accounts. Cost assumptions are modelled and are never presented as executed hedges.</p></div>
       </div>
 
-      {loading && <div className="card empty">Reading pool accounts…</div>}
+      {loading && <div className="card empty" role="status">{c.busy ? "Reading pool accounts…" : <><strong>Pool accounts are unavailable.</strong><p>The Devnet RPC did not return pool data. Try again in a moment.</p><button className="btn ghost sm" onClick={() => c.refresh()}>Refresh pool data</button></>}</div>}
 
       <div className="risk-list">
         {VERIFIED_ASSETS.map((a, assetId) => {
