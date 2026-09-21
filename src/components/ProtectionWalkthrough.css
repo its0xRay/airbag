@@ -44,7 +44,23 @@
   .walkthrough-scene { transition:opacity 200ms cubic-bezier(0,0,0.2,1), transform 200ms cubic-bezier(0,0,0.2,1); transform:translateY(8px); }
   .walkthrough-scene[data-active="true"] { transform:translateY(0); }
 }
-@media (max-width:800px), (max-height:650px), (prefers-reduced-motion:reduce) {
+/* Short desktop windows keep the same two-column explanation. Compress spacing,
+   not text or touch targets; exceptionally short windows can scroll the panel. */
+@media (min-width:801px) and (max-height:700px) {
+  .walkthrough-visual { top:88px; padding:16px; max-height:calc(100svh - 104px); overflow-y:auto; }
+  .walkthrough-stage { min-height:250px; }
+  .walkthrough-progress { margin-top:12px; }
+  .walkthrough-visual .mechanism { padding:16px 0; }
+  .walkthrough-visual .mechanism > p { margin-top:12px; }
+  .walkthrough-visual .mechanism-contract { margin-top:16px; padding:12px; }
+  .walkthrough-visual .mechanism-terms { margin-top:12px; gap:12px; }
+  .walkthrough-visual .mechanism-reserve { padding:12px; margin-top:12px; }
+  .walkthrough-visual .mechanism-flow { gap:8px; }
+  .walkthrough-visual .mechanism-formula { padding:12px 8px; }
+  .walkthrough-visual .mechanism-wallet, .walkthrough-visual .mechanism-separate { min-height:140px; gap:12px; }
+  .walkthrough-nav { padding-top:8px; }
+}
+@media (max-width:800px) {
   .walkthrough { display:block; }
   .walkthrough-visual { display:none; }
   .walkthrough-step, .walkthrough-step:last-child { min-height:0; padding:28px 0 36px; }

@@ -53,7 +53,9 @@ The public page combines Set-COM's lighter typography and restrained colour with
 Optimus's flat numbered rows. Keep one contained Protect workspace; supporting
 benefits, asset descriptions and product links use separators rather than cards.
 The scroll-led walkthrough pairs readable steps with a sticky mechanism diagram.
-Mobile, short viewports and reduced-motion settings show all diagrams inline.
+Only narrow viewports show diagrams inline. Short desktop windows use a compact
+right-side panel. Reduced motion retains the responsive layout with instant
+diagram changes and no animated transitions.
 These explain mechanics only; they never depict simulated transactions.
 
 Landing hierarchy: one left-aligned introduction, the real Protect workspace,
