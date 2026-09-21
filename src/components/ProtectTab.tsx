@@ -3,7 +3,7 @@ import { useChain, explorerUrl, type SeriesInfo } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchQuoteReference, referenceSourceLabel, type QuoteReference } from "../data/marketData";
 import { quotePremium, payout as intrinsic, toFixed, fromFixed, maxLiability } from "../engine";
-import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock } from "../format";
+import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock, fmtAge, fmtOusd } from "../format";
 import type { ProtectDraft } from "../App";
 import { useNowSeconds } from "../useNowSeconds";
 
@@ -29,11 +29,13 @@ export default function ProtectTab({
   const c = useChain();
   const [assetId, setAssetId] = useState(1);
   const [seriesId, setSeriesId] = useState<number | null>(null);
+  const [tenor, setTenor] = useState<"short" | "weekly">("short");
   const [qtyStr, setQtyStr] = useState("1");
   const [reference, setReference] = useState<QuoteReference | null>(null);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [isRenewal, setIsRenewal] = useState(false);
+  const [referenceRetry, setReferenceRetry] = useState(0);
   const choseInitialAsset = useRef(false);
   const userChoseAsset = useRef(false);
 
@@ -44,9 +46,11 @@ export default function ProtectTab({
     // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(initialDraft.assetId);
     setSeriesId(initialDraft.seriesId ?? null);
+    const drafted = c.seriesList.find((s) => s.assetId === initialDraft.assetId && s.seriesId === initialDraft.seriesId);
+    if (drafted) setTenor(drafted.shortDated ? "short" : "weekly");
     if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
     onInitialDraftConsumed?.();
-  }, [initialDraft, onInitialDraftConsumed, renewal]);
+  }, [c.seriesList, initialDraft, onInitialDraftConsumed, renewal]);
 
   // Open the demo on an executable market when one is available. This only
   // chooses the initial asset; a user's explicit asset selection is preserved.
@@ -68,6 +72,7 @@ export default function ProtectTab({
     // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(renewal.assetId);
     setSeriesId(null);
+    setTenor("short");
     setQtyStr(String(renewal.quantity));
     setIsRenewal(true);
     setDone(null);
@@ -91,14 +96,15 @@ export default function ProtectTab({
         if (alive) setMarketError("The reference service could not be reached.");
       });
     return () => { alive = false; };
-  }, [assetId]);
+  }, [assetId, referenceRetry]);
 
   const options = useMemo(
     () => c.seriesList.filter((s) => s.assetId === assetId),
     [c.seriesList, assetId],
   );
+  const tenorOptions = options.filter((s) => s.shortDated === (tenor === "short"));
   const selected: SeriesInfo | undefined =
-    options.find((s) => s.seriesId === seriesId) ?? options[0];
+    options.find((s) => s.seriesId === seriesId) ?? tenorOptions[0] ?? options[0];
 
   const qty = parseFloat(qtyStr) > 0 ? toFixed(parseFloat(qtyStr)) : 0n;
   const spotReal = reference?.available ? reference.price : undefined;
@@ -115,6 +121,23 @@ export default function ProtectTab({
   const premiumPerUnit = est && qty > 0n ? fromFixed(est.premium) / fromFixed(qty) : 0;
   const breakeven = selected ? Math.max(0, fromFixed(selected.strike) - premiumPerUnit) : 0;
   const maxNet = est ? fromFixed(notional) - fromFixed(est.premium) : 0;
+  const intrinsicNow = selected && qty > 0n && spot > 0n ? intrinsic(qty, selected.strike, spot) : 0n;
+  const additionalPremium = est ? est.premium - intrinsicNow : 0n;
+  const chartMin = spotReal != null ? Math.max(0, spotReal * 0.65) : 0;
+  const chartMax = spotReal != null ? spotReal * 1.18 : 1;
+  const payoffPoints = selected && est && qty > 0n
+    ? Array.from({ length: 32 }, (_, index) => {
+        const value = chartMin + ((chartMax - chartMin) * index) / 31;
+        const net = intrinsic(qty, selected.strike, toFixed(value)) - est.premium;
+        return { value, net: tok(net) };
+      })
+    : [];
+  const payoffScale = Math.max(1, ...payoffPoints.map((point) => Math.abs(point.net)));
+  const payoffPolyline = payoffPoints.map((point, index) => {
+    const x = (index / Math.max(1, payoffPoints.length - 1)) * 100;
+    const y = 50 - (point.net / payoffScale) * 40;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
 
   const tooBig = !!selected && qty > selected.maxContractSize;
   const closed = !!selected && now > selected.purchaseCutoffTs;
@@ -160,6 +183,7 @@ export default function ProtectTab({
               userChoseAsset.current = true;
               setAssetId(i);
               setSeriesId(null);
+              setTenor("short");
               setDone(null);
             }}
             aria-pressed={i === assetId}
@@ -168,7 +192,7 @@ export default function ProtectTab({
             <div style={{ flex: 1, textAlign: "left" }}>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <strong>{a.symbol}</strong>
-                <span className="pill green">verified</span>
+                <span className="pill green" title="Mint identity, token program and reference configuration verified by Optket.">verified</span>
               </div>
               <div className="faint" style={{ fontSize: 12 }}>{a.name}</div>
               <div className="dim" style={{ fontSize: 12, marginTop: 4 }}>Protects: {a.benchmarkLabel}</div>
@@ -187,12 +211,18 @@ export default function ProtectTab({
       <div className="grid cols-2">
         <div className="card">
           <div className="card-title">2 · Quantity</div>
-          <label className="field">
+          <label className="field" htmlFor="protected-quantity">
             <span className="lbl">
               Protected quantity ({asset.symbol} {asset.kind === "EquityToken" ? "share-equivalents" : "token units"})
             </span>
-            <input className="input" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setDone(null); }} inputMode="decimal" />
+            <div className="quantity-control">
+              <button type="button" aria-label="Decrease protected quantity" onClick={() => setQtyStr(String(Math.max(0.01, (Number(qtyStr) || 1) - 1)))}>−</button>
+              <input id="protected-quantity" className="input" type="text" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setDone(null); }} inputMode="decimal" aria-invalid={tooBig || Number(qtyStr) <= 0 || !Number.isFinite(Number(qtyStr))} />
+              <button type="button" aria-label="Increase protected quantity" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (Number(qtyStr) || 0) + 1)))}>+</button>
+            </div>
           </label>
+          <div className="field-help mono">{selected && qty > 0n ? `Protected notional: ${fmtOusd(tok(notional))}` : "Enter a quantity above zero."}</div>
+          {tooBig && <div className="field-error" role="alert">Maximum size is {selected ? tok(selected.maxContractSize).toLocaleString() : "—"} units for this series.</div>}
           {c.exposure[assetId] > 0 && (
             <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={() => setQtyStr(String(c.exposure[assetId]))}>
               Use my holdings ({c.exposure[assetId].toLocaleString(undefined, { maximumFractionDigits: 4 })})
@@ -203,7 +233,7 @@ export default function ProtectTab({
             <span className="v mono">{selected ? tok(selected.maxContractSize).toLocaleString() : "—"}</span>
           </div>
           <div className="kv">
-            <span className="k">Executable {asset.kind === "EquityToken" ? "benchmark" : "token reference"}</span>
+              <span className="k">Current protection reference</span>
             <span className="v mono">
               {spotReal != null ? fmtUsd(spotReal) : reference ? "Not quoting" : marketError ? "Unavailable" : "Checking…"}
             </span>
@@ -216,8 +246,8 @@ export default function ProtectTab({
           )}
           {reference?.available && reference.observedAt != null && (
             <div className="kv">
-              <span className="k">Observed · your local time</span>
-              <span className="v mono">{new Date(reference.observedAt * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}</span>
+              <span className="k">Freshness</span>
+              <span className="v mono" title={new Date(reference.observedAt * 1000).toLocaleString()}>{fmtAge(reference.observedAt, now)}</span>
             </div>
           )}
           <div className="kv">
@@ -229,7 +259,7 @@ export default function ProtectTab({
           </div>
           {marketError && (
             <div className="callout warn" role="alert" style={{ marginTop: 10 }}>
-              {marketError} New quotes are disabled until a fresh reference returns.
+              {marketError} New quotes are disabled until a fresh reference returns. <button className="text-action" onClick={() => setReferenceRetry((value) => value + 1)}>Try again</button>
             </div>
           )}
           {reference && !reference.available && (
@@ -246,15 +276,24 @@ export default function ProtectTab({
         </div>
 
         <div className="card">
-          <div className="card-title">3 · Strike & expiry</div>
+          <div className="card-title">3 · Floor & expiry</div>
           {options.length === 0 ? (
             <div className="empty">No live series for {asset.symbol}. The operator publishes new ones weekly.</div>
           ) : (
-            <div className="grid cols-2">
-              {options.map((s) => {
+            <>
+            <div className="tenor-switch" role="group" aria-label="Protection expiry">
+              {(["short", "weekly"] as const).map((kind) => {
+                const count = options.filter((s) => s.shortDated === (kind === "short")).length;
+                return <button key={kind} disabled={count === 0} className={tenor === kind ? "active" : ""} aria-pressed={tenor === kind} onClick={() => { setTenor(kind); setSeriesId(null); }}>{kind === "short" ? "Devnet short" : "Weekly"}<span>{count} floor{count === 1 ? "" : "s"}</span></button>;
+              })}
+            </div>
+            <div className="floor-list">
+              {tenorOptions.map((s) => {
                 const active = selected?.seriesId === s.seriesId;
                 const q = qty > 0n && spot > 0n
                   ? quotePremium(assetId, qty, s.strike, spot, Math.max(s.expiryTs - now, 60)) : null;
+                const strikeN = tok(s.strike);
+                const distance = spotReal ? (strikeN - spotReal) / spotReal : null;
                 return (
                   <button
                     key={s.seriesId}
@@ -262,18 +301,13 @@ export default function ProtectTab({
                     onClick={() => { setSeriesId(s.seriesId); setDone(null); }}
                     aria-pressed={active}
                   >
-                    <div className="between">
-                      <strong className="mono">{fmtPrice(s.strike)}</strong>
-                      {s.shortDated
-                        ? <span className="pill blue">Devnet · {fmtDuration(s.expiryTs - now)}</span>
-                        : <span className="pill gray">weekly</span>}
-                    </div>
-                    <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>Estimated premium</div>
-                    <div className="stat-value sm mono">{q ? tok(q.premium).toFixed(2) : "—"}</div>
+                    <div><strong className="mono">{fmtPrice(s.strike)}</strong><span className="floor-distance">{distance == null ? "Waiting for reference" : `${Math.abs(distance * 100).toFixed(1)}% ${distance >= 0 ? "above" : "below"} reference · ${distance > 0 ? "ITM" : distance < 0 ? "OTM" : "ATM"}`}</span></div>
+                    <div className="floor-quote"><span>{fmtDuration(s.expiryTs - now)}</span><strong className="mono">{q ? `${tok(q.premium).toFixed(2)} oUSD` : "—"}</strong></div>
                   </button>
                 );
               })}
             </div>
+            </>
           )}
           {selected && (
             <>
@@ -295,23 +329,34 @@ export default function ProtectTab({
         <div className="card-title">4 · Review & buy onchain</div>
         <div className="grid cols-3">
           <div>
-            <div className="stat-label">Protected notional</div>
-            <div className="stat-value sm mono">{tok(notional).toLocaleString(undefined, { maximumFractionDigits: 2 })} oUSD</div>
-          </div>
-          <div>
-            <div className="stat-label">Estimated premium</div>
+            <div className="stat-label">You pay</div>
             <div className="stat-value sm mono">{est ? tok(est.premium).toFixed(2) + " oUSD" : "—"}</div>
           </div>
           <div>
-            <div className="stat-label">Premium / notional</div>
-            <div className="stat-value sm mono">{est ? fmtPct(premiumPct) : "—"}</div>
+            <div className="stat-label">Covered below</div>
+            <div className="stat-value sm mono">{selected ? fmtPrice(selected.strike) : "—"}</div>
+          </div>
+          <div>
+            <div className="stat-label">Maximum payout</div>
+            <div className="stat-value sm mono">{est ? `${tok(notional).toFixed(2)} oUSD` : "—"}</div>
           </div>
         </div>
-        <div className="protection-summary" aria-label="Protection economics">
-          <div><span>Breakeven reference</span><strong className="mono">{est ? fmtUsd(breakeven) : "—"}</strong></div>
-          <div><span>Maximum payout</span><strong className="mono">{est ? `${tok(notional).toFixed(2)} oUSD` : "—"}</strong></div>
-          <div><span>Maximum net payoff</span><strong className="mono">{est ? `${maxNet.toFixed(2)} oUSD` : "—"}</strong></div>
-        </div>
+        {est && intrinsicNow > 0n && (
+          <div className="premium-composition" aria-label="Premium composition">
+            <span>Intrinsic value <strong className="mono">{fmtOusd(tok(intrinsicNow))}</strong></span>
+            <span>Additional protection cost <strong className="mono">{fmtOusd(tok(additionalPremium))}</strong></span>
+            <span>Total <strong className="mono">{fmtOusd(tok(est.premium))}</strong></span>
+          </div>
+        )}
+        <details className="economics-details">
+          <summary>More protection economics</summary>
+          <div className="protection-summary" aria-label="Protection economics">
+            <div><span>Protected notional</span><strong className="mono">{fmtOusd(tok(notional))}</strong></div>
+            <div><span>Premium / notional</span><strong className="mono">{est ? fmtPct(premiumPct) : "—"}</strong></div>
+            <div><span>Breaks even below</span><strong className="mono">{est ? fmtUsd(breakeven) : "—"}</strong></div>
+            <div><span>Maximum net payoff</span><strong className="mono">{est ? `${maxNet.toFixed(2)} oUSD` : "—"}</strong></div>
+          </div>
+        </details>
         {est && (
           <details className="premium-basis">
             <summary>See premium basis</summary>
@@ -330,6 +375,18 @@ export default function ProtectTab({
           </details>
         )}
         <div className="hr" />
+        {selected && est && qty > 0n && (
+          <div className="payoff-chart" aria-label="Net protection payoff by settlement reference">
+            <div className="between"><div><strong>Net payoff</strong><span>Settlement reference →</span></div><span className="mono">Floor {fmtPrice(selected.strike)}</span></div>
+            <svg viewBox="0 0 100 58" role="img">
+              <title>Net protection payoff curve</title>
+              <line className="zero" x1="0" x2="100" y1="29" y2="29" />
+              <line className="marker floor" x1={Math.max(0, Math.min(100, ((tok(selected.strike) - chartMin) / Math.max(0.01, chartMax - chartMin)) * 100))} x2={Math.max(0, Math.min(100, ((tok(selected.strike) - chartMin) / Math.max(0.01, chartMax - chartMin)) * 100))} y1="3" y2="55" />
+              <polyline points={payoffPolyline} />
+            </svg>
+            <div className="payoff-chart-axis"><span>{fmtUsd(chartMin)}</span><span>{fmtUsd(chartMax)}</span></div>
+          </div>
+        )}
         <div className="grid cols-2">
           <div>
             <div className="kv"><span className="k">Reference</span><span className="v">{asset.benchmarkLabel}</span></div>
@@ -368,12 +425,13 @@ export default function ProtectTab({
             ) : <div className="empty">Enter a quantity.</div>}
           </div>
         </div>
-        <div className="hr" />
-        <div className="between">
-          <div className="disclosure">
-            This preview is an estimate. Buy requests a fresh signed quote, then submits that locked premium onchain within its 60-second validity. Fees and rent are sponsored — you need no SOL.
+        <div className="purchase-dock">
+          <div className="purchase-dock-summary">
+            <span>Pay <strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></span>
+            <span>Covered below <strong className="mono">{selected ? fmtPrice(selected.strike) : "—"}</strong></span>
+            <span>Max payout <strong className="mono">{est ? fmtOusd(tok(notional)) : "—"}</strong></span>
           </div>
-          <button className="btn primary" disabled={!canBuy} onClick={buy}>
+          <button className="btn primary" disabled={!canBuy} aria-busy={c.busy} onClick={buy}>
             {c.busy
               ? c.status || "Working…"
               : reference && !reference.available && reference.status === "session_closed"
@@ -382,6 +440,9 @@ export default function ProtectTab({
                   ? "Reference unavailable"
                   : tooBig ? "Above max size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : "Buy protection"}
           </button>
+        </div>
+        <div className="disclosure purchase-note">
+          Buy requests a fresh signed quote and immediately submits it onchain. Fees and rent are sponsored—you need no SOL. {asset.kind === "EquityToken" ? "Payout follows the NVIDIA stock benchmark, not the NVDAx token price." : "Payout follows the ANTHROPIC token-market median, not the private company valuation."}
         </div>
         {c.error && <div className="callout warn" style={{ marginTop: 12 }}>{c.error}</div>}
         {done && (

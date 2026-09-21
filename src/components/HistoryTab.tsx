@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useChain, explorerUrl } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
+import { fmtAge } from "../format";
 
 /**
  * Transaction history (PRD §13.7) read from the chain — every signature that
@@ -11,6 +12,18 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
   const c = useChain();
   const [scope, setScope] = useState<"program" | "wallet">("program");
   const [visible, setVisible] = useState(10);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  async function copySignature(signature: string) {
+    try {
+      await navigator.clipboard.writeText(signature);
+      setCopied(signature);
+      window.setTimeout(() => setCopied((current) => current === signature ? null : current), 1500);
+    } catch {
+      // Clipboard access can be denied by browser permissions. The linked
+      // signature remains available for manual copying.
+    }
+  }
 
   if (!c.connected) {
     return <div className="card empty">Connect the demo wallet to see your onchain history.</div>;
@@ -41,14 +54,14 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
       ) : (
         <>
           <div className="table-scroll"><table className="log">
-            <thead><tr><th>When</th><th>Action</th><th>Status</th><th>Signature</th></tr></thead>
+            <thead><tr><th>When</th><th>Action</th><th>Signature</th><th><span className="sr-only">Copy</span></th></tr></thead>
             <tbody>
               {c.programHistory.slice(0, visible).map((h) => (
                 <tr key={h.signature}>
-                  <td className="mono faint">{h.blockTime ? new Date(h.blockTime * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }) : "—"}</td>
-                  <td>{h.action}</td>
-                  <td>{h.err ? <span className="pill red">failed</span> : <span className="pill green">confirmed</span>}</td>
+                  <td className="mono faint" title={h.blockTime ? new Date(h.blockTime * 1000).toLocaleString() : undefined}>{h.blockTime ? fmtAge(h.blockTime) : "—"}</td>
+                  <td>{h.action}{h.err && <span className="pill red activity-failure">failed</span>}</td>
                   <td><a className="mono" href={explorerUrl("tx", h.signature)} target="_blank" rel="noreferrer">{h.signature.slice(0, 16)}… ↗</a></td>
+                  <td><button className="copy-action" aria-label="Copy transaction signature" onClick={() => copySignature(h.signature)}>{copied === h.signature ? "Copied" : "Copy"}</button></td>
                 </tr>
               ))}
             </tbody>
@@ -67,8 +80,8 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
           <tbody>
             {c.history.map((h) => (
               <tr key={h.signature}>
-                <td className="mono faint">
-                  {h.blockTime ? new Date(h.blockTime * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                <td className="mono faint" title={h.blockTime ? new Date(h.blockTime * 1000).toLocaleString() : undefined}>
+                  {h.blockTime ? fmtAge(h.blockTime) : "—"}
                 </td>
                 <td>{h.action}</td>
                 <td>{VERIFIED_ASSETS[h.assetId]?.symbol ?? h.assetId}</td>
@@ -78,6 +91,7 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
                   <a className="mono" href={explorerUrl("tx", h.signature)} target="_blank" rel="noreferrer">
                     {h.signature.slice(0, 16)}… ↗
                   </a>
+                  <button className="copy-action" aria-label="Copy transaction signature" onClick={() => copySignature(h.signature)}>{copied === h.signature ? "Copied" : "Copy"}</button>
                 </td>
               </tr>
             ))}

@@ -36,6 +36,8 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
   const protectedUnits = tok(activeProtected);
   const unprotected = Math.max(0, held - protectedUnits);
   const excess = Math.max(0, protectedUnits - held);
+  const hasCoverageData = mine.length > 0 || held > 0;
+  const trackerScale = Math.max(held, protectedUnits, 1);
 
   return (
     <>
@@ -53,7 +55,7 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
         ))}
       </div>
 
-      <div className="card">
+      {hasCoverageData && <div className="card">
         <div className="card-title">Coverage tracker — {asset.symbol}</div>
         <div className="grid cols-3">
           <div><div className="stat-label">Holdings (read-only)</div><div className="stat-value sm mono">{held ? held.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "—"}</div></div>
@@ -61,15 +63,22 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
           <div><div className="stat-label">Pending exercise</div><div className="stat-value sm mono">{qty(pending)}</div></div>
         </div>
         <div className="hr" />
+        <div className="coverage-track" aria-label={`${protectedUnits} protected units, ${unprotected} unprotected units, ${excess} protected beyond holdings`}>
+          {held > 0 && <span className="coverage-unprotected" style={{ width: `${Math.min(100, (unprotected / trackerScale) * 100)}%` }} />}
+          {protectedUnits > 0 && <span className="coverage-protected" style={{ width: `${Math.min(100, (Math.min(protectedUnits, held || protectedUnits) / trackerScale) * 100)}%` }} />}
+          {excess > 0 && <span className="coverage-excess" style={{ width: `${Math.min(100, (excess / trackerScale) * 100)}%` }} />}
+        </div>
+        <div className="coverage-legend"><span className="protected">Protected</span><span className="unprotected">Unprotected</span>{excess > 0 && <span className="excess">Protected more than held</span>}</div>
+        <div className="hr" />
         <div className="grid cols-2">
           <div><div className="stat-label">Unprotected holdings</div><div className={"stat-value sm mono " + (unprotected > 0 ? "neg" : "")}>{held ? unprotected.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "—"}</div></div>
-          <div><div className="stat-label">Protection beyond holdings</div><div className={"stat-value sm mono " + (excess > 0 ? "neg" : "")}>{excess.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div></div>
+          <div><div className="stat-label">Protected more than held</div><div className={"stat-value sm mono " + (excess > 0 ? "neg" : "")}>{excess.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div></div>
         </div>
         <div className="disclosure" style={{ marginTop: 10 }}>
           Informational only — the tracker never modifies contracts. Use the optional wallet inspector below to compare
           against real {asset.symbol} holdings.
         </div>
-      </div>
+      </div>}
 
       <div style={{ height: 14 }} />
       {mine.length === 0 ? (
@@ -121,8 +130,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
               {open && expired && <span className="pill amber">awaiting settlement</span>}
             </div>
             <div className="faint" style={{ fontSize: 12 }}>
-              strike {fmtPrice(k.strike)} · expiry {fmtClock(k.expiryTs)} ·{" "}
-              {expired ? "expired" : fmtDuration(k.expiryTs - now) + " left"}
+              floor {fmtPrice(k.strike)} · exercise cutoff {beforeCutoff ? `${fmtDuration(k.exerciseCutoffTs - now)} left` : "passed"} · expiry {fmtClock(k.expiryTs)}
             </div>
           </div>
         </div>
@@ -213,6 +221,10 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
             </div>
           )}
         </>
+      )}
+
+      {open && !expired && (
+        <div className="auto-settle-note"><span className="pill blue">automatic at expiry</span><span>Any remaining quantity is settled by the keeper; you do not need to submit an expiry transaction.</span></div>
       )}
 
       {open && expired && k.pendingQuantity === 0n && (

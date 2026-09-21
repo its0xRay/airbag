@@ -5,7 +5,7 @@ import { explorerUrl } from "../onchain/store";
 import { OPTKET_PROGRAM_ID } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 import { payout, quotePremium, toFixed } from "../engine";
-import { fmtClock, fmtPrice, fmtUsd } from "../format";
+import { fmtAge, fmtClock, fmtPrice, fmtUsd } from "../format";
 import type { ProtectDraft } from "../App";
 
 const NETWORK = /devnet/.test(import.meta.env.VITE_RPC_URL || "") ? "devnet" : "localnet";
@@ -153,6 +153,10 @@ export default function Landing({
     const y = 50 - (p.value / chartMaxAbs) * 42;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(" ");
+  const chartX = (value: number) => Math.max(0, Math.min(100, ((value - chartMin) / Math.max(0.01, chartMax - chartMin)) * 100));
+  const heroUnavailableLabel = heroReference && !heroReference.available
+    ? heroReference.status === "session_closed" ? "Equity session closed" : heroReference.status === "stale" ? "Waiting for a fresh benchmark" : "Reference unavailable"
+    : "Reference unavailable";
 
   return (
     <main className="lp">
@@ -197,14 +201,18 @@ export default function Landing({
             </div>
 
             <div className="lp-builder-inputs">
-              <label className="field"><span className="lbl">Protected quantity</span><input className="input" type="number" min="0.01" step="0.01" inputMode="decimal" value={heroQty} onChange={(e) => setHeroQty(e.target.value)} /></label>
+              <label className="field"><span className="lbl">Protected quantity</span><input className="input" type="text" inputMode="decimal" value={heroQty} onChange={(e) => setHeroQty(e.target.value)} /></label>
               <label className="field"><span className="lbl">Price floor</span><select className="input" value={heroSeries?.seriesId ?? ""} onChange={(e) => setHeroSeriesId(Number(e.target.value))}>{heroOptions.map((s) => <option key={s.seriesId} value={s.seriesId}>{fmtPrice(s.strike)} · {s.shortDated ? "short-dated Devnet" : "weekly"}</option>)}</select></label>
             </div>
 
             {loading && !heroSeries ? <div className="lp-builder-loading" aria-busy="true"><div className="lp-skel line" /><div className="lp-skel line short" /></div> : !heroSeries ? <div className="lp-reference-state"><strong>No purchasable series.</strong><p>The operator must publish a fresh series before protection can be quoted.</p></div> : (
               <>
-                <label className="field lp-settlement"><span className="lbl">Hypothetical settlement reference</span><div className="lp-range-row"><input type="range" min={chartMin} max={chartMax} step={Math.max(0.01, chartSpot / 200)} value={heroSettlementN} onChange={(e) => setHeroSettlement(Number(e.target.value).toFixed(2))} /><input className="input mono" type="number" min="0" step="0.01" inputMode="decimal" value={heroSettlement || heroSettlementN.toFixed(2)} onChange={(e) => setHeroSettlement(e.target.value)} /></div></label>
-                <div className="lp-mini-chart" aria-label="Net protection payoff across settlement prices"><svg viewBox="0 0 100 100" role="img"><title>Net protection payoff curve</title><line x1="0" x2="100" y1="50" y2="50" /><polyline points={chartPolyline} /></svg><span>Lower reference</span><span>Higher reference</span></div>
+                <label className="field lp-settlement"><span className="lbl">Hypothetical settlement reference</span><div className="lp-range-row"><input type="range" min={chartMin} max={chartMax} step={Math.max(0.01, chartSpot / 200)} value={heroSettlementN} onChange={(e) => setHeroSettlement(Number(e.target.value).toFixed(2))} /><input className="input mono" type="text" inputMode="decimal" value={heroSettlement || heroSettlementN.toFixed(2)} onChange={(e) => setHeroSettlement(e.target.value)} /></div></label>
+                <div className="lp-mini-chart" aria-label="Net protection payoff across settlement prices">
+                  {heroEstimate ? <svg viewBox="0 0 100 100" role="img"><title>Net protection payoff curve</title><line className="zero" x1="0" x2="100" y1="50" y2="50" /><line className="marker current" x1={chartX(chartSpot)} x2={chartX(chartSpot)} y1="6" y2="94" /><line className="marker floor" x1={chartX(tok(heroSeries.strike))} x2={chartX(tok(heroSeries.strike))} y1="6" y2="94" /><line className="marker breakeven" x1={chartX(heroBreakeven)} x2={chartX(heroBreakeven)} y1="6" y2="94" /><polyline points={chartPolyline} /></svg> : <div className="lp-chart-unavailable"><strong>{heroUnavailableLabel}</strong><span>Select ANTHROPIC for an executable 24/7 token reference.</span></div>}
+                  <span>Lower reference</span><span>Higher reference</span>
+                </div>
+                {heroEstimate && <div className="lp-chart-legend"><span className="current">Current</span><span className="floor">Floor</span><span className="breakeven">Breakeven</span></div>}
                 <div className="lp-builder-results">
                   <div><span>Estimated premium</span><strong className="mono">{heroEstimate ? `${heroPremiumN.toFixed(2)} oUSD` : "Unavailable"}</strong></div>
                   <div><span>Gross payout</span><strong className="mono">{tok(heroPayout).toFixed(2)} oUSD</strong></div>
@@ -212,7 +220,7 @@ export default function Landing({
                   <div><span>Breakeven reference</span><strong className="mono">{heroEstimate ? fmtUsd(heroBreakeven) : "—"}</strong></div>
                 </div>
                 <p className="lp-payoff-note">Estimated premium · binding quote locked for 60 seconds at purchase.</p>
-                <button className="btn primary lp-card-action" disabled={launching || !heroEstimate || heroQtyN <= 0} onClick={() => onLaunch("protect", { assetId: heroAssetId, seriesId: heroSeries.seriesId, quantity: heroQtyN })}>{launching ? launchStatus || "Preparing Devnet…" : "Protect this position"} <span className="arrow" aria-hidden="true">→</span></button>
+                <button className="btn primary lp-card-action" disabled={launching || !heroEstimate || heroQtyN <= 0} onClick={() => onLaunch("protect", { assetId: heroAssetId, seriesId: heroSeries.seriesId, quantity: heroQtyN })}>{launching ? launchStatus || "Preparing Devnet…" : heroEstimate ? "Protect this position" : heroUnavailableLabel} {heroEstimate && <span className="arrow" aria-hidden="true">→</span>}</button>
                 <div className="lp-builder-source"><span>{heroAsset.kind === "PreStocks" ? "Jupiter 5-minute token median" : "NVIDIA stock benchmark"}</span><span className="mono">{heroSpot ? fmtUsd(heroSpot) : statusLabel(heroReference, loading)}</span></div>
               </>
             )}
@@ -288,7 +296,7 @@ export default function Landing({
                       <div className="kv"><span className="k">Estimated premium · 1 token</span><span className="v mono">{premium ? `${tok(premium.premium).toFixed(2)} oUSD` : "—"}</span></div>
                       <div className="kv"><span className="k">Expiry · your local time</span><span className="v mono">{activeSeries ? fmtClock(activeSeries.expiryTs) : "—"}</span></div>
                       <div className="kv"><span className="k">Source</span><span className="v">{referenceSourceLabel(reference.source)}</span></div>
-                      {reference.observedAt != null && <div className="kv"><span className="k">Observed · your local time</span><span className="v mono">{new Date(reference.observedAt * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}</span></div>}
+                      {reference.observedAt != null && <div className="kv"><span className="k">Freshness</span><span className="v mono" title={new Date(reference.observedAt * 1000).toLocaleString()}>{fmtAge(reference.observedAt, now)}</span></div>}
                     </div>
                     <details className="lp-premium-basis">
                       <summary>See premium basis</summary>
@@ -425,6 +433,22 @@ export default function Landing({
             <details>
               <summary>What if no valid reference exists?</summary>
               <p>The contract applies its disclosed failed-reference refund rule rather than inventing a settlement price. NVDAx does not promise weekend settlement.</p>
+            </details>
+            <details>
+              <summary>What is oUSD?</summary>
+              <p>oUSD is Optket’s Devnet settlement token. It has no redemption promise or real monetary value.</p>
+            </details>
+            <details>
+              <summary>What if I sell the token?</summary>
+              <p>The protection contract remains in your Devnet wallet because Optket never escrows or checks ownership of the underlying token.</p>
+            </details>
+            <details>
+              <summary>Do I need to act at expiry?</summary>
+              <p>No. The keeper settles remaining protected quantity automatically when a qualifying reference is available.</p>
+            </details>
+            <details>
+              <summary>Who pays the payout?</summary>
+              <p>The asset’s onchain pool pays from collateral reserved when the protection position was issued.</p>
             </details>
           </div>
         </div>
