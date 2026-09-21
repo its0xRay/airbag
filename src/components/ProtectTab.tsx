@@ -30,7 +30,7 @@ export default function ProtectTab({
   onRenewalConsumed?: () => void;
   initialDraft?: ProtectDraft | null;
   onInitialDraftConsumed?: () => void;
-  onViewPositions?: () => void;
+  onViewPositions?: (assetId: number, address?: string) => void;
 } = {}) {
   const c = useChain();
   const [publicSeries, setPublicSeries] = useState<SeriesInfo[]>([]);
@@ -187,7 +187,7 @@ export default function ProtectTab({
   const chartX = (value: number) => Math.max(0, Math.min(100, (value - chartMin) / Math.max(0.01, chartMax - chartMin) * 100));
   const referenceStatus = referenceReady ? "Reference available" : reference?.status === "session_closed" ? "Equity session closed" : reference?.status === "stale" ? "Waiting for a fresh reference" : marketError ? "Reference unavailable" : reference ? "Reference unavailable" : "Checking reference…";
 
-  const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Connect demo wallet" : !referenceReady ? referenceStatus : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : "Buy protection";
+  const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : "Buy protection";
 
   const primaryAction = () => c.connected ? buy() : c.connect();
   const primaryDisabled = c.connected ? !canBuy : c.busy;
@@ -208,10 +208,10 @@ export default function ProtectTab({
       {done && receipt ? <section className="card protection-receipt" role="status">
         <span className="pill green">Confirmed onchain</span><h2>Protection active</h2><p>{receipt.quantity} {receipt.symbol} protected</p>
         <div className="receipt-metrics"><div><span>Floor</span><strong>{fmtPrice(receipt.strike)}</strong></div><div><span>Premium paid</span><strong>{receipt.premium != null ? fmtOusd(receipt.premium) : "See transaction"}</strong></div><div><span>Expires</span><strong>{fmtClock(receipt.expiry)}</strong></div></div>
-        <div className="row"><button className="btn primary" onClick={onViewPositions}>View positions</button><a href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">View transaction ↗</a><button className="btn ghost" onClick={() => setDone(null)}>Protect another position</button></div>
+        <div className="row"><button className="btn primary" onClick={() => onViewPositions?.(assetId, c.lastPurchaseAddress ?? undefined)}>View position</button><button className="btn ghost" onClick={() => setDone(null)}>Protect another asset</button><a href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">View transaction ↗</a></div>
       </section> : <div className="protect-layout">
         <aside className="card protection-ticket" aria-label="Configure protection">
-          <h2>Your protection</h2>
+          <h2>Set your protection</h2>
           <fieldset disabled={c.busy} className="ticket-fields"><legend className="sr-only">Protection terms</legend>
           <label className="field" htmlFor="protected-quantity"><span className="lbl">Quantity · {asset.symbol}</span></label>
           <div className="quantity-control"><button type="button" aria-label="Decrease protected quantity" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => setQtyStr(e.target.value)} aria-invalid={qty <= 0n || tooBig} /><button type="button" aria-label="Increase protected quantity" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
@@ -224,19 +224,19 @@ export default function ProtectTab({
           {selected && seriesError && <p className="field-error">Terms could not refresh. Buying checks availability again.</p>}
           {selected && <div className="ticket-expiry"><div><span>Expires in {fmtDuration(selected.expiryTs - now)}</span><strong>{fmtClock(selected.expiryTs)}</strong></div><div><span>Early exercise closes</span><strong>{fmtClock(selected.exerciseCutoffTs)}</strong></div></div>}
           </fieldset>
-          <div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>
+          <div className="ticket-premium"><span>Estimated cost</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>
           <div className="ticket-balance">{c.connected ? <>Balance {fmtOusd(c.tokenBalance, 0)}</> : "oUSD · demo tokens, no real value"}</div>
           <div className="ticket-purchase"><button className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div>
           <p className="ticket-footnote">{c.connected ? "Buy submits a fresh quote. Premium may change; fees are sponsored." : "No wallet extension or SOL needed. Connect first, then buy."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </aside>
         <section className="protection-analysis" aria-label="Protection payout">
-          <div className="card scenario-card"><div className="between"><div><h2>Explore the payout</h2><p>Move the settlement price to see the contract outcome.</p></div></div>
+          <div className="card scenario-card"><div className="between"><div><h2>What would you receive?</h2><p>Move the price to see how your payout changes.</p></div></div>
           {selected && est && qty > 0n ? <>
             <div className="scenario-results"><div><span>Payout</span><strong className="mono">{fmtOusd(tok(scenarioPayout))}</strong></div><div><span>Premium</span><strong className="mono">{fmtOusd(tok(est.premium))}</strong></div><div><span>Payout minus premium</span><strong className={"mono " + (scenarioPayout >= est.premium ? "pos" : "")}>{fmtOusd(tok(scenarioPayout - est.premium))}</strong></div></div>
             <div className="payoff-chart"><svg viewBox="0 0 100 58" role="img" aria-label="Payout minus premium across settlement prices"><title>Payout minus premium; protection pays more as the settlement price falls</title><line className="zero" x1="0" x2="100" y1="29" y2="29" /><line className="marker floor" x1={chartX(tok(selected.strike))} x2={chartX(tok(selected.strike))} y1="3" y2="55" /><line className="marker breakeven" x1={chartX(breakeven)} x2={chartX(breakeven)} y1="3" y2="55" /><polyline points={payoffPolyline} /><circle cx={chartX(scenarioPrice)} cy={29 - tok(scenarioPayout - est.premium) / payoffScale * 24} r="1.5" fill="var(--text)" /></svg><div className="payoff-chart-axis"><span>{fmtUsd(chartMin)}</span><span>{fmtUsd(chartMax)}</span></div></div>
             <div className="chart-thresholds"><span>Floor <strong>{fmtPrice(selected.strike)}</strong></span><span>Breakeven <strong>{fmtUsd(breakeven)}</strong></span></div>
-            <label className="scenario-slider"><span>Hypothetical settlement price <strong className="mono">{fmtUsd(scenarioPrice)}</strong></span><input aria-label="Hypothetical settlement price" type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onChange={(e) => setScenario(Number(e.target.value))} /></label>
+            <label className="scenario-slider"><span>Price at settlement <strong className="mono">{fmtUsd(scenarioPrice)}</strong></span><input aria-label="Price at settlement (illustrative scenario)" type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onChange={(e) => setScenario(Number(e.target.value))} /></label>
             <div className="scenario-presets">{[{ label: "Current", value: spotReal! }, { label: "Floor", value: tok(selected.strike) }, { label: "Breakeven", value: breakeven }, { label: "15% lower", value: spotReal! * 0.85 }].map((point) => <button key={point.label} className="btn ghost sm" onClick={() => setScenario(point.value)}>{point.label}</button>)}</div>
             <p className="scenario-note">Payout minus premium describes the protection contract only. It excludes changes in the value of your token holdings.</p>
           </> : <div className="empty"><strong>{qty <= 0n ? "Enter a valid quantity" : referenceStatus}</strong><p>Waiting for current pricing and protection terms.</p></div>}

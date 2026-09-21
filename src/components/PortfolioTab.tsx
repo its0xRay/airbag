@@ -1,6 +1,7 @@
 import { contractReferenceLabel } from "../data/referencePolicy";
 import AssetLogo from "./AssetLogo";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { PositionTarget } from "../App";
 import { useChain, explorerUrl } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import type { ContractAcct } from "../client/optketProgram";
@@ -21,9 +22,19 @@ const STATUS_TONE: Record<string, string> = {
  * Positions read straight from the program (PRD §13.5) plus the coverage
  * tracker (§16). Every action here is a real transaction.
  */
-export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number) => void }) {
+export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
-  const [assetId, setAssetId] = useState(1);
+  const [assetId, setAssetId] = useState(() => target?.assetId ?? c.contracts.find(k => k.status === "Active" || k.status === "PartiallySettled")?.assetId ?? c.contracts[0]?.assetId ?? 1);
+  const [view, setView] = useState<"active" | "history">(() => {
+    const position = c.contracts.find(k => k.address === target?.address);
+    return position && position.status !== "Active" && position.status !== "PartiallySettled" ? "history" : "active";
+  });
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!target?.address || focused.current) return;
+    const card = document.getElementById(`position-${target.address}`);
+    if (card) { card.scrollIntoView({ block: "start", behavior: "instant" }); card.focus({ preventScroll: true }); focused.current = true; }
+  }, [target, c.contracts, view]);
   const asset = VERIFIED_ASSETS[assetId];
 
   if (!c.connected) {
@@ -32,6 +43,8 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
 
   const mine = c.contracts.filter((k) => k.assetId === assetId);
   const open = mine.filter((k) => k.status === "Active" || k.status === "PartiallySettled");
+  const history = mine.filter(k => k.status !== "Active" && k.status !== "PartiallySettled");
+  const visible = view === "active" ? open : history;
   const activeProtected = open.reduce((a, k) => a + k.remainingQuantity, 0n);
   const pending = mine.reduce((a, k) => a + k.pendingQuantity, 0n);
   const held = c.exposure[assetId] || 0;
@@ -44,7 +57,8 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
   return (
     <>
       <div className="app-page-head">
-        <div><div className="card-title">Your protection</div><h1>Positions</h1><p>Contracts owned by the connected Devnet wallet. Holdings are optional context and never change coverage.</p></div>
+        <div><h1>Positions</h1><p>Manage your protection, exercise coverage, or protect more.</p></div>
+        <button className="btn primary" onClick={() => onProtect(assetId)}>Protect another asset</button>
         <span className="pill gray mono" title={c.address ?? undefined}>{c.address ? `${c.address.slice(0, 5)}…${c.address.slice(-4)}` : "Connected"}</span>
       </div>
       <RemindersPanel onRenew={onRenew} />
@@ -83,10 +97,11 @@ export default function PortfolioTab({ onRenew, onProtect }: { onRenew: (assetId
       </div>}
 
       <div style={{ height: 14 }} />
-      {mine.length === 0 ? (
-        <div className="card empty"><strong>No {asset.symbol} protection yet.</strong><br />Create a fully reserved onchain position.<div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId)}>Protect {asset.symbol}</button></div></div>
+      <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({open.length})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({history.length})</button></div>
+      {visible.length === 0 ? (
+        <div className="card empty"><strong>{view === "active" ? `No active ${asset.symbol} protection.` : `No completed ${asset.symbol} positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId)}>Protect {asset.symbol}</button></div>}</div>
       ) : (
-        mine.map((k) => <ContractCard key={k.address} contract={k} />)
+        visible.map((k) => <ContractCard key={k.address} contract={k} />)
       )}
 
       <details className="secondary-tool">
@@ -121,7 +136,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
   }
 
   return (
-    <div className="card">
+    <div className="card position-card" id={`position-${k.address}`} tabIndex={-1}>
       <div className="between">
         <div className="row">
           <AssetLogo asset={asset} />

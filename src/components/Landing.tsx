@@ -8,8 +8,9 @@ import type { ProtectDraft } from "../App";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history";
 
-export default function Landing({ onLaunch }: {
+export default function Landing({ onLaunch, onViewPosition }: {
   onLaunch: (tab: AppTab, draft?: ProtectDraft) => void | Promise<void>;
+  onViewPosition: (assetId: number, address?: string) => void;
   launching?: boolean;
   launchStatus?: string;
 }) {
@@ -19,31 +20,25 @@ export default function Landing({ onLaunch }: {
         <div className="lp-hero-copy">
           <span className="lp-eyebrow">Solana Devnet</span>
           <h1 className="lp-title">Protect the downside.<br /><span className="soft">Keep the upside.</span></h1>
-          <p className="lp-sub">Downside protection for tokenized stocks and PreStocks—even without a listed-options market. Choose a floor. Pay once. Keep the token.</p>
+          <p className="lp-sub">Choose a price floor for your tokenized stocks. Pay once. Keep your tokens.</p>
+          <p className="lp-asset-intro">For NVDAx and Anthropic PreStocks—even without a listed-options market.</p>
           <div className="lp-meta"><span className="demo-label">oUSD <small>demo · no real value</small></span><span>Fees and rent sponsored</span></div>
         </div>
-        <div id="protection"><ProtectTab embedded onViewPositions={() => onLaunch("portfolio")} /></div>
+        <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} /></div>
       </section>
 
-      <section className="lp-section lp-thesis" id="why-protect">
-        <div className="lp-thesis-copy">
-          <div className="lp-kicker">Why Optket</div>
-          <h2 className="lp-display">Hold the asset.<br />Limit the downside.</h2>
-          <p className="lp-lede">Protection that settles beside your tokens.</p>
-        </div>
-        <div className="lp-thesis-points">
+      <section className="lp-benefits-strip" id="why-protect" aria-label="Why Optket">
           {[
             ["Keep the token", "Your underlying stays in your wallet."],
             ["Fixed cost", "One premium. No buyer margin or liquidation."],
             ["Fully reserved", "Maximum contractual payout is reserved onchain."],
-          ].map(([title, body], i) => <article className="lp-thesis-point" key={title}><span className="lp-row-number mono" aria-hidden="true">0{i + 1}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}
-        </div>
+          ].map(([title, body]) => <article key={title}><h2>{title}</h2><p>{body}</p></article>)}
       </section>
 
       <ProtectionWalkthrough />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><div className="lp-kicker">What determines the payout?</div><h2 className="lp-h2">The token’s market price.</h2><p className="lp-lede">Both assets use token-market observations. New NVDAx protection no longer depends on an open stock exchange.</p></div>
+        <div className="lp-section-head"><h2 className="lp-h2">Two assets. Protection for each.</h2><p className="lp-lede">Protection follows the token’s market price—not the company’s valuation.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
@@ -57,16 +52,11 @@ export default function Landing({ onLaunch }: {
         <div className="lp-note"><p className="disclosure">Existing NVDAx v1 contracts retain their stock-benchmark terms.</p><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets</button></div>
       </section>
 
-      <section className="lp-section" id="onchain-proof">
-        <div className="lp-section-head"><div className="lp-kicker">The full lifecycle</div><h2 className="lp-h2">From purchase to payout.</h2></div>
+      <section className="lp-section lp-verification" id="onchain-proof">
         <div className="lp-proof-layout">
-          <div className="lp-proof-list">
-            {[
-              ["Onchain program", "Solana Devnet transactions, verifiable in the explorer."],
-              ["Per-asset collateral", "Each position’s maximum payout is reserved before issuance."],
-              ["Partial or full exercise", "Choose how much to exercise before the cutoff."],
-              ["Automatic expiry", "The reference keeper settles eligible positions."],
-            ].map(([title, body]) => <article className="lp-proof-row" key={title}><h3>{title}</h3><p>{body}</p></article>)}
+          <div className="lp-evidence">
+            <h2 className="lp-h2">Check it onchain.</h2><p className="lp-lede">Purchases, collateral and payouts are recorded on Solana Devnet.</p>
+            <a className="lp-text-link" href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">View deployed program ↗</a><button className="btn ghost sm" onClick={() => onLaunch("history")}>Browse onchain activity</button>
           </div>
           <div className="lp-faq">
             <details><summary>How is the reference verified?</summary><p>The authorized publisher submits external observations. The program checks timing, sample count and ordering, then calculates the median. The publisher remains a trust dependency.</p></details>
@@ -75,17 +65,9 @@ export default function Landing({ onLaunch }: {
             <details><summary>What happens to older NVDAx positions?</summary><p>Benchmark v1 contracts keep their original NVIDIA benchmark and equity-session rules. New v2 contracts protect the NVDAx token market. Each position identifies its reference.</p></details>
           </div>
         </div>
-        <div className="lp-note"><a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">View deployed program ↗</a><button className="btn ghost sm" onClick={() => onLaunch("history")}>Onchain activity</button></div>
       </section>
 
-      <section className="lp-section">
-        <div className="lp-section-head"><div className="lp-kicker">Beyond the first position</div><h2 className="lp-h2">Manage the full picture.</h2></div>
-        <div className="lp-product-links">
-          {([["portfolio", "Positions", "Coverage and exercise"], ["compare", "Markets", "Prices and token details"], ["underwriter", "Pools", "Collateral and activity"], ["history", "Onchain", "Verifiable transactions"]] as const).map(([tab, title, body]) => <button key={tab} onClick={() => onLaunch(tab)}><strong>{title}</strong><span>{body}</span><span aria-hidden="true">↗</span></button>)}
-        </div>
-      </section>
-
-      <section className="lp-section lp-final"><h2 className="lp-h2">Choose your protection.</h2><p className="lp-lede">Configure first. Connect when you’re ready.</p><a className="btn primary lg" href="#protection">Protect a position →</a></section>
+      <footer className="lp-footer"><span>Optket</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top ↑</a></footer>
     </main>
   );
 }

@@ -4,7 +4,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress, decodeOptketInstruction,
+  OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress, decodeOptketInstruction, pdas,
   type ContractAcct, type ExerciseRequestAcct, type PoolAcct, type SeriesAcct,
 } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
@@ -205,6 +205,7 @@ interface ChainState {
   lastTx: string | null;
   /** Binding premium returned by the quote service for the latest purchase. */
   lastPurchasePremium: number | null;
+  lastPurchaseAddress: string | null;
   clearError: () => void;
 
   connect: () => Promise<void>;
@@ -245,6 +246,7 @@ export const useChain = create<ChainState>((set, get) => ({
   trial: null,
   lastTx: null,
   lastPurchasePremium: null,
+  lastPurchaseAddress: null,
   clearError: () => set({ error: null }),
 
   connect: async () => {
@@ -414,7 +416,7 @@ export const useChain = create<ChainState>((set, get) => ({
         burner, sponsor, 0,
       );
       await get().refresh();
-      set({ status: "", lastTx: sig, lastPurchasePremium: resp.premiumTokens });
+      set({ status: "", lastTx: sig, lastPurchasePremium: resp.premiumTokens, lastPurchaseAddress: pdas.contract(signedQuote.quoteId).toBase58() });
     } catch (e) {
       set({ error: friendly(e), status: "" });
       throw e;

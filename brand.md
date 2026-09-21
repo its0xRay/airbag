@@ -56,6 +56,13 @@ The scroll-led walkthrough pairs readable steps with a sticky mechanism diagram.
 Mobile, short viewports and reduced-motion settings show all diagrams inline.
 These explain mechanics only; they never depict simulated transactions.
 
+Landing hierarchy: one left-aligned introduction, the real Protect workspace,
+a compact benefit strip, the walkthrough, asset profiles, onchain evidence and
+a quiet footer. Avoid repeated feature lists or a second closing sales pitch.
+Connected navigation prioritizes Protect and Positions; Markets, Pools and
+Onchain are secondary destinations under Protocol. Position history remains
+available alongside active coverage.
+
 - Radius: `--radius` 12px (cards), `--radius-sm` 8px (buttons, inputs), 100px (pills).
 - **Borders, not shadows.** The system is flat-with-1px-borders; don't add shadows
   to separate surfaces.
