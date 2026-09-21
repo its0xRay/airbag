@@ -1,3 +1,4 @@
+import { referenceKind } from "../src/data/referencePolicy";
 // Optket keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
 //
@@ -23,7 +24,7 @@ import { loadKey, loadAdmin } from "./keys";
 import {
   OptketClient, pdas, associatedTokenAddress, type Observation,
 } from "../src/client/optketProgram";
-import { PythEquityAdapter, JupiterPreStocksAdapter } from "./references";
+import { PythEquityAdapter, JupiterPreStocksAdapter, createNvdaTokenReference } from "./references";
 // window rules come from the engine, which mirrors the on-chain constants
 import {
   PRESTOCKS_WINDOW_SECS,
@@ -61,13 +62,12 @@ const keeperStatus = {
 
 async function collectSamples() {
   const t = nowSec();
-  try {
-    const eq = await pyth.observe();
-    if (eq.available) {
-      sampleBuffer[0].push({ slot: eq.slot, sourceTs: eq.sourceTs, collectedTs: t, price: eq.price });
-    }
-  } catch { /* transient */ }
-  try {
+  await Promise.allSettled([ (async () => {
+    const [token] = await nvdaToken.observe(1);
+    if (token?.available) sampleBuffer[0].push({
+      slot: token.slot, sourceTs: token.sourceTs, collectedTs: nowSec(), price: token.price,
+    });
+  })(), (async () => {
     const [jup] = await jupiter.observe(1);
     if (jup?.available) {
       // Jupiter's blockId identifies the last upstream price update, so it can
@@ -77,9 +77,9 @@ async function collectSamples() {
       // observed it.  This preserves strict ordering without fabricating a
       // price or pretending that Jupiter published a new update.
       const observedSlot = BigInt(await conn.getSlot("confirmed"));
-      sampleBuffer[1].push({ slot: observedSlot, sourceTs: jup.sourceTs, collectedTs: t, price: jup.price });
+      sampleBuffer[1].push({ slot: observedSlot, sourceTs: jup.sourceTs, collectedTs: nowSec(), price: jup.price });
     }
-  } catch { /* transient */ }
+  })() ]);
   for (const k of [0, 1]) {
     sampleBuffer[k] = sampleBuffer[k].filter((o) => t - o.sourceTs <= SAMPLE_RETENTION_SECS);
   }
@@ -103,6 +103,7 @@ function windowSamples(assetId: number, lo: number, hi: number): Observation[] {
 // live reference adapters, one per asset (independent — §9)
 const pyth = new PythEquityAdapter(0);
 const jupiter = new JupiterPreStocksAdapter(1);
+const nvdaToken = createNvdaTokenReference();
 
 const conn = new Connection(RPC, "confirmed");
 const client = new OptketClient(conn);
@@ -116,8 +117,8 @@ const f = (v: bigint) => (Number(v) / 1e6).toFixed(4);
 interface Resolved { equity: boolean; single?: Observation; many?: Observation[]; source: string; }
 
 /** Resolve an EXERCISE reference (window is strictly after the request). §9 */
-async function resolveExercise(assetId: number, windowStart: number, windowEnd: number): Promise<Resolved | null> {
-  if (assetId === 0) {
+async function resolveExercise(assetId: number, version: number, windowStart: number, windowEnd: number): Promise<Resolved | null> {
+  if (referenceKind(assetId, version) === "Equity") {
     const ro = await pyth.observe();
     const collectedTs = nowSec();
     if (ro.available && ro.sourceTs > windowStart && ro.sourceTs <= windowEnd
@@ -131,7 +132,7 @@ async function resolveExercise(assetId: number, windowStart: number, windowEnd: 
   // unnecessarily stalled settlement whenever a valid price stayed flat.
   // Buffered snapshots are still real Jupiter responses and are sequenced by
   // their confirmed Solana observation slots.
-  const ros = windowSamples(1, windowStart + 1, windowEnd);
+  const ros = windowSamples(assetId, windowStart + 1, windowEnd);
   if (ros.length >= 3) return { equity: false, many: ros, source: `Jupiter observed median (${ros.length} snapshots)` };
   return null;
 }
@@ -142,8 +143,8 @@ async function resolveExercise(assetId: number, windowStart: number, windowEnd: 
  * minutes ENDING at expiry. If neither qualifies we return null and the caller
  * applies the program's disclosed refund — we never invent a price.
  */
-async function resolveExpiry(assetId: number, expiryTs: number): Promise<Resolved | null> {
-  if (assetId === 0) {
+async function resolveExpiry(assetId: number, version: number, expiryTs: number): Promise<Resolved | null> {
+  if (referenceKind(assetId, version) === "Equity") {
     const ro = await pyth.observe();
     const collectedTs = nowSec();
     if (ro.available && ro.sourceTs >= expiryTs
@@ -157,7 +158,7 @@ async function resolveExpiry(assetId: number, expiryTs: number): Promise<Resolve
     }
     return null;
   }
-  const buffered = windowSamples(1, expiryTs - PRESTOCKS_WINDOW_SECS, expiryTs);
+  const buffered = windowSamples(assetId, expiryTs - PRESTOCKS_WINDOW_SECS, expiryTs);
   if (buffered.length >= 3) {
     return { equity: false, many: buffered, source: `Jupiter buffered median (${buffered.length} samples in window)` };
   }
@@ -204,7 +205,7 @@ async function settleRequests() {
     try {
       const contract = await client.getContractByAddress(req.contract);
       if (!contract) continue;
-      const ref = await resolveExercise(contract.assetId, req.windowStart, req.windowEnd);
+      const ref = await resolveExercise(contract.assetId, contract.referenceVersion, req.windowStart, req.windowEnd);
       if (!ref) {
         // §10.4: once the window has elapsed with no qualifying reference, fail
         // the request so the quantity returns to active coverage.
@@ -239,7 +240,7 @@ async function settleExpiries() {
     if (c.expiryTs > now || c.pendingQuantity !== 0n || c.remainingQuantity === 0n) continue;
     try {
       const buyerToken = associatedTokenAddress(demoMint, c.buyer);
-      const ref = await resolveExpiry(c.assetId, c.expiryTs);
+      const ref = await resolveExpiry(c.assetId, c.referenceVersion, c.expiryTs);
       if (!ref) {
         // §11.1/§11.2: an invalid expiry reference means the disclosed demo
         // refund, not a made-up settlement. Allow a grace period first in case
@@ -294,7 +295,7 @@ function startHealthServer() {
       ok: healthy,
       ...keeperStatus,
       lastSuccessfulTickAgeSeconds: age,
-      samples: { equity: sampleBuffer[0].length, prestocks: sampleBuffer[1].length },
+      samples: { nvdaToken: sampleBuffer[0].length, prestocks: sampleBuffer[1].length },
       publisher: publisher.publicKey.toBase58(),
     }));
   }).listen(port, () => console.log(`  health:    :${port}/health`));

@@ -1,3 +1,4 @@
+import { referenceKind } from "../data/referencePolicy";
 // Optket protection engine — a deterministic, pure-TypeScript mirror of the
 // on-chain program (programs/optket/src). Same arithmetic, same accounting
 // invariants, same lifecycle. It is an executable specification used by the
@@ -195,11 +196,10 @@ export class OptketEngine {
     req(quantity > 0n, "zero quantity");
     req(quantity <= c.remainingQuantity, "exceeds remaining");
 
-    const asset = this.assets.get(c.assetId)!;
-    const kind = asset.kind === "EquityToken" ? "Equity" : "PreStocks";
+    const kind = referenceKind(c.assetId, c.referenceVersion);
     const windowStart = now;
     const windowEnd =
-      asset.kind === "EquityToken" ? now + EQUITY_MAX_DELAY_SECS : now + PRESTOCKS_WINDOW_SECS;
+      kind === "Equity" ? now + EQUITY_MAX_DELAY_SECS : now + PRESTOCKS_WINDOW_SECS;
 
     const locked = proportionalRelease(c.reservedCollateral, c.originalQuantity, c.strike, quantity, false);
     const pool = this.pool(c.assetId);
@@ -327,6 +327,7 @@ export class OptketEngine {
 
   settleExpiryEquity(contractId: bigint, obs: Observation): bigint {
     const c = this.contract(contractId);
+    req(referenceKind(c.assetId, c.referenceVersion) === "Equity", "wrong reference path");
     const settlement = validateEquity(
       obs,
       c.expiryTs,
@@ -339,6 +340,7 @@ export class OptketEngine {
 
   settleExpiryPrestocks(contractId: bigint, observations: Observation[]): bigint {
     const c = this.contract(contractId);
+    req(referenceKind(c.assetId, c.referenceVersion) === "PreStocks", "wrong reference path");
     const settlement = validatePrestocksMedian(
       observations,
       c.expiryTs - PRESTOCKS_WINDOW_SECS,

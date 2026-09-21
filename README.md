@@ -135,13 +135,44 @@ Each asset has its own adapter behind a common observation interface; **one
 asset's reference failure never disables the other** (enforced by per-asset
 pools and independent settlement paths — see the invariant test).
 
-- **Public-equity (NVDAx):** a verified underlying-stock benchmark.
+- **NVDAx v2 (new contracts):** Jupiter token-market price, using a median of
+  at least three distinct upstream updates in the five-minute window. Each
+  update's mainnet block timestamp must be at most 60 seconds old when collected.
+  Equity-session hours do not gate this path; fresh data and active series do.
+  Prices are per displayed token (Jupiter `usdPrice`, already scaled), matching
+  protected quantities. No last print is re-stamped to make it fresh.
+- **NVDAx v1 (existing contracts only):** underlying-stock benchmark.
   Early exercise selects the earliest qualifying observation **strictly after**
   the request; expiry selects the earliest at/after the fixed expiry, within the
   allowed delay. The value is an oracle benchmark, **not** an exchange close.
-- **PreStocks (Anthropic PreStocks):** **median** of ≥3 qualifying Jupiter-Price
-  observations with distinct, strictly-increasing source slots, each ≤60s old at
-  collection, inside the window.
+- **Anthropic PreStocks v1:** median of at least three real Jupiter API snapshots
+  in the window, sequenced by the confirmed Devnet slot at collection. Its
+  original snapshot policy is retained; it is not NVDAx v2's upstream-update
+  policy, and does not independently validate last-trade age.
+
+For token paths, early exercise uses observations strictly after the request;
+expiry uses the five-minute window ending at expiry. Existing contract terms
+are immutable: `(asset_id, reference_version)` selects the path, not current
+asset metadata. Wrong-path expiry instructions are rejected onchain.
+
+### NVDAx v2 rollout
+
+1. Build and deploy the version-aware program before activating v2 metadata.
+2. Dry-run `node --import tsx scripts/migrate-nvda-token.ts`; use `--execute`
+   only after the program upgrade. The script checks Devnet/admin identity and
+   atomically creates NVDAx weekly series 2/3 with v2 metadata, leaving v1 intact.
+3. Deploy both services and frontend. New quotes reject v1 NVDAx series;
+   the keeper continues settling v1 positions with their original reference.
+4. Verify real quotes and lifecycle transactions, not only unit fixtures.
+
+The isolated Anchor regression suite is local-validator-only:
+`ANCHOR_PROVIDER_URL=http://127.0.0.1:8898 ANCHOR_WALLET=/path/to/test-key.json node --import tsx node_modules/mocha/bin/mocha.js --timeout 60000 tests/optket.ts`.
+
+Token identities and logos are matched by exact mint through the
+[Jupiter Tokens API](https://developers.jup.ag/docs/tokens/index.md).
+The [Price API](https://developers.jup.ag/docs/price/index.md) supplies market
+observations, not executable hedge fills. The pricing model's hedge loading is
+an assumption; Optket does not execute an external hedge.
 
 **Trust limitation (§9.3):** an authorized publisher signature proves publisher
 *identity*, not that the upstream feed actually returned the submitted value.

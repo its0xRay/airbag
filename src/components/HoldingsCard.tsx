@@ -99,7 +99,7 @@ export default function HoldingsCard() {
           {rows.map((r, i) => {
             const a = VERIFIED_ASSETS[i];
             const h = r.holdings;
-            const shareEquiv = h ? h.displayed * (h.scaledMultiplier || 1) : 0;
+            const shareEquiv = h ? h.displayed : 0;
             const hasBalance = !!h && h.displayed > 0;
             return (
               <div key={r.key} className="kv" style={{ alignItems: "center" }}>
@@ -113,7 +113,7 @@ export default function HoldingsCard() {
                     <>
                       <span className="mono">{shareEquiv.toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                       <span className="faint" style={{ fontSize: 11 }}>
-                        ({h.displayed.toLocaleString(undefined, { maximumFractionDigits: 6 })} raw × {h.scaledMultiplier.toFixed(6)})
+                        ({h.raw.toLocaleString(undefined, { maximumFractionDigits: 6 })} raw × {h.scaledMultiplier.toFixed(6)})
                       </span>
                       <button className="btn ghost sm" onClick={() => applyExposure(i, shareEquiv)}>
                         Use as exposure

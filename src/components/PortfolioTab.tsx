@@ -1,3 +1,5 @@
+import { contractReferenceLabel } from "../data/referencePolicy";
+import AssetLogo from "./AssetLogo";
 import { useState } from "react";
 import { useChain, explorerUrl } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
@@ -122,7 +124,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
     <div className="card">
       <div className="between">
         <div className="row">
-          <div className={"asset-icon " + (asset.kind === "EquityToken" ? "eq" : "pre")}>{asset.symbol.slice(0, 3)}</div>
+          <AssetLogo asset={asset} />
           <div>
             <div className="row" style={{ gap: 8 }}>
               <strong>#{k.contractId.toString()} · {asset.symbol}</strong>
@@ -130,7 +132,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
               {open && expired && <span className="pill amber">awaiting settlement</span>}
             </div>
             <div className="faint" style={{ fontSize: 12 }}>
-              floor {fmtPrice(k.strike)} · exercise cutoff {beforeCutoff ? `${fmtDuration(k.exerciseCutoffTs - now)} left` : "passed"} · expiry {fmtClock(k.expiryTs)}
+              {contractReferenceLabel(k.assetId, k.referenceVersion)} · floor {fmtPrice(k.strike)} · exercise cutoff {beforeCutoff ? `${fmtDuration(k.exerciseCutoffTs - now)} left` : "passed"} · expiry {fmtClock(k.expiryTs)}
             </div>
           </div>
         </div>

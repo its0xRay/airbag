@@ -1,3 +1,4 @@
+import AssetLogo from "./AssetLogo";
 import { useChain } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { ASSUMPTIONS } from "../engine";
@@ -38,7 +39,7 @@ export default function UnderwriterTab() {
           return (
             <section className="risk-section" key={a.key}>
               <div className="risk-head">
-                <div><span className="lp-reference-kind">{a.kind === "PreStocks" ? "PreStocks" : "xStock"}</span><h2>{a.symbol}</h2></div>
+                <div><span className="lp-reference-kind">{a.kind === "PreStocks" ? "PreStocks" : "xStock"}</span><h2 className="row"><AssetLogo asset={a} />{a.symbol}</h2></div>
                 <span className={"pill " + (m.hedgeAvailable ? "blue" : "gray")}>
                   {m.hedgeAvailable ? "external hedge venue identified" : "no executable external hedge"}
                 </span>

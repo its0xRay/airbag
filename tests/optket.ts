@@ -7,8 +7,9 @@
 // exercise → settle) plus the replay-protection guarantee. Reference data is
 // submitted by the publisher authority, matching the on-chain trust model.
 
-import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import anchor from "@coral-xyz/anchor";
+import type { Program } from "@coral-xyz/anchor";
+const { BN } = anchor;
 import {
   Ed25519Program,
   Keypair,
@@ -50,6 +51,7 @@ function serializeQuote(q: any, buyer: PublicKey): Buffer {
 
 describe("optket", () => {
   const provider = anchor.AnchorProvider.env();
+  if (!/^http:\/\/(127\.0\.0\.1|localhost):/.test(provider.connection.rpcEndpoint)) throw new Error("Fixture tests are local-validator only");
   anchor.setProvider(provider);
   const program = anchor.workspace.Optket as Program<Optket>;
   const admin = (provider.wallet as anchor.Wallet).payer;
@@ -107,16 +109,18 @@ describe("optket", () => {
     assert.ok(pool.availableCapital.eq(price(500_000)));
   });
 
-  async function purchase(quoteId: number, paymentAccount: PublicKey = buyerToken) {
-    const series = await program.account.series.fetch(seriesPda);
+  async function purchase(quoteId: number, paymentAccount: PublicKey = buyerToken, id = seriesId) {
+    const sid = Buffer.alloc(2); sid.writeUInt16LE(id);
+    const selectedPda = PublicKey.findProgramAddressSync([Buffer.from("series"), Buffer.from([assetId]), sid], program.programId)[0];
+    const series = await program.account.series.fetch(selectedPda);
     const q = {
       buyer: buyer.publicKey,
       assetId,
-      seriesId,
+      seriesId: id,
       quantity: qty(10),
       strike: series.strike,
       expiryTs: series.expiryTs.toNumber(),
-      referenceVersion: 1,
+      referenceVersion: series.referenceVersion,
       premium: price(50),
       fees: new BN(0),
       quoteId: new BN(quoteId),
@@ -145,7 +149,7 @@ describe("optket", () => {
       )
       .accounts({
         buyer: buyer.publicKey, payer: buyer.publicKey, config: configPda, asset: assetPda,
-        series: seriesPda, pool: poolPda, vault: vaultPda,
+        series: selectedPda, pool: poolPda, vault: vaultPda,
         buyerToken: paymentAccount, demoMint, quoteMarker: markerPda, contract: contractPda,
         instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
       })
@@ -162,6 +166,51 @@ describe("optket", () => {
     assert.equal(c.remainingQuantity.toString(), qty(10).toString());
     // reserved = ceil(10 * 170) = 1700 tokens
     assert.equal(c.reservedCollateral.toString(), price(1700).toString());
+  });
+
+  let legacyExpiryContract: PublicKey;
+  let tokenContract: PublicKey;
+  let shortExpiry: number;
+
+  it("creates legacy expiry terms, migrates metadata, and creates v2 without editing old terms", async () => {
+    shortExpiry = now() + 30;
+    const create = async (id: number) => {
+      const sid = Buffer.alloc(2); sid.writeUInt16LE(id);
+      const pda = PublicKey.findProgramAddressSync([Buffer.from("series"), Buffer.from([assetId]), sid], program.programId)[0];
+      await program.methods.createSeries(assetId, id, price(170), new BN(shortExpiry), new BN(shortExpiry - 5), new BN(shortExpiry - 5), qty(100))
+        .accounts({ admin: admin.publicKey, config: configPda, asset: assetPda, series: pda, systemProgram: SystemProgram.programId }).rpc();
+    };
+    await create(5);
+    legacyExpiryContract = await purchase(5, buyerToken, 5);
+    await program.methods.setAssetMetadata(0, null, 2, null)
+      .accounts({ admin: admin.publicKey, config: configPda, asset: assetPda }).rpc();
+    await create(6);
+    tokenContract = await purchase(6, buyerToken, 6);
+    assert.equal((await program.account.contract.fetch(legacyExpiryContract)).referenceVersion, 1);
+    assert.equal((await program.account.contract.fetch(tokenContract)).referenceVersion, 2);
+  });
+
+  it("rejects both wrong expiry paths at the instruction boundary", async () => {
+    const accounts = (contract: PublicKey) => ({ publisher: publisher.publicKey, config: configPda, contract, asset: assetPda, pool: poolPda, vault: vaultPda, buyerToken, demoMint, tokenProgram: TOKEN_PROGRAM_ID });
+    const obs = { slot: new BN(1), sourceTs: new BN(shortExpiry), collectedTs: new BN(shortExpiry), price: price(150) };
+    for (const invoke of [
+      () => program.methods.settleExpiryPrestocks([obs, obs, obs]).accounts(accounts(legacyExpiryContract)).signers([publisher]).rpc(),
+      () => program.methods.settleExpiryEquity(obs).accounts(accounts(tokenContract)).signers([publisher]).rpc(),
+    ]) {
+      let rejected = false;
+      try { await invoke(); } catch (e) { assert.match(String(e), /WrongReferencePath/); rejected = true; }
+      assert.isTrue(rejected, "wrong path must reject");
+    }
+  });
+
+  it("requests and settles v2 partial exercise with the token median", async () => {
+    const reqPda = PublicKey.findProgramAddressSync([Buffer.from("exercise"), tokenContract.toBuffer(), Buffer.alloc(4)], program.programId)[0];
+    await program.methods.requestExercise(qty(1)).accounts({ buyer: buyer.publicKey, contract: tokenContract, asset: assetPda, pool: poolPda, request: reqPda, payer: buyer.publicKey, systemProgram: SystemProgram.programId }).rpc();
+    const req = await program.account.exerciseRequest.fetch(reqPda);
+    assert.property(req.kind, "preStocks");
+    const observations = [1, 2, 3].map((n) => ({ slot: new BN(n), sourceTs: req.requestTs.addn(n), collectedTs: req.requestTs.addn(n), price: price(150) }));
+    await program.methods.settleExercisePrestocks(observations).accounts({ publisher: publisher.publicKey, config: configPda, contract: tokenContract, asset: assetPda, pool: poolPda, vault: vaultPda, request: reqPda, buyerToken, demoMint, tokenProgram: TOKEN_PROGRAM_ID }).signers([publisher]).rpc();
+    assert.equal((await program.account.exerciseRequest.fetch(reqPda)).payout.toString(), price(20).toString());
   });
 
   it("rejects a replayed quote id (PRD §22)", async () => {
@@ -206,6 +255,20 @@ describe("optket", () => {
     const req2 = await program.account.exerciseRequest.fetch(reqPda);
     // 4 * (170-150) = 80 tokens paid
     assert.equal(req2.payout.toString(), price(80).toString());
+  });
+
+  it("settles legacy benchmark and v2 median expiry after migration", async () => {
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, shortExpiry - now() + 2) * 1000));
+    const accounts = (contract: PublicKey) => ({ publisher: publisher.publicKey, config: configPda, contract, asset: assetPda, pool: poolPda, vault: vaultPda, buyerToken, demoMint, tokenProgram: TOKEN_PROGRAM_ID });
+    const obs = { slot: new BN(1), sourceTs: new BN(shortExpiry), collectedTs: new BN(shortExpiry), price: price(150) };
+    await program.methods.settleExpiryEquity(obs).accounts(accounts(legacyExpiryContract)).signers([publisher]).rpc();
+    const observations = [1, 2, 3].map((n) => ({ ...obs, slot: new BN(n), sourceTs: new BN(shortExpiry - 4 + n) }));
+    await program.methods.settleExpiryPrestocks(observations).accounts(accounts(tokenContract)).signers([publisher]).rpc();
+    for (const address of [legacyExpiryContract, tokenContract]) {
+      const c = await program.account.contract.fetch(address);
+      assert.property(c.status, "expired");
+      assert.equal(c.reservedCollateral.toString(), "0");
+    }
   });
 
   it("rejects a purchase paid with a non-demo mint (real-USDC guard, PRD §22)", async () => {

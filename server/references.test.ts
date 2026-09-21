@@ -9,6 +9,25 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 describe("reference integrity", () => {
+  it("NVDAx v2 rejects old, unknown and future source times", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ mint: { usdPrice: 225, blockId: 123 } })));
+    const now = Math.floor(Date.now() / 1000);
+    for (const ts of [now - 61, null, now + 60]) {
+      const adapter = new JupiterPreStocksAdapter(0, "mint", "https://jup.test", 0, async () => ts);
+      expect(await adapter.observe(1)).toEqual([]);
+    }
+  });
+
+  it("preserves NVDAx source time, block id and already-scaled price", async () => {
+    const ts = Math.floor(Date.now() / 1000) - 10;
+    vi.stubGlobal("fetch", vi.fn(async () => json({ mint: {
+      usdPrice: 225, blockId: 123, scaledUiConfig: { usdPricePrescaled: 226, multiplier: 1.004 },
+    } })));
+    const adapter = new JupiterPreStocksAdapter(0, "mint", "https://jup.test", 0, async () => ts);
+    const result = await adapter.observe(3);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ price: 225000000n, sourceTs: ts, slot: 123n });
+  });
   it("does not settle equity against a restamped last print while the market is closed", async () => {
     const fetchMock = vi.fn(async () => json([{
       id: "feed",

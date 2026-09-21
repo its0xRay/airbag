@@ -79,9 +79,7 @@ export default function App() {
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
-            <button className="btn primary" disabled={busy} aria-busy={busy} onClick={() => launch("protect", { assetId: 1 })}>
-              {busy ? status || "Starting…" : "Launch app"}
-            </button>
+            {connected ? <button className="btn primary" onClick={() => setTab("portfolio")}>My positions</button> : <a className="btn primary" href="#protection">Try protection</a>}
           </>
         ) : (
           <WalletBar />

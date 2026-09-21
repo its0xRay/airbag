@@ -79,7 +79,7 @@ async function decodeTransactionActions(connection: Connection, signatures: stri
   return actions;
 }
 
-async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
+export async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
   const raw = await fetchJson<Array<Record<string, unknown>>>(`${svcUrl}/series/all`);
   return raw
     .map((s) => ({

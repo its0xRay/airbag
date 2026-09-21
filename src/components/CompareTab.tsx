@@ -1,7 +1,8 @@
+import AssetLogo from "./AssetLogo";
 import { useEffect, useState } from "react";
 import { VERIFIED_ASSETS, assetByKey } from "../data/assets";
 import { fetchMarket, type Market } from "../data/marketData";
-import { fmtAge, fmtUsd, fmtPct } from "../format";
+import { fmtAge, fmtUsd } from "../format";
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" }) {
   return (
@@ -35,7 +36,7 @@ export default function CompareTab() {
   const token = market?.usdPrice ?? null;
   const bench = market?.benchmark ?? null;
   const basis = token != null && bench ? (token - bench) / bench : null;
-  const mult = market?.scaledMultiplier ?? asset.scaledMultiplier;
+  const mult = market?.scaledMultiplier;
   const solscan = `https://solscan.io/token/${asset.mint}`;
 
   return (
@@ -50,7 +51,7 @@ export default function CompareTab() {
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
         {VERIFIED_ASSETS.map((a) => (
-          <button key={a.key} className={"btn sm " + (a.key === assetKey ? "primary" : "ghost")} onClick={() => { setAssetKey(a.key); setLoading(true); setErr(null); setMarket(null); }}>{a.symbol}</button>
+          <button key={a.key} className={"btn sm " + (a.key === assetKey ? "primary" : "ghost")} onClick={() => { setAssetKey(a.key); setLoading(true); setErr(null); setMarket(null); }}><AssetLogo asset={a} />{a.symbol}</button>
         ))}
       </div>
 
@@ -58,7 +59,7 @@ export default function CompareTab() {
         <div className="card">
           <div className="between" style={{ marginBottom: 4 }}>
             <div className="card-title" style={{ margin: 0 }}>{equity ? "Token vs stock benchmark" : "Token protection reference"} — {asset.symbol}</div>
-            {market?.available ? <span className="pill green">live</span> : <span className="pill amber">{loading ? "loading…" : "unavailable"}</span>}
+            {market?.available ? <span className="pill gray">Market data</span> : <span className="pill amber">{loading ? "loading…" : "unavailable"}</span>}
           </div>
           <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>{asset.name} · {asset.benchmarkLabel}</div>
 
@@ -67,18 +68,16 @@ export default function CompareTab() {
           {market?.available && (
             <>
               <div className="grid cols-3">
-                <Stat label={equity ? "Stock benchmark" : "Token reference"} value={(equity ? bench : token) != null ? fmtUsd((equity ? bench : token)!) : "—"} />
-                <Stat label="Token market" value={token != null ? fmtUsd(token) : "—"} />
-                <Stat label="Token vs benchmark" value={basis != null ? `${Math.abs(basis * 100).toFixed(1)}% ${basis < 0 ? "below" : "above"}` : "—"} tone={basis != null && basis < 0 ? "neg" : "pos"} />
+                <Stat label="Token reference" value={token != null ? fmtUsd(token) : "—"} />
+                {equity && <Stat label="Stock benchmark · context only" value={bench != null ? fmtUsd(bench) : "—"} />}
+                {equity && <Stat label="Token vs benchmark" value={basis != null ? `${Math.abs(basis * 100).toFixed(1)}% ${basis < 0 ? "below" : "above"}` : "—"} />}
               </div>
               <div className="hr" />
               <div className="kv"><span className="k">24h token change</span><span className={"v mono " + ((market.priceChange24h ?? 0) >= 0 ? "pos" : "neg")}>{market.priceChange24h != null ? (market.priceChange24h >= 0 ? "+" : "") + market.priceChange24h.toFixed(2) + "%" : "—"}</span></div>
               <div className="kv"><span className="k">Jupiter liquidity</span><span className="v mono">{market.liquidity != null ? fmtUsd(market.liquidity, 0) : "—"}</span></div>
               <div className="kv"><span className="k">Freshness</span><span className="v mono" title={market.updatedAt ? new Date(market.updatedAt).toLocaleString() : undefined}>{market.updatedAt ? fmtAge(Math.floor(new Date(market.updatedAt).getTime() / 1000)) : "—"}</span></div>
               <div className="callout" style={{ marginTop: 14 }}>
-                {equity
-                  ? <>A stock-benchmark contract references the underlying NVDA stock and <strong>excludes the token-market basis</strong> shown here ({basis != null ? fmtPct(Math.abs(basis)) : "—"} right now).</>
-                  : <>Protection settles against the <strong>ANTHROPIC token market price</strong> using a Jupiter 5-minute median. It does not track the private company’s valuation.</>}
+                New protection follows the <strong>{asset.symbol} token market</strong> using a 5-minute median. {equity ? "The stock benchmark is context only. Existing v1 contracts retain benchmark terms." : "The private company valuation is not the reference."}
               </div>
             </>
           )}
@@ -91,8 +90,8 @@ export default function CompareTab() {
           <div className="kv"><span className="k">Mint (mainnet)</span><span className="v mono" style={{ fontSize: 11 }}><a href={solscan} target="_blank" rel="noreferrer">{asset.mint.slice(0, 6)}…{asset.mint.slice(-4)}</a></span></div>
           <div className="kv"><span className="k">Token program</span><span className="v">{asset.program} <span className="pill green">verified</span></span></div>
           <div className="kv"><span className="k">Decimals</span><span className="v mono">{asset.decimals}</span></div>
-          <div className="kv"><span className="k">Scaled multiplier (live)</span><span className="v mono">{mult.toFixed(10)}</span></div>
-          <div className="kv"><span className="k">1 raw token equals</span><span className="v mono">{mult.toFixed(6)} share-equiv</span></div>
+          <div className="kv"><span className="k">Scaled multiplier (live)</span><span className="v mono">{mult != null ? mult.toFixed(10) : "Unavailable"}</span></div>
+          <div className="kv"><span className="k">1 raw token equals</span><span className="v mono">{mult != null ? mult.toFixed(6) + " displayed tokens" : "Unavailable"}</span></div>
           <div className="kv"><span className="k">Underlying</span><span className="v">{asset.underlying}</span></div>
           <div className="kv"><span className="k">Jupiter coverage</span><span className="v">{asset.jupiter ? <span className="pill green">yes</span> : "no"}</span></div>
           <div className="disclosure" style={{ marginTop: 10 }}>

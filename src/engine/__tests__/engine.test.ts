@@ -49,6 +49,34 @@ describe("fixed-point arithmetic (PRD §6.3)", () => {
   });
 });
 
+describe("NVDAx reference migration", () => {
+  it("keeps a purchased v1 reference after asset metadata becomes v2", () => {
+    const engine = makeDemoEngine(NOW);
+    const c = engine.purchase(mkQuote(engine));
+    engine.assets.get(0)!.referenceVersion = 2;
+    expect(engine.requestExercise(c.contractId, toFixed(1)).kind).toBe("Equity");
+    expect(() => engine.settleExpiryPrestocks(c.contractId, [])).toThrow(/wrong reference path/);
+  });
+  it("routes v2 exercise and expiry to the token median and conserves reserves", () => {
+    const engine = makeDemoEngine(NOW);
+    engine.assets.get(0)!.referenceVersion = 2;
+    engine.getSeries(0, 0).referenceVersion = 2;
+    const c = engine.purchase(mkQuote(engine));
+    expect(() => engine.settleExpiryEquity(c.contractId, { slot: 1n, sourceTs: NOW, collectedTs: NOW, price: toFixed(100) })).toThrow(/wrong reference path/);
+    engine.setNow(c.expiryTs);
+    const samples = [1, 2, 3].map((n) => ({ slot: BigInt(n), sourceTs: c.expiryTs - 10 + n, collectedTs: c.expiryTs, price: toFixed(150) }));
+    expect(engine.settleExpiryPrestocks(c.contractId, samples)).toBe(toFixed(200));
+    expect(c.reservedCollateral).toBe(0n);
+    expect(c.status).toBe("Expired");
+  });
+  it("gives new v2 exercise a token median request without changing v1 metadata", () => {
+    const engine = makeDemoEngine(NOW);
+    engine.getSeries(0, 0).referenceVersion = 2;
+    const c = engine.purchase(mkQuote(engine));
+    expect(engine.requestExercise(c.contractId, toFixed(1)).kind).toBe("PreStocks");
+  });
+});
+
 describe("premium model", () => {
   it("prices higher floors above lower floors for identical terms", () => {
     const qty = toFixed(1);

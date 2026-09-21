@@ -1,3 +1,4 @@
+import { ACTIVE_REFERENCE_VERSION, effectiveMultiplier } from "../src/data/referencePolicy";
 // Optket quote-signing service (PRD §8) + real market-data proxy (§4/§13/§15)
 // + trial-budget faucet (§19).
 //
@@ -31,7 +32,7 @@ import type { QuotePayload } from "../src/engine/types";
 import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
 import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
-import { JupiterPreStocksAdapter, PythEquityAdapter } from "./references";
+import { JupiterPreStocksAdapter, PythEquityAdapter, createNvdaTokenReference } from "./references";
 
 // See the note in keeper.ts: devnet is the default so an unset RPC_URL in a
 // hosted environment cannot point the service at a nonexistent local validator.
@@ -45,6 +46,7 @@ const conn = new Connection(RPC_URL, "confirmed");
 const mainnet = new Connection(MAINNET_RPC, "confirmed");
 const equityReference = new PythEquityAdapter(0);
 const prestocksReference = new JupiterPreStocksAdapter(1);
+const nvdaTokenReference = createNvdaTokenReference();
 
 // ---- keys (env secrets in production, gitignored files locally) ----
 const dir = new URL(".", import.meta.url).pathname;
@@ -123,9 +125,10 @@ async function scaledMultiplier(mint: string): Promise<number> {
     const exts = (info.value?.data as any)?.parsed?.info?.extensions || [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const s = exts.find((e: any) => e.extension === "scaledUiAmountConfig");
-    return s ? Number(s.state.multiplier) : 1;
+    if (!info.value || !("parsed" in info.value.data)) throw new Error("Mint conversion data unavailable");
+    return s ? effectiveMultiplier(s.state, nowSec()) : 1;
   } catch {
-    return 1; // degraded, not fatal — multiplier snapshot exists in the registry
+    throw new Error("Mint conversion data unavailable");
   }
 }
 
@@ -138,7 +141,8 @@ async function marketData(mint: string) {
       row = ((await r.json()) as Record<string, any>)[mint] ?? null;
     }
   } catch { /* upstream down — report unavailable below */ }
-  const multiplier = await scaledMultiplier(mint);
+  const multiplier = await scaledMultiplier(mint).catch(() => null);
+  const sourceTime = typeof row?.blockId === "number" ? await mainnet.getBlockTime(row.blockId).catch(() => null) : null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyRow = row as any;
   return {
@@ -147,7 +151,7 @@ async function marketData(mint: string) {
     benchmark: anyRow?.stockData?.price ?? null,
     liquidity: anyRow?.liquidity ?? null,
     priceChange24h: anyRow?.priceChange24h ?? null,
-    updatedAt: anyRow?.stockData?.updatedAt ?? anyRow?.createdAt ?? null,
+    updatedAt: sourceTime != null ? new Date(sourceTime * 1000).toISOString() : null,
     decimals: anyRow?.decimals ?? null,
     blockId: anyRow?.blockId ?? null,
     scaledMultiplier: multiplier,
@@ -177,11 +181,11 @@ type ReferenceStatus =
       nextOpen?: number;
     };
 
-async function referenceStatus(assetId: number): Promise<ReferenceStatus> {
+async function referenceStatus(assetId: number, version = ACTIVE_REFERENCE_VERSION[assetId]): Promise<ReferenceStatus> {
   const asset = VERIFIED_ASSETS[assetId];
   if (!asset) throw new ServiceError("unknown asset", 404);
 
-  if (asset.kind === "EquityToken") {
+  if (assetId === 0 && version === 1) {
     const observation = await equityReference.observe();
     const collectedTs = nowSec();
     if (observation.available && observation.price > 0n
@@ -207,7 +211,7 @@ async function referenceStatus(assetId: number): Promise<ReferenceStatus> {
       };
     }
   } else {
-    const observation = (await prestocksReference.observe(1))[0];
+    const observation = (await (assetId === 0 ? nvdaTokenReference : prestocksReference).observe(1))[0];
     if (observation?.available && observation.price > 0n) {
       return { available: true, assetId, spot: observation.price, source: observation.sourceId, observedAt: observation.sourceTs };
     }
@@ -224,13 +228,14 @@ async function referenceStatus(assetId: number): Promise<ReferenceStatus> {
 async function buildSignedQuote(buyer: string, assetId: number, seriesId: number, quantity: bigint) {
   const s = await fetchSeries(assetId, seriesId);
   if (!s.active) throw new Error("series is not active");
+  if (s.referenceVersion !== ACTIVE_REFERENCE_VERSION[assetId]) throw new ServiceError("This legacy series is closed to new purchases.", 409);
   if (quantity <= 0n) throw new Error("quantity must be positive");
   if (quantity > s.maxContractSize) throw new Error("quantity exceeds max contract size");
 
   const now = nowSec();
   if (now > s.purchaseCutoffTs) throw new Error("purchase window has closed");
 
-  const reference = await referenceStatus(assetId);
+  const reference = await referenceStatus(assetId, s.referenceVersion);
   if (!reference.available) {
     throw new ServiceError(
       reference.reason,
@@ -358,7 +363,7 @@ async function rotateShortSeries() {
             break discovery;
           }
           const s = decodeSeries(info.data as Buffer);
-          if (s.active && s.expiryTs > t + 240) {
+          if (s.active && s.referenceVersion === ACTIVE_REFERENCE_VERSION[0] && s.purchaseCutoffTs > t + 150) {
             SHORT_TIERS.forEach((tier, tierIndex) => {
               if (s.strike === fx(tier[0].strike)) activeShortIds.set(tierIndex, s.seriesId);
             });
@@ -372,7 +377,7 @@ async function rotateShortSeries() {
       const currentId = activeShortIds.get(tierIndex);
       if (currentId != null) {
         const current = await fetchSeries(0, currentId).catch(() => null);
-        if (current?.active && current.expiryTs > t + 240) continue;
+        if (current?.active && current.referenceVersion === ACTIVE_REFERENCE_VERSION[0] && current.purchaseCutoffTs > t + 150) continue;
       }
       if (nextShortId > SHORT_ID_MAX) throw new Error(`short-series id range exhausted at ${SHORT_ID_MAX}`);
       const seriesId = nextShortId++;
@@ -513,12 +518,13 @@ const server = createServer(async (req, res) => {
       const mint = url.searchParams.get("mint");
       if (!owner || !mint) return json(res, 400, { error: "owner and mint required" });
       const accs = await mainnet.getParsedTokenAccountsByOwner(new PublicKey(owner), { mint: new PublicKey(mint) });
-      let displayed = 0;
+      let raw = 0;
       for (const a of accs.value) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        displayed += ((a.account.data as any).parsed.info.tokenAmount.uiAmount as number) || 0;
+        const amount = a.account.data.parsed.info.tokenAmount;
+        raw += Number(amount.amount) / 10 ** Number(amount.decimals);
       }
-      return json(res, 200, { owner, mint, displayed, scaledMultiplier: await scaledMultiplier(mint) });
+      const multiplier = await scaledMultiplier(mint);
+      return json(res, 200, { owner, mint, raw, displayed: raw * multiplier, scaledMultiplier: multiplier });
     }
     if (req.method === "GET" && url.pathname === "/series") {
       const s = await fetchSeries(Number(url.searchParams.get("assetId") ?? 0), Number(url.searchParams.get("seriesId") ?? 0));
@@ -537,12 +543,12 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/series/all") {
       const ids: Array<{ assetId: number; seriesId: number }> = [];
       const currentShortIds = [...new Set(activeShortIds.values())];
-      for (const assetId of [0, 1]) for (const seriesId of [0, 1, ...currentShortIds]) ids.push({ assetId, seriesId });
+      for (const assetId of [0, 1]) for (const seriesId of [...(assetId === 0 ? [2, 3] : [0, 1]), ...currentShortIds]) ids.push({ assetId, seriesId });
       const infos = await conn.getMultipleAccountsInfo(ids.map((k) => seriesPda(k.assetId, k.seriesId)));
       const now = nowSec();
       const out = infos
         .map((info, i) => (info ? { ...decodeSeries(info.data as Buffer), ...ids[i] } : null))
-        .filter((s): s is SeriesTerms & { assetId: number; seriesId: number } => !!s && s.active && s.expiryTs > now)
+        .filter((s): s is SeriesTerms & { assetId: number; seriesId: number } => !!s && s.active && s.referenceVersion === ACTIVE_REFERENCE_VERSION[s.assetId] && s.purchaseCutoffTs >= now)
         .map((s) => ({
           ...s,
           strike: s.strike.toString(),

@@ -71,3 +71,26 @@ pub enum ReferenceKind {
     Equity,
     PreStocks,
 }
+
+/// Immutable contract version selects the reference, never mutable asset metadata.
+/// PreStocks is the existing wire name for the token-market median path.
+pub fn contract_reference_kind(asset_id: u8, version: u32) -> Result<ReferenceKind> {
+    match (asset_id, version) {
+        (0, 1) => Ok(ReferenceKind::Equity),
+        (0, 2) | (1, 1) => Ok(ReferenceKind::PreStocks),
+        _ => err!(crate::errors::OptketError::WrongReferencePath),
+    }
+}
+
+#[cfg(test)]
+mod reference_version_tests {
+    use super::*;
+    #[test]
+    fn immutable_reference_routes() {
+        assert_eq!(contract_reference_kind(0, 1).unwrap(), ReferenceKind::Equity);
+        assert_eq!(contract_reference_kind(0, 2).unwrap(), ReferenceKind::PreStocks);
+        assert_eq!(contract_reference_kind(1, 1).unwrap(), ReferenceKind::PreStocks);
+        assert!(contract_reference_kind(0, 3).is_err());
+        assert!(contract_reference_kind(1, 2).is_err());
+    }
+}

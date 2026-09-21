@@ -46,6 +46,7 @@ pub struct SettleExpiry<'info> {
 }
 
 pub fn settle_expiry_equity(ctx: Context<SettleExpiry>, observation: Observation) -> Result<()> {
+    require!(contract_reference_kind(ctx.accounts.contract.asset_id, ctx.accounts.contract.reference_version)? == ReferenceKind::Equity, OptketError::WrongReferencePath);
     let expiry = ctx.accounts.contract.expiry_ts;
     let settlement = validate_equity(
         &observation,
@@ -58,6 +59,7 @@ pub fn settle_expiry_equity(ctx: Context<SettleExpiry>, observation: Observation
 }
 
 pub fn settle_expiry_prestocks(ctx: Context<SettleExpiry>, observations: Vec<Observation>) -> Result<()> {
+    require!(contract_reference_kind(ctx.accounts.contract.asset_id, ctx.accounts.contract.reference_version)? == ReferenceKind::PreStocks, OptketError::WrongReferencePath);
     let expiry = ctx.accounts.contract.expiry_ts;
     let settlement = validate_prestocks_median(
         &observations,

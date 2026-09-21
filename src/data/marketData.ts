@@ -14,7 +14,7 @@ export interface Market {
   updatedAt: string | null;
   decimals: number | null;
   blockId: number | null;
-  scaledMultiplier: number;
+  scaledMultiplier: number | null;
   available: boolean;
 }
 

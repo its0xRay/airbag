@@ -33,12 +33,12 @@ export interface AssumptionSet {
 export const ASSUMPTIONS: Record<number, AssumptionSet> = {
   // asset 0 — public-equity token (lower vol, hedge investigable)
   0: {
-    version: 2,
+    version: 3,
     weeklyVolBps: 320,
     jumpEventBps: 25,
     earlyExerciseBps: 15,
     hedgeCostBps: 20,
-    hedgeAvailable: true,
+    hedgeAvailable: false,
     executionFundingBps: 10,
     opsBps: 8,
     capitalCostBps: 12,

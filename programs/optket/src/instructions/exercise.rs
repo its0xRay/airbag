@@ -53,9 +53,10 @@ pub fn request_exercise(ctx: Context<RequestExercise>, quantity: u64) -> Result<
     require!(quantity <= contract.remaining_quantity, OptketError::ExceedsRemaining);
 
     // Derive the observation window at request time (irrevocable — PRD §10.2).
-    let (window_start, window_end, kind) = match ctx.accounts.asset.kind {
-        AssetKind::EquityToken => (now, now + EQUITY_MAX_DELAY_SECS, ReferenceKind::Equity),
-        AssetKind::PreStocks => (now, now + PRESTOCKS_WINDOW_SECS, ReferenceKind::PreStocks),
+    let kind = contract_reference_kind(contract.asset_id, contract.reference_version)?;
+    let (window_start, window_end, kind) = match kind {
+        ReferenceKind::Equity => (now, now + EQUITY_MAX_DELAY_SECS, kind),
+        ReferenceKind::PreStocks => (now, now + PRESTOCKS_WINDOW_SECS, kind),
     };
 
     // Lock the requested quantity: move remaining -> pending.

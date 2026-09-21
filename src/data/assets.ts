@@ -9,6 +9,7 @@
 export interface VerifiedAsset {
   key: string;
   symbol: string;
+  logo: string;
   name: string;
   kind: "EquityToken" | "PreStocks";
   /** Real on-chain mint (mainnet). */
@@ -29,13 +30,14 @@ export const VERIFIED_ASSETS: VerifiedAsset[] = [
   {
     key: "nvdax",
     symbol: "NVDAx",
+    logo: "https://xstocks-metadata.backed.fi/logos/tokens/NVDAx.png",
     name: "NVIDIA xStock",
     kind: "EquityToken",
     mint: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
     program: "Token-2022",
     decimals: 8,
     scaledMultiplier: 1.0009180758490996,
-    benchmarkLabel: "NVDA underlying stock benchmark",
+    benchmarkLabel: "NVDAx token market · 5-minute median",
     underlying: "NVIDIA Corp (NASDAQ: NVDA)",
     jupiter: true,
     verifiedAt: "2026-09-18",
@@ -43,6 +45,7 @@ export const VERIFIED_ASSETS: VerifiedAsset[] = [
   {
     key: "anthropic",
     symbol: "ANTHROPIC",
+    logo: "https://www.prestocks.com/logos/anthropic.png?cachebust=1",
     name: "Anthropic PreStocks",
     kind: "PreStocks",
     mint: "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",

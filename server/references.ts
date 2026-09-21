@@ -8,6 +8,9 @@
 // time, price, availability and verification method. One asset's failure never
 // affects the other — adapters are independent and errors are contained.
 
+import { Connection } from "@solana/web3.js";
+import { VERIFIED_ASSETS } from "../src/data/assets";
+
 const PRICE_ONE = 1_000_000;
 
 export interface RefObservation {
@@ -126,33 +129,55 @@ export class JupiterPreStocksAdapter {
     private mint = process.env.JUP_TOKEN_MINT || "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
     private api = process.env.JUP_PRICE_API || "https://lite-api.jup.ag/price/v3",
     private sampleDelayMs = 1500,
+    private sourceTime?: (slot: number) => Promise<number | null>,
   ) {}
 
-  private async sample(): Promise<{ price: bigint; slot: bigint } | null> {
-    const r = await fetch(`${this.api}?ids=${this.mint}`);
+  private async sample(): Promise<{ price: bigint; slot: bigint; sourceTs: number } | null> {
+    const r = await fetch(`${this.api}?ids=${this.mint}`, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) return null;
     const j = (await r.json()) as Record<string, { usdPrice?: number; blockId?: number }>;
     const row = j[this.mint];
-    if (!row?.usdPrice || typeof row.blockId !== "number" || !Number.isSafeInteger(row.blockId) || row.blockId <= 0) return null;
-    return { price: toFixed(row.usdPrice), slot: BigInt(row.blockId) };
+    if (!row?.usdPrice || !Number.isFinite(row.usdPrice) || row.usdPrice <= 0 || typeof row.blockId !== "number" || !Number.isSafeInteger(row.blockId) || row.blockId <= 0) return null;
+    const sourceTs = this.sourceTime ? await this.sourceTime(row.blockId) : nowSec();
+    if (sourceTs == null || !Number.isSafeInteger(sourceTs) || sourceTs > nowSec() || nowSec() - sourceTs > 60) return null;
+    // Jupiter usdPrice is already per scaled UI token; usdPricePrescaled is
+    // a different field. Do not apply the mint multiplier a second time.
+    return { price: toFixed(row.usdPrice), slot: BigInt(row.blockId), sourceTs };
   }
 
   /** Collect `count` qualifying samples for the median window (PRD §9.2). */
   async observe(count = 3): Promise<RefObservation[]> {
     const out: RefObservation[] = [];
     let lastSlot = 0n;
-    const maxAttempts = Math.max(count * 5, count);
+    const maxAttempts = count === 1 ? 1 : Math.max(count * 5, count);
     for (let attempt = 0; attempt < maxAttempts && out.length < count; attempt++) {
-      const ts = nowSec();
       try {
         const s = await this.sample();
         if (s && s.slot > lastSlot) {
           lastSlot = s.slot;
-          out.push({ price: s.price, sourceTs: ts, slot: s.slot, available: true, sourceId: `jupiter:${this.mint.slice(0, 6)}`, verification: "jupiter-price-v3" });
+          out.push({ price: s.price, sourceTs: s.sourceTs, slot: s.slot, available: true, sourceId: `jupiter:${this.mint.slice(0, 6)}`, verification: this.sourceTime ? "jupiter-price-v3-mainnet-block-time" : "jupiter-price-v3" });
         }
       } catch { /* retry within the bounded sampling window */ }
       if (out.length < count && attempt < maxAttempts - 1) await sleep(this.sampleDelayMs);
     }
     return out;
   }
+}
+
+/** NVDAx v2 requires fresh upstream updates, not freshly collected stale prints.
+ * Legacy ANTHROPIC v1 retains its original snapshot observation policy. */
+export function createNvdaTokenReference() {
+  const mainnet = new Connection(process.env.MAINNET_RPC || "https://api.mainnet-beta.solana.com", {
+    commitment: "confirmed",
+    fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8000) }),
+  });
+  let cachedSlot = -1;
+  let cachedTime: number | null = null;
+  return new JupiterPreStocksAdapter(0, VERIFIED_ASSETS[0].mint, undefined, 1500, async (slot) => {
+    if (slot !== cachedSlot || cachedTime == null) {
+      cachedTime = await mainnet.getBlockTime(slot);
+      cachedSlot = slot;
+    }
+    return cachedTime;
+  });
 }
