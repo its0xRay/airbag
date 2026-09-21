@@ -34,8 +34,9 @@ is safe for small text. Keep the hierarchy `text` → `dim` → `faint`.
 | `--amber` / `--amber-dim` | `#f5c451` / `#3a2f12` | Devnet-value boundary, warnings, unavailable state |
 | `--red` / `--red-dim` | `#f87171` / `#3a1a1a` | Destructive, negative values, failures |
 
-Green is the single brand accent. Amber is reserved for the demo/simulation
-boundary — that honesty signal is part of the brand, not decoration.
+Green is the single brand accent, concentrated on the purchase action and payoff.
+The compact oUSD demo/no-real-value disclosure is neutral and always readable.
+Amber signals warnings or unavailable data, not the normal Devnet environment.
 
 ## Typography
 
@@ -43,10 +44,15 @@ boundary — that honesty signal is part of the brand, not decoration.
 - **Mono (`--mono`)**: `SF Mono` / `JetBrains Mono` for every number, address,
   price, and quantity. Always pair with `tabular-nums` (set globally via
   `.mono` and `font-variant-numeric`) so updating values don't jitter.
-- Headings: weight 650, `letter-spacing: -0.01em` (tighter, `-0.02em`, at display sizes).
+- Landing headings: weight 500, tighter tracking at display sizes. Financial values retain stronger emphasis.
 - Body: 14px base, `line-height: 1.5`.
 
 ## Shape & depth
+
+The public page combines Set-COM's lighter typography and restrained colour with
+Optimus's flat numbered rows. Keep one contained Protect workspace; supporting
+benefits, asset descriptions and product links use separators rather than cards.
+The process selector explains mechanics only; it never depicts a simulated transaction.
 
 - Radius: `--radius` 12px (cards), `--radius-sm` 8px (buttons, inputs), 100px (pills).
 - **Borders, not shadows.** The system is flat-with-1px-borders; don't add shadows

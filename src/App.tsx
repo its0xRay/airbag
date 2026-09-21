@@ -79,7 +79,7 @@ export default function App() {
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
-            {connected ? <button className="btn primary" onClick={() => setTab("portfolio")}>My positions</button> : <a className="btn primary" href="#protection">Try protection</a>}
+            {connected ? <button className="btn ghost" onClick={() => setTab("portfolio")}>My positions</button> : <a className="btn ghost" href="#protection">Try protection ↗</a>}
           </>
         ) : (
           <WalletBar />

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import ProtectTab from "./ProtectTab";
 import AssetLogo from "./AssetLogo";
 import { VERIFIED_ASSETS } from "../data/assets";
@@ -6,17 +7,24 @@ import { OPTKET_PROGRAM_ID } from "../client/optketProgram";
 import type { ProtectDraft } from "../App";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history";
+const steps = [
+  ["Choose a floor", "Set your protection", "Choose an asset, quantity, price floor and expiry. Explore the payout before connecting your wallet."],
+  ["Pay once", "One premium upfront", "Buy with a fresh signed quote. Your maximum contractual payout is reserved onchain when the position is issued."],
+  ["Keep holding", "Your tokens stay with you", "The underlying never enters an Optket vault. Protection is a separate contract, without buyer margin or liquidation."],
+  ["Exercise or settle", "Payout against the reference", "Request partial or full exercise before the cutoff, or let the keeper settle at expiry. Payout uses the verified reference and your contract’s floor."],
+] as const;
 
 export default function Landing({ onLaunch }: {
   onLaunch: (tab: AppTab, draft?: ProtectDraft) => void | Promise<void>;
   launching?: boolean;
   launchStatus?: string;
 }) {
+  const [step, setStep] = useState(0);
   return (
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
-          <span className="lp-eyebrow"><span className="lp-dot" aria-hidden="true" />Solana Devnet</span>
+          <span className="lp-eyebrow">Solana Devnet</span>
           <h1 className="lp-title">Protect the downside.<br /><span className="soft">Keep the upside.</span></h1>
           <p className="lp-sub">Downside protection for tokenized stocks and PreStocks—even without a listed-options market. Choose a floor. Pay once. Keep the token.</p>
           <div className="lp-meta"><span className="demo-label">oUSD <small>demo · no real value</small></span><span>Fees and rent sponsored</span></div>
@@ -35,19 +43,17 @@ export default function Landing({ onLaunch }: {
             ["Keep the token", "Your underlying stays in your wallet."],
             ["Fixed cost", "One premium. No buyer margin or liquidation."],
             ["Fully reserved", "Maximum contractual payout is reserved onchain."],
-          ].map(([title, body]) => <article className="lp-thesis-point" key={title}><h3>{title}</h3><p>{body}</p></article>)}
+          ].map(([title, body], i) => <article className="lp-thesis-point" key={title}><span className="lp-row-number mono" aria-hidden="true">0{i + 1}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}
         </div>
       </section>
 
       <section className="lp-section" id="how-it-works">
         <div className="lp-section-head"><div className="lp-kicker">How it works</div><h2 className="lp-h2">Choose, pay, hold, settle.</h2></div>
-        <div className="lp-grid four">
-          {[
-            ["Choose a floor", "Set the asset, quantity, floor and expiry."],
-            ["Pay once", "Buy with a fresh signed premium quote."],
-            ["Keep holding", "The token never enters an Optket vault."],
-            ["Exercise or settle", "Request early exercise or let the keeper settle at expiry."],
-          ].map(([title, body], i) => <article className="lp-step" key={title}><div className="lp-step-n" aria-hidden="true">{i + 1}</div><h3>{title}</h3><p>{body}</p></article>)}
+        <div className="lp-process">
+          <div className="lp-process-steps" role="group" aria-label="Explore how protection works">
+            {steps.map(([title], i) => <button key={title} type="button" aria-pressed={step === i} aria-controls="process-detail" onClick={() => setStep(i)}><span className="mono">0{i + 1}</span>{title}<span aria-hidden="true">↗</span></button>)}
+          </div>
+          <div className="lp-process-detail" id="process-detail" aria-live="polite"><span className="lp-kicker">How protection works · 0{step + 1}</span><h3>{steps[step][1]}</h3><p>{steps[step][2]}</p><a className="lp-text-link" href="#protection">Configure protection →</a></div>
         </div>
       </section>
 
@@ -59,10 +65,10 @@ export default function Landing({ onLaunch }: {
             return <article className="lp-reference-card" key={asset.key}>
               <div className="lp-reference-card-head"><div className="row"><AssetLogo asset={asset} /><div><span className="lp-reference-kind">{id === 0 ? "xStock" : "PreStocks"}</span><h3>{asset.symbol}</h3></div></div></div>
               <p className="lp-reference-summary">{id === 0 ? "Protect NVDAx token-price downside, including a discount to the NVIDIA stock benchmark." : "Protect the traded token price—not the private company’s valuation."}</p>
-              <dl><div><dt>Settlement reference</dt><dd>5-minute token-market median</dd></div><div><dt>Source</dt><dd>Jupiter observations</dd></div><div><dt>Availability</dt><dd>Fresh data and active series required</dd></div></dl>
             </article>;
           })}
         </div>
+        <p className="lp-lede lp-shared-reference">Jupiter observations · 5-minute median · Fresh data and active series required</p>
         <div className="lp-note"><p className="disclosure">Existing NVDAx v1 contracts retain their stock-benchmark terms.</p><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets</button></div>
       </section>
 
@@ -89,8 +95,8 @@ export default function Landing({ onLaunch }: {
 
       <section className="lp-section">
         <div className="lp-section-head"><div className="lp-kicker">Beyond the first position</div><h2 className="lp-h2">Manage the full picture.</h2></div>
-        <div className="lp-grid four">
-          {([["portfolio", "Positions", "Coverage and exercise."], ["compare", "Markets", "Prices and token details."], ["underwriter", "Pools", "Collateral and activity."], ["history", "Onchain", "Verifiable transactions."]] as const).map(([tab, title, body]) => <article className="lp-step" key={tab}><h3>{title}</h3><p>{body}</p><button className="text-action" onClick={() => onLaunch(tab)}>Open {title.toLowerCase()} →</button></article>)}
+        <div className="lp-product-links">
+          {([["portfolio", "Positions", "Coverage and exercise"], ["compare", "Markets", "Prices and token details"], ["underwriter", "Pools", "Collateral and activity"], ["history", "Onchain", "Verifiable transactions"]] as const).map(([tab, title, body]) => <button key={tab} onClick={() => onLaunch(tab)}><strong>{title}</strong><span>{body}</span><span aria-hidden="true">↗</span></button>)}
         </div>
       </section>
 
