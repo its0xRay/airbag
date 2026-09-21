@@ -55,23 +55,35 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   const trackerScale = Math.max(held, protectedUnits, 1);
 
   return (
-    <>
+    <div className="positions-page">
       <div className="app-page-head">
-        <div><h1>Positions</h1><p>Manage your protection, exercise coverage, or protect more.</p></div>
-        <button className="btn primary" onClick={() => onProtect(assetId)}>Protect another asset</button>
-        <span className="pill gray mono" title={c.address ?? undefined}>{c.address ? `${c.address.slice(0, 5)}…${c.address.slice(-4)}` : "Connected"}</span>
+        <div><h1>Your positions</h1><p>Your active protection and completed contracts.</p></div>
+        {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId)}>Protect another asset</button>}
       </div>
-      <RemindersPanel onRenew={onRenew} />
 
-      <div className="row" style={{ marginBottom: 16 }}>
+      <div className="position-toolbar">
+        <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({open.length})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({history.length})</button></div>
+        <div className="position-assets" role="group" aria-label="Filter positions by asset">
         {VERIFIED_ASSETS.map((a, i) => (
-          <button key={a.key} className={"btn sm " + (i === assetId ? "primary" : "ghost")} onClick={() => setAssetId(i)}>
+          <button key={a.key} className="btn ghost sm" aria-pressed={i === assetId} onClick={() => setAssetId(i)}>
             {a.symbol}
           </button>
         ))}
+        </div>
       </div>
 
-      {hasCoverageData && <div className="card">
+
+      <div className="position-list">
+      {visible.length === 0 ? (
+        <div className="card empty"><strong>{view === "active" ? `No active ${asset.symbol} protection.` : `No completed ${asset.symbol} positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId)}>Protect {asset.symbol}</button></div>}</div>
+      ) : (
+        visible.map((k) => <ContractCard key={k.address} contract={k} />)
+      )}
+      </div>
+
+      {c.contracts.length > 0 && <details className="secondary-tool position-context"><summary>Renewals and reminders</summary><RemindersPanel onRenew={onRenew} /></details>}
+
+      {hasCoverageData && <details className="secondary-tool position-context"><summary>Coverage and holdings comparison</summary><div className="card">
         <div className="card-title">Coverage tracker — {asset.symbol}</div>
         <div className="grid cols-3">
           <div><div className="stat-label">Holdings (read-only)</div><div className="stat-value sm mono">{held ? held.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "—"}</div></div>
@@ -94,22 +106,14 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
           Informational only — the tracker never modifies contracts. Use the optional wallet inspector below to compare
           against real {asset.symbol} holdings.
         </div>
-      </div>}
+      </div></details>}
 
-      <div style={{ height: 14 }} />
-      <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({open.length})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({history.length})</button></div>
-      {visible.length === 0 ? (
-        <div className="card empty"><strong>{view === "active" ? `No active ${asset.symbol} protection.` : `No completed ${asset.symbol} positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId)}>Protect {asset.symbol}</button></div>}</div>
-      ) : (
-        visible.map((k) => <ContractCard key={k.address} contract={k} />)
-      )}
-
-      <details className="secondary-tool">
+      <details className="secondary-tool position-context">
         <summary>Inspect mainnet token holdings</summary>
         <p>This optional read-only tool can inspect any Solana address. It is separate from the connected Devnet wallet and does not modify a position.</p>
         <HoldingsCard />
       </details>
-    </>
+    </div>
   );
 }
 
@@ -146,15 +150,65 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
               <span className={"pill " + (STATUS_TONE[k.status] || "gray")}>{k.status}</span>
               {open && expired && <span className="pill amber">awaiting settlement</span>}
             </div>
-            <div className="faint" style={{ fontSize: 12 }}>
-              {contractReferenceLabel(k.assetId, k.referenceVersion)} · floor {fmtPrice(k.strike)} · exercise cutoff {beforeCutoff ? `${fmtDuration(k.exerciseCutoffTs - now)} left` : "passed"} · expiry {fmtClock(k.expiryTs)}
-            </div>
           </div>
         </div>
         <a className="pill blue" href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">account ↗</a>
       </div>
 
-      <div className="hr" />
+      <div className="position-overview">
+        <div><span>Protected quantity</span><strong className="mono">{qty(k.remainingQuantity)} {asset.symbol}</strong></div>
+        <div><span>Price floor</span><strong className="mono">{fmtPrice(k.strike)}</strong></div>
+        <div><span>Expiry</span><strong>{fmtClock(k.expiryTs)}</strong></div>
+      </div>
+      {k.pendingQuantity > 0n && (
+        <div className="callout" style={{ marginTop: 12 }}>
+          {qty(k.pendingQuantity)} pending — the keeper settles it against the next qualifying
+          reference and pays intrinsic value automatically.
+        </div>
+      )}
+
+      {open && beforeCutoff && k.remainingQuantity > 0n && (
+        <details className="position-exercise">
+          <summary>Exercise protection <span className="faint">{fmtDuration(k.exerciseCutoffTs - now)} left</span></summary>
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <label className="field" style={{ flex: "0 1 180px" }}>
+              <span className="lbl">Quantity to exercise</span>
+              <input className="input" value={exQty} onChange={(e) => setExQty(e.target.value)} inputMode="decimal" placeholder="0.0" />
+            </label>
+            <button className="btn ghost sm" style={{ alignSelf: "flex-end" }} onClick={() => setExQty(String(tok(k.remainingQuantity)))}>Max</button>
+            <button
+              className="btn"
+              style={{ alignSelf: "flex-end" }}
+              disabled={!valid || c.busy}
+              onClick={requestExercise}
+            >
+              Request exercise
+            </button>
+          </div>
+          <div className="disclosure" style={{ marginTop: 8 }}>
+            Irrevocable once submitted. Settles at intrinsic value against the next qualifying
+            reference; remaining time value is forfeited and unrequested quantity stays protected.
+          </div>
+          {exerciseTx && (
+            <div className="callout" role="status" style={{ marginTop: 10 }}>
+              Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Waiting for the next qualifying reference.
+            </div>
+          )}
+        </details>
+      )}
+
+      {open && !expired && (
+        <div className="auto-settle-note"><span className="pill blue">automatic at expiry</span><span>Any remaining quantity is settled by the keeper; you do not need to submit an expiry transaction.</span></div>
+      )}
+
+      {open && expired && k.pendingQuantity === 0n && (
+        <div className="disclosure" style={{ marginTop: 12 }}>
+          Past expiry — the keeper settles remaining quantity automatically, or applies the contractual
+          failed-reference refund if no qualifying reference exists.
+        </div>
+      )}
+      <details className="position-details"><summary>Contract details and activity</summary>
+      <p className="disclosure">{contractReferenceLabel(k.assetId, k.referenceVersion)} · Early exercise cutoff: {fmtClock(k.exerciseCutoffTs)}</p>
       <div className="grid cols-3">
         <div><div className="stat-label">Remaining protected</div><div className="stat-value sm mono">{qty(k.remainingQuantity)}</div></div>
         <div><div className="stat-label">Pending exercise</div><div className="stat-value sm mono">{qty(k.pendingQuantity)}</div></div>
@@ -203,53 +257,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
         })}
       </div>
 
-      {k.pendingQuantity > 0n && (
-        <div className="callout" style={{ marginTop: 12 }}>
-          {qty(k.pendingQuantity)} pending — the keeper settles it against the next qualifying
-          reference and pays intrinsic value automatically.
-        </div>
-      )}
-
-      {open && beforeCutoff && k.remainingQuantity > 0n && (
-        <>
-          <div className="hr" />
-          <div className="row" style={{ flexWrap: "wrap" }}>
-            <label className="field" style={{ flex: "0 1 180px" }}>
-              <span className="lbl">Quantity to exercise</span>
-              <input className="input" value={exQty} onChange={(e) => setExQty(e.target.value)} inputMode="decimal" placeholder="0.0" />
-            </label>
-            <button className="btn ghost sm" style={{ alignSelf: "flex-end" }} onClick={() => setExQty(String(tok(k.remainingQuantity)))}>Max</button>
-            <button
-              className="btn"
-              style={{ alignSelf: "flex-end" }}
-              disabled={!valid || c.busy}
-              onClick={requestExercise}
-            >
-              Request exercise
-            </button>
-          </div>
-          <div className="disclosure" style={{ marginTop: 8 }}>
-            Irrevocable once submitted. Settles at intrinsic value against the next qualifying
-            reference; remaining time value is forfeited and unrequested quantity stays protected.
-          </div>
-          {exerciseTx && (
-            <div className="callout" role="status" style={{ marginTop: 10 }}>
-              Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Waiting for the next qualifying reference.
-            </div>
-          )}
-        </>
-      )}
-
-      {open && !expired && (
-        <div className="auto-settle-note"><span className="pill blue">automatic at expiry</span><span>Any remaining quantity is settled by the keeper; you do not need to submit an expiry transaction.</span></div>
-      )}
-
-      {open && expired && k.pendingQuantity === 0n && (
-        <div className="disclosure" style={{ marginTop: 12 }}>
-          Past expiry — the keeper settles remaining quantity automatically, or applies the contractual
-          failed-reference refund if no qualifying reference exists.
-        </div>
-      )}
+      </details>
     </div>
   );
 }

@@ -14,6 +14,8 @@ export interface ProtectDraft {
   assetId: number;
   seriesId?: number;
   quantity?: number;
+  quantityText?: string;
+  tenor?: "short" | "weekly";
 }
 export interface PositionTarget { assetId: number; address?: string }
 
@@ -94,7 +96,7 @@ export default function App() {
           )}
         </button>
         <div className="spacer" />
-        {tab === "home" && !connected ? (
+        {tab === "home" ? (
           <>
             <nav className="public-nav" aria-label="Product">
               <a href="#why-protect">Why protect</a>
@@ -102,21 +104,21 @@ export default function App() {
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
-            <a className="btn ghost" href="#protection">Get started ↗</a>
+            {connected ? <button className="btn ghost" onClick={() => goTo(useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app ↗</button> : <a className="btn ghost" href="#protection">Get started ↗</a>}
           </>
         ) : (
           <WalletBar />
         )}
       </header>
 
-      {(tab !== "home" || connected) && (
+      {tab !== "home" && (
         <nav className="tabs journey-tabs" aria-label="Application sections">
           {TABS.slice(0, 2).map(([t, label]) => (
             <button
               key={t}
-              className={"tab" + (tab === t || (tab === "home" && t === "protect") ? " active" : "")}
+              className={"tab" + (tab === t ? " active" : "")}
               onClick={() => goTo(t)}
-              aria-current={tab === t || (tab === "home" && t === "protect") ? "page" : undefined}
+              aria-current={tab === t ? "page" : undefined}
             >
               {label}
             </button>
@@ -137,7 +139,7 @@ export default function App() {
         </div>
       )}
 
-      {tab === "home" && <Landing onLaunch={(t, draft) => launch(t as Exclude<Tab, "home">, draft)} onViewPosition={viewPosition} launching={busy} launchStatus={status} />}
+      {tab === "home" && <Landing onLaunch={(t, draft) => launch(t as Exclude<Tab, "home">, draft)} onViewPosition={viewPosition} onConnected={draft => { setProtectDraft(draft); setTab("protect"); }} launching={busy} launchStatus={status} />}
       {tab === "protect" && (
         <ProtectTab
           onViewPositions={viewPosition}

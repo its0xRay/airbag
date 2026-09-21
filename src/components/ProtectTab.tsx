@@ -24,6 +24,7 @@ export default function ProtectTab({
   initialDraft,
   onInitialDraftConsumed,
   onViewPositions,
+  onConnected,
 }: {
   embedded?: boolean;
   renewal?: { assetId: number; quantity: number } | null;
@@ -31,6 +32,7 @@ export default function ProtectTab({
   initialDraft?: ProtectDraft | null;
   onInitialDraftConsumed?: () => void;
   onViewPositions?: (assetId: number, address?: string) => void;
+  onConnected?: (draft: ProtectDraft) => void;
 } = {}) {
   const c = useChain();
   const [publicSeries, setPublicSeries] = useState<SeriesInfo[]>([]);
@@ -70,8 +72,10 @@ export default function ProtectTab({
     setAssetId(initialDraft.assetId);
     setSeriesId(initialDraft.seriesId ?? null);
     const drafted = c.seriesList.find((s) => s.assetId === initialDraft.assetId && s.seriesId === initialDraft.seriesId);
-    if (drafted) setTenor(drafted.shortDated ? "short" : "weekly");
-    if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
+    if (initialDraft.tenor) setTenor(initialDraft.tenor);
+    else if (drafted) setTenor(drafted.shortDated ? "short" : "weekly");
+    if (initialDraft.quantityText !== undefined) setQtyStr(initialDraft.quantityText);
+    else if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
     onInitialDraftConsumed?.();
   }, [c.seriesList, initialDraft, onInitialDraftConsumed, renewal]);
 
@@ -189,7 +193,12 @@ export default function ProtectTab({
 
   const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : "Buy protection";
 
-  const primaryAction = () => c.connected ? buy() : c.connect();
+  const primaryAction = async () => {
+    if (c.connected) return buy();
+    const draft = { assetId, seriesId: selected?.seriesId, quantityText: qtyStr, tenor };
+    await c.connect();
+    if (useChain.getState().connected && !useChain.getState().error) onConnected?.(draft);
+  };
   const primaryDisabled = c.connected ? !canBuy : c.busy;
 
   return (

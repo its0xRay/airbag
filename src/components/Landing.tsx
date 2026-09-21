@@ -8,9 +8,10 @@ import type { ProtectDraft } from "../App";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history";
 
-export default function Landing({ onLaunch, onViewPosition }: {
+export default function Landing({ onLaunch, onViewPosition, onConnected }: {
   onLaunch: (tab: AppTab, draft?: ProtectDraft) => void | Promise<void>;
   onViewPosition: (assetId: number, address?: string) => void;
+  onConnected: (draft: ProtectDraft) => void;
   launching?: boolean;
   launchStatus?: string;
 }) {
@@ -24,7 +25,7 @@ export default function Landing({ onLaunch, onViewPosition }: {
           <p className="lp-asset-intro">For NVDAx and Anthropic PreStocks—even without a listed-options market.</p>
           <div className="lp-meta"><span className="demo-label">oUSD <small>demo · no real value</small></span><span>Fees and rent sponsored</span></div>
         </div>
-        <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} /></div>
+        <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
 
       <section className="lp-benefits-strip" id="why-protect" aria-label="Why Optket">
