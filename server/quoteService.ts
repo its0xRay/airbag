@@ -491,7 +491,8 @@ const server = createServer(async (req, res) => {
       let chain = "unreachable";
       try { chain = String(await conn.getSlot()); } catch { /* keep unreachable */ }
       return json(res, 200, {
-        ok: true, rpc: RPC_URL, slot: chain, programId: PROGRAM_ID.toBase58(),
+        ok: chain !== "unreachable", network: "devnet", slot: chain, programId: PROGRAM_ID.toBase58(),
+        referenceVersions: ACTIVE_REFERENCE_VERSION,
         quoteAuthority: quoteAuthority.publicKey.toBase58(), issued: usedQuoteIds.size,
       });
     }
