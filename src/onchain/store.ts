@@ -59,18 +59,24 @@ async function decodeTransactionActions(connection: Connection, signatures: stri
   const unique = [...new Set(signatures)].slice(0, 100);
   const actions = new Map<string, string>();
   if (unique.length === 0) return actions;
-  try {
-    const transactions = await connection.getParsedTransactions(unique, { maxSupportedTransactionVersion: 0 });
-    transactions.forEach((transaction, index) => {
-      if (!transaction) return;
-      const labels = transaction.transaction.message.instructions.flatMap((instruction) => {
-        if (!("programId" in instruction) || !instruction.programId.equals(OPTKET_PROGRAM_ID) || !("data" in instruction)) return [];
-        const label = decodeOptketInstruction(instruction.data);
-        return label ? [label] : [];
+  // Public RPC providers commonly cap or throttle parsed-transaction batches.
+  // Decode small batches independently so one rejected batch does not erase
+  // labels for every otherwise-readable transaction.
+  for (let offset = 0; offset < unique.length; offset += 10) {
+    const batch = unique.slice(offset, offset + 10);
+    try {
+      const transactions = await connection.getParsedTransactions(batch, { maxSupportedTransactionVersion: 0 });
+      transactions.forEach((transaction, index) => {
+        if (!transaction) return;
+        const labels = transaction.transaction.message.instructions.flatMap((instruction) => {
+          if (!("programId" in instruction) || !instruction.programId.equals(OPTKET_PROGRAM_ID) || !("data" in instruction)) return [];
+          const label = decodeOptketInstruction(instruction.data);
+          return label ? [label] : [];
+        });
+        if (labels.length > 0) actions.set(batch[index], [...new Set(labels)].join(" + "));
       });
-      if (labels.length > 0) actions.set(unique[index], [...new Set(labels)].join(" + "));
-    });
-  } catch { /* RPC may restrict transaction history; retain honest generic labels */ }
+    } catch { /* RPC may restrict transaction history; retain honest generic labels for this batch */ }
+  }
   return actions;
 }
 
