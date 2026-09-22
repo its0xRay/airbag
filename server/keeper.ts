@@ -1,4 +1,5 @@
-import { referenceKind } from "../src/data/referencePolicy";
+import { ACTIVE_REFERENCE_VERSION, referenceKind } from "../src/data/referencePolicy";
+import { loadObservations, saveObservations, pruneObservations, type ObservationScope } from "./observationStore";
 // Optket keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
 //
@@ -48,8 +49,9 @@ const KEEPER_KEYPAIR = new URL("./publisher-authority.json", import.meta.url).pa
  * continuously and keeps a short history.
  */
 const EXPIRY_REFUND_GRACE_SECS = Number(process.env.EXPIRY_REFUND_GRACE_SECS || 300);
-const SAMPLE_RETENTION_SECS = 900;
-const sampleBuffer: Record<number, Observation[]> = { 0: [], 1: [] };
+const STATE_PATH = process.env.KEEPER_STATE_PATH;
+let observationScope: ObservationScope | null = null;
+let sampleBuffer: Record<number, Observation[]> = { 0: [], 1: [] };
 const keeperStatus = {
   ready: false,
   lastTickAt: 0,
@@ -57,11 +59,13 @@ const keeperStatus = {
   lastError: null as string | null,
   pendingRequests: 0,
   dueExpiries: 0,
+  persistenceEnabled: Boolean(STATE_PATH),
+  lastPersistedAt: 0,
+  settlementErrors: 0,
   lastSettlement: null as null | { signature: string; action: string; at: number },
 };
 
 async function collectSamples() {
-  const t = nowSec();
   await Promise.allSettled([ (async () => {
     const [token] = await nvdaToken.observe(1);
     if (token?.available) sampleBuffer[0].push({
@@ -80,8 +84,10 @@ async function collectSamples() {
       sampleBuffer[1].push({ slot: observedSlot, sourceTs: jup.sourceTs, collectedTs: nowSec(), price: jup.price });
     }
   })() ]);
-  for (const k of [0, 1]) {
-    sampleBuffer[k] = sampleBuffer[k].filter((o) => t - o.sourceTs <= SAMPLE_RETENTION_SECS);
+  sampleBuffer = pruneObservations(sampleBuffer, nowSec());
+  if (STATE_PATH && observationScope) {
+    saveObservations(STATE_PATH, observationScope, sampleBuffer, nowSec());
+    keeperStatus.lastPersistedAt = nowSec();
   }
 }
 
@@ -227,6 +233,7 @@ async function settleRequests() {
       keeperStatus.lastSettlement = { signature: sig, action: "exercise settled", at: nowSec() };
       console.log(`✓ settled exercise: contract #${contract.contractId} req #${req.nonce} qty ${Number(req.quantity) / 1e6} via ${ref.source} — ${sig.slice(0, 12)}…`);
     } catch (e) {
+      keeperStatus.settlementErrors++;
       console.warn(`× exercise settle failed (contract ${req.contract.toBase58().slice(0, 8)} req ${req.nonce}): ${(e as Error).message}`);
     }
   }
@@ -262,22 +269,29 @@ async function settleExpiries() {
       keeperStatus.lastSettlement = { signature: sig, action: "expiry settled", at: nowSec() };
       console.log(`✓ settled expiry: contract #${c.contractId} qty ${Number(c.remainingQuantity) / 1e6} via ${ref.source} — ${sig.slice(0, 12)}…`);
     } catch (e) {
+      keeperStatus.settlementErrors++;
       console.warn(`× expiry settle failed (contract #${c.contractId}): ${(e as Error).message}`);
     }
   }
 }
 
+let ticking = false;
 async function tick() {
+  if (ticking) return;
+  ticking = true;
   keeperStatus.lastTickAt = nowSec();
+  keeperStatus.settlementErrors = 0;
   try {
     await collectSamples();   // keep the expiry window populated with real data
     await settleRequests();
     await settleExpiries();
     keeperStatus.lastSuccessfulTickAt = nowSec();
-    keeperStatus.lastError = null;
-  } catch (e) {
-    keeperStatus.lastError = (e as Error).message;
-    console.warn("keeper tick error:", keeperStatus.lastError);
+    keeperStatus.lastError = keeperStatus.settlementErrors ? "Some settlements failed; retrying" : null;
+  } catch (error) {
+    keeperStatus.lastError = "Keeper tick failed; inspect service logs";
+    console.warn("keeper tick error:", String(error).replace(/https?:\/\/\S+/g, "[endpoint]"));
+  } finally {
+    ticking = false;
   }
 }
 
@@ -289,13 +303,18 @@ function startHealthServer() {
       return res.end(JSON.stringify({ error: "not found" }));
     }
     const age = keeperStatus.lastSuccessfulTickAt ? nowSec() - keeperStatus.lastSuccessfulTickAt : null;
-    const healthy = keeperStatus.ready && age !== null && age <= Math.max(60, Math.ceil(POLL_MS / 1000) * 4);
+    const referenceAges = [0, 1].map(asset => sampleBuffer[asset].length
+      ? nowSec() - Math.max(...sampleBuffer[asset].map(o => o.sourceTs)) : null);
+    const healthy = keeperStatus.ready && !keeperStatus.lastError && age !== null
+      && age <= Math.max(60, Math.ceil(POLL_MS / 1000) * 4)
+      && referenceAges.every(age => age !== null && age <= 60);
     res.writeHead(healthy ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store" });
     res.end(JSON.stringify({
       ok: healthy,
       ...keeperStatus,
       lastSuccessfulTickAgeSeconds: age,
       samples: { nvdaToken: sampleBuffer[0].length, prestocks: sampleBuffer[1].length },
+      referenceAgeSeconds: { nvdaToken: referenceAges[0], prestocks: referenceAges[1] },
       publisher: publisher.publicKey.toBase58(),
     }));
   }).listen(port, () => console.log(`  health:    :${port}/health`));
@@ -303,10 +322,11 @@ function startHealthServer() {
 
 async function main() {
   console.log("Optket keeper");
-  console.log(`  RPC:       ${RPC}`);
+  console.log(`  RPC host:  ${new URL(RPC).hostname}`);
   console.log(`  keeper key ${publisher.publicKey.toBase58()}`);
   console.log("  references live (Pyth session + Jupiter); no synthetic reference path");
   startHealthServer();
+  if (!STATE_PATH) console.warn("KEEPER_STATE_PATH unset: observations will not survive a restart. Mount a persistent volume before enabling restart recovery.");
   // keeper needs a little SOL for fees on localnet
   try { const bal = await conn.getBalance(publisher.publicKey); if (bal < 1e8) { await conn.confirmTransaction(await conn.requestAirdrop(publisher.publicKey, 1e9), "confirmed"); } } catch { /* devnet: fund manually */ }
   // A hosted keeper must survive an RPC blip at boot rather than exiting: the
@@ -314,6 +334,12 @@ async function main() {
   for (let attempt = 1; ; attempt++) {
     try {
       await ensurePublisherRole();
+      observationScope = { genesisHash: await conn.getGenesisHash(), program: client.programId.toBase58(),
+        publisher: publisher.publicKey.toBase58(), versions: ACTIVE_REFERENCE_VERSION };
+      if (STATE_PATH) {
+        try { sampleBuffer = loadObservations(STATE_PATH, observationScope, nowSec()); }
+        catch { throw new ConfigError("Cannot restore keeper observations. Inspect the persisted snapshot and its network/reference scope; original file has not been changed."); }
+      }
       break;
     } catch (e) {
       if (e instanceof ConfigError || attempt >= 10) throw e;

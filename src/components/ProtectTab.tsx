@@ -58,6 +58,7 @@ export default function ProtectTab({
   const [seriesId, setSeriesId] = useState<number | null>(null);
   const [tenor, setTenor] = useState<"short" | "weekly">("short");
   const [qtyStr, setQtyStr] = useState("1");
+  const [holdingsInputs, setHoldingsInputs] = useState<Record<number, string>>({});
   const [reference, setReference] = useState<QuoteReference | null>(null);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -195,7 +196,10 @@ export default function ProtectTab({
   const presetValue = scenarioPreset === "Current" ? spotReal : scenarioPreset === "Floor" ? selected && tok(selected.strike) : scenarioPreset === "Breakeven" ? breakeven : scenarioPreset === "15% lower" ? spotReal && spotReal * 0.85 : scenario;
   const scenarioPrice = Math.max(chartMin, Math.min(chartMax, presetValue ?? spotReal ?? 0));
   const scenarioPayout = selected && est ? intrinsic(qty, selected.strike, toFixed(scenarioPrice)) : 0n;
-  const outcome = selected && est ? combinedOutcome(qty, qty, selected.strike, toFixed(scenarioPrice), est.premium) : null;
+  const holdingsText = holdingsInputs[assetId] ?? String(c.exposure[assetId] || quantity);
+  const holdingsQuantity = Number(holdingsText);
+  const holdingsValid = holdingsText.trim() !== "" && Number.isFinite(holdingsQuantity) && holdingsQuantity >= 0 && holdingsQuantity <= 1e9;
+  const outcome = selected && est && holdingsValid ? combinedOutcome(toFixed(holdingsQuantity), qty, selected.strike, toFixed(scenarioPrice), est.premium) : null;
   const referenceStatus = referenceReady ? "Reference available" : reference?.status === "session_closed" ? "Equity session closed" : reference?.status === "stale" ? "Waiting for a fresh reference" : marketError ? "Reference unavailable" : reference ? "Reference unavailable" : "Checking reference…";
 
   const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : approved ? "Confirm purchase" : "Review protection";
@@ -249,7 +253,7 @@ export default function ProtectTab({
           <div className="ticket-balance">{c.connected ? <>Balance {fmtOusd(c.tokenBalance, 0)}</> : "oUSD · demo tokens, no real value"}</div>
           {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase"><h3>Review protection</h3><p>{quantity} {asset.symbol} · {selected && fmtPrice(selected.strike)} floor</p><p>Expires {selected && fmtClock(selected.expiryTs)}</p><div className="kv"><span>Maximum premium</span><strong className="mono">{fmtOusd(tok(approved.maxPremium))}</strong></div><p>A fresh signed quote must cost no more than this amount. A higher quote stops the purchase. oUSD has no real value.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setApproval(null)}>Cancel review</button></section>}
           <div className="ticket-purchase"><button className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div>
-          <p className="ticket-footnote">{c.connected ? "Review your maximum premium before buying. Fees are sponsored." : "No wallet extension or SOL needed. Connect first, then review."}</p>
+          <p className="ticket-footnote">{c.connected ? "Review your maximum premium before buying. Fees are sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </aside>
         <section className="protection-analysis" aria-label="Protection payout">
@@ -257,7 +261,10 @@ export default function ProtectTab({
           {selected && est && qty > 0n ? <>
             <div className="scenario-results"><div><span>Payout</span><strong className="mono">{fmtOusd(tok(scenarioPayout))}</strong></div><div><span>Premium</span><strong className="mono">{fmtOusd(tok(est.premium))}</strong></div><div><span>Payout minus premium</span><strong className={"mono " + (scenarioPayout >= est.premium ? "pos" : "")}>{fmtOusd(tok(scenarioPayout - est.premium))}</strong></div></div>
             <details className="position-details"><summary>Holdings + protection outcome</summary>
-              <p className="disclosure">Assumes you hold {quantity} {asset.symbol} and its market price equals this hypothetical settlement reference.</p>
+              <label htmlFor="scenario-holdings">Holdings in this scenario · {asset.symbol}</label>
+              <input id="scenario-holdings" className="input mono" inputMode="decimal" autoComplete="off" value={holdingsText} aria-invalid={!holdingsValid} aria-describedby="holdings-scenario-help" onChange={e => setHoldingsInputs(current => ({ ...current, [assetId]: e.target.value }))} />
+              <p id="holdings-scenario-help" className="disclosure">{holdingsValid ? `Separate from the ${quantity} units being protected. Assumes the token price equals the hypothetical settlement reference.` : "Enter a holdings quantity of zero or more."}</p>
+              {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setHoldingsInputs(current => ({ ...current, [assetId]: String(c.exposure[assetId]) }))}>Use imported holdings</button>}
               <div className="kv"><span>Holdings value</span><strong className="mono">{outcome ? fmtUsd(tok(outcome.holdingsValue)) : "—"}</strong></div>
               <div className="kv"><span>Combined model value, after premium</span><strong className="mono">{outcome ? fmtUsd(tok(outcome.combinedModelValue)) : "—"}</strong></div>
               <p className="disclosure">Arithmetic illustration only: holdings value + payout − premium, treating one oUSD as one USD for comparison. oUSD has no real value; this is not a redeemable portfolio value.</p>

@@ -49,13 +49,18 @@ pasting, or the new deployment starts without them. The minimum each service nee
 | Service | Required variables |
 |---|---|
 | `quote-service` | `RPC_URL`, `QUOTE_AUTHORITY_SECRET`, `TRIAL_BUDGET_SECRET`, `ADMIN_SECRET`, `TRIAL_STATE_PATH` |
-| `keeper` | `RPC_URL`, `PUBLISHER_SECRET` |
+| `keeper` | `RPC_URL`, `PUBLISHER_SECRET`, `KEEPER_STATE_PATH` (persistent recovery) |
 
 `PROGRAM_ID` and `MAINNET_RPC` are optional (the defaults are correct).
 Mount a Railway volume at `/data` and set
 `TRIAL_STATE_PATH=/data/trial-budget-state.json`; the quote service refuses to
 start on Railway without this durable state path so sponsorship caps cannot
 reset during a redeploy.
+Mount a separate volume on the keeper at `/data`, then set
+`KEEPER_STATE_PATH=/data/keeper-observations.json`. Check `/health` reports
+`persistenceEnabled: true` and a recent `lastPersistedAt`. A redeploy must retain
+original sample times; it must not restamp observations. A mismatched/corrupt
+snapshot stops startup rather than silently overwriting the evidence.
 The keeper has no synthetic-reference switch: unavailable or non-qualifying
 observations fail closed into the on-chain exercise-failure or expiry-refund
 paths. Both services refuse to start on Railway with a missing key secret
@@ -74,14 +79,21 @@ Variables**:
 VITE_RPC_URL   = https://api.devnet.solana.com
 VITE_QUOTE_SVC = https://<your quote-service Railway URL>
 ```
-Deploy. Open the Vercel URL → **On-chain** tab.
+For a private provider, keep its credential-bearing URL **only** in Railway's
+`RPC_URL`. Enable `RPC_PROXY_ENABLED=true` on the quote service and verify
+`POST /rpc` before setting `VITE_USE_RPC_RELAY=true` in Vercel and rebuilding.
+The relay verifies Devnet, restricts methods and transaction programs, bounds
+traffic, and strips provider error details. Do not use a private provider URL
+in `VITE_RPC_URL`: Vite exposes it publicly in the JavaScript bundle.
+
+Deploy. Open the Vercel URL → **Onchain** tab.
 
 ## 4. Verify the public flow
-On the deployed site, On-chain tab:
+On the deployed site:
 1. **Connect burner wallet** → receives demo oUSD up to a 20,000-token ceiling. SOL never touches the burner; the dedicated trial wallet sponsors approved fees and rent.
 2. **Buy protection** (e.g. Anthropic / preSPX) → real devnet transaction; explorer link appears.
-3. **Request exercise** → the keeper settles it within a few polls when a qualifying live reference exists. Equity requests wait through closed stock-market sessions; no last print is re-stamped as current.
-4. **Compare** tab shows live mainnet prices (real NVDAx vs NVDA, Anthropic issuer mark).
+3. **Request exercise** → the keeper settles when enough qualifying live observations exist. New NVDAx and ANTHROPIC contracts use token-market medians; only legacy NVDAx v1 retains stock-session benchmark rules.
+4. **Markets** shows real market references and their source/freshness. Missing observations remain unavailable.
 
 ## Operations
 - **Fund wallets** (devnet SOL): admin/deployer, publisher (keeper fees), trial
@@ -89,12 +101,15 @@ On the deployed site, On-chain tab:
   or [faucet.solana.com](https://faucet.solana.com). The trial wallet sponsors
   allowlisted transactions and auto-shuts down at its durable cap
   (`TRIAL_CAP_SOL`).
-- **Re-run devnet setup** (idempotent — e.g. after the weekly series expire):
-  `RPC_URL=https://api.devnet.solana.com node scripts/setup-devnet.mjs`
-- **New series** each week: edit `SERIES_PLAN` strikes in `scripts/setup-devnet.mjs`
-  and re-run (existing contracts keep their terms; only future series change).
-- **Faster/steadier RPC**: set `RPC_URL` (Railway) and `VITE_RPC_URL` (Vercel) to
-  a paid QuickNode/Helius devnet endpoint.
+- **Series availability**: the quote service rotates two short and two weekly
+  floors per asset on Devnet. Weekly replacements are published before the last
+  day of the current purchase window; existing contracts retain their terms.
+  Short ids use 9–4095, new weekly ids use 4096–8191. Monitor `seriesRotation`
+  in `/health`, and run `npm run check:devnet` before a judging session.
+- **Private RPC**: use the relay configuration above. Frontend and keeper
+  requests share the provider's account limits; verify plan headroom under load.
+- **CI**: GitHub Actions runs build, lint, unit tests and server type checks.
+  Anchor integration tests require the separate Solana/Anchor toolchain.
 
 ## Safety boundary
 On-chain is **demo-token only** (real USDC is rejected by the program). The

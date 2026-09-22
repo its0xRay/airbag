@@ -5,7 +5,7 @@ import type { ContractAcct } from "../client/optketProgram";
 import PortfolioTab from "./PortfolioTab";
 
 // Test-only onchain account fixtures; no mock data is imported by the app.
-const state = vi.hoisted(() => ({ connected: true, contracts: [] as ContractAcct[], requests: [], requestTransactions: {}, history: [], exposure: {}, busy: false, transaction: null, conn: { rpcEndpoint: "test" } }));
+const state = vi.hoisted(() => ({ connected: true, contracts: [] as ContractAcct[], requests: [], requestTransactions: {}, history: [], expiryReceipts: {}, exposure: {}, busy: false, transaction: null, conn: { rpcEndpoint: "test" } }));
 vi.mock("../onchain/store", () => ({ useChain: () => state, explorerUrl: (_kind: string, address: string) => `https://explorer.solana.com/address/${address}?cluster=devnet` }));
 vi.mock("./HoldingsCard", () => ({ default: () => <p>Holdings inspector</p> }));
 vi.mock("./RemindersPanel", () => ({ default: () => <p>Renewal reminders</p> }));

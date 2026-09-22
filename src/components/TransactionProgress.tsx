@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { explorerUrl, useChain } from "../onchain/store";
-import { rpcScope } from "../onchain/transactionRecovery";
+import { matchesTransactionChain } from "../onchain/transactionRecovery";
 
 export default function TransactionProgress({ onViewPositions }: { onViewPositions: () => void }) {
   const c = useChain();
@@ -8,7 +8,7 @@ export default function TransactionProgress({ onViewPositions }: { onViewPositio
   const recover = c.recoverTransaction;
   const busy = c.busy;
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const relevant = !!tx && tx.rpc === rpcScope(c.conn.rpcEndpoint);
+  const relevant = !!tx && matchesTransactionChain(tx, c.conn.rpcEndpoint);
   useEffect(() => {
     if (!relevant || tx?.state !== "checking" || busy) return;
     void recover();

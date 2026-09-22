@@ -9,12 +9,15 @@ import {
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 import { checkPurchaseLimit } from "../engine/quote";
 import bs58 from "bs58";
-import { loadTransaction, saveTransaction, reconcileTransaction, pendingTransaction, rpcScope, type TrackedTransaction } from "./transactionRecovery";
+import { decodeExpiryEvents, type ExpiryEvent } from "../client/expiryEvent";
+import { loadTransaction, saveTransaction, reconcileTransaction, pendingTransaction, rpcScope, registerEndpointChain, matchesTransactionChain, type TrackedTransaction } from "./transactionRecovery";
 
 // Hosted deployment: set VITE_RPC_URL (devnet RPC) and VITE_QUOTE_SVC (Railway
 // quote-service URL) in Vercel. Local dev falls back to localnet defaults.
-const DEFAULT_RPC = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8899";
 const DEFAULT_SVC = normalizeServiceUrl(import.meta.env.VITE_QUOTE_SVC);
+const USE_RELAY = import.meta.env.VITE_USE_RPC_RELAY === "true";
+const DEFAULT_RPC = USE_RELAY ? `${DEFAULT_SVC}/rpc` : import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8899";
+export const NETWORK = USE_RELAY || /devnet/.test(DEFAULT_RPC) ? "devnet" : "localnet";
 const BURNER_KEY = "optket.burner.sk";
 
 /** A purchasable series as published on-chain. */
@@ -57,7 +60,7 @@ export interface RequestTransaction {
   action: string;
 }
 
-async function decodeTransactionActions(connection: Connection, signatures: string[]): Promise<Map<string, string>> {
+async function decodeTransactionActions(connection: Connection, signatures: string[], onExpiry?: (event: ExpiryEvent, signature: string) => void): Promise<Map<string, string>> {
   const unique = [...new Set(signatures)].slice(0, 30);
   const actions = new Map<string, string>();
   if (unique.length === 0) return actions;
@@ -69,6 +72,11 @@ async function decodeTransactionActions(connection: Connection, signatures: stri
       const transactions = await Promise.all(batch.map((signature) => connection.getParsedTransaction(signature, { maxSupportedTransactionVersion: 0 }).catch(() => null)));
       transactions.forEach((transaction, index) => {
         if (!transaction) return;
+        if (transaction.meta) {
+          for (const event of decodeExpiryEvents(transaction.meta.logMessages ?? [], OPTKET_PROGRAM_ID.toBase58(), transaction.meta.err !== null)) {
+            onExpiry?.(event, batch[index]);
+          }
+        }
         const labels = transaction.transaction.message.instructions.flatMap((instruction) => {
           if (!("programId" in instruction) || !instruction.programId.equals(OPTKET_PROGRAM_ID) || !("data" in instruction)) return [];
           const label = decodeOptketInstruction(instruction.data);
@@ -100,7 +108,7 @@ export async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
 
 /** Explorer link for a tx/address on the active cluster. */
 export function explorerUrl(kind: "tx" | "address", id: string): string {
-  const cluster = /devnet/.test(DEFAULT_RPC) ? "?cluster=devnet"
+  const cluster = NETWORK === "devnet" ? "?cluster=devnet"
     : /127\.0\.0\.1|localhost/.test(DEFAULT_RPC) ? `?cluster=custom&customUrl=${encodeURIComponent(DEFAULT_RPC)}`
     : "";
   return `https://explorer.solana.com/${kind}/${id}${cluster}`;
@@ -121,7 +129,16 @@ const seriesKey = (a: number, s: number) => `${a}:${s}`;
  * instruction creates — the service caps it and refuses anything that isn't a
  * transfer to this buyer. A failed sponsored submission is never replaced.
  */
-async function sendSponsored(
+async function sendSponsored(...args: Parameters<typeof sendSponsoredUnlocked>): Promise<string> {
+  if (!navigator.locks) throw new Error("This browser cannot safely coordinate demo-wallet transactions. Use a current browser over HTTPS.");
+  return navigator.locks.request("optket-demo-wallet-transaction", { ifAvailable: true }, async lock => {
+    if (!lock) throw new Error("A transaction is in progress in another tab. Check that tab before continuing.");
+    useChain.setState({ transaction: loadTransaction() });
+    return sendSponsoredUnlocked(...args);
+  });
+}
+
+async function sendSponsoredUnlocked(
   conn: Connection,
   svcUrl: string,
   /** Rebuilt per attempt: receives the rent-funding prefix (empty when
@@ -135,6 +152,8 @@ async function sendSponsored(
   const prior = useChain.getState().transaction;
   if (pendingTransaction(prior, conn.rpcEndpoint, burner.publicKey.toBase58())) throw new Error("Check the pending transaction before submitting another.");
   const lifetime = await conn.getLatestBlockhash("confirmed");
+  const genesisHash = await conn.getGenesisHash();
+  registerEndpointChain(conn.rpcEndpoint, genesisHash);
   let signed: Transaction;
   if (sponsor) {
       const prefix = rentLamports > 0
@@ -161,7 +180,7 @@ async function sendSponsored(
   const bytes = signed.serialize();
   if (!signed.signature) throw new Error("Transaction signature is missing.");
   const signature = bs58.encode(signed.signature);
-  const tracked: TrackedTransaction = { ...lifetime, signature, buyer: burner.publicKey.toBase58(), rpc: rpcScope(conn.rpcEndpoint), state: "checking" };
+  const tracked: TrackedTransaction = { ...lifetime, genesisHash, signature, buyer: burner.publicKey.toBase58(), rpc: rpcScope(conn.rpcEndpoint), state: "checking" };
   saveTransaction(tracked);
   useChain.setState({ transaction: tracked, status: "Submitting transaction…" });
   try {
@@ -181,8 +200,12 @@ async function sendSponsored(
     }
     throw new Error("Confirmation is taking longer than expected. Your original signature is saved; check its status before submitting again.");
   } catch (error) {
-    await useChain.getState().recoverTransaction();
-    if (useChain.getState().transaction?.state === "confirmed") return signature;
+    try {
+      const next = await reconcileTransaction(conn, tracked);
+      saveTransaction(next);
+      useChain.setState({ transaction: next });
+      if (next.state === "confirmed") return signature;
+    } catch { /* Keep the original saved signature if recovery is unavailable. */ }
     throw error;
   }
 }
@@ -190,7 +213,8 @@ async function sendSponsored(
 function loadBurner(): Keypair {
   const saved = localStorage.getItem(BURNER_KEY);
   if (saved) {
-    try { return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(saved))); } catch { /* regenerate */ }
+    try { return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(saved))); }
+    catch { throw new Error("The saved demo wallet could not be read. Its stored data has been preserved; do not clear site data if you need its positions."); }
   }
   const kp = Keypair.generate();
   localStorage.setItem(BURNER_KEY, JSON.stringify(Array.from(kp.secretKey)));
@@ -224,6 +248,7 @@ interface ChainState {
   requests: ExerciseRequestAcct[];
   requestTransactions: Record<string, RequestTransaction[]>;
   history: HistoryEntry[];
+  expiryReceipts: Record<string, ExpiryEvent & { signature: string }>;
   programHistory: ProgramHistoryEntry[];
   /** Real mainnet holdings (share-equivalents) imported by the user, per asset.
    *  Read-only context for the coverage tracker (§16) — never changes a contract. */
@@ -239,7 +264,7 @@ interface ChainState {
   lastPurchaseAddress: string | null;
   clearError: () => void;
 
-  connect: () => Promise<void>;
+  connect: (restoreOnly?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
   publicLoading: boolean;
   publicError: string | null;
@@ -256,14 +281,20 @@ export const useChain = create<ChainState>((set, get) => ({
   refreshing: false,
   recoverTransaction: async () => {
     const tx = get().transaction;
-    if (!tx || tx.rpc !== rpcScope(get().conn.rpcEndpoint) || get().recovering) return;
+    if (!tx || get().recovering) return;
     set({ recovering: true });
     try {
+      registerEndpointChain(get().conn.rpcEndpoint, await get().conn.getGenesisHash());
+      if (!matchesTransactionChain(tx, get().conn.rpcEndpoint)) return;
       const next = await reconcileTransaction(get().conn, tx);
-      if (get().transaction?.signature !== tx.signature) return;
-      saveTransaction(next);
-      set({ transaction: next, ...(next.state === "confirmed" ? { lastTx: next.signature, error: null } : {}) });
-      if (next.state === "confirmed") void get().refresh().catch(() => {});
+      const persist = () => {
+        if (get().transaction?.signature !== tx.signature || loadTransaction()?.signature !== tx.signature) return;
+        saveTransaction(next);
+        set({ transaction: next, ...(next.state === "confirmed" ? { lastTx: next.signature, error: null } : {}) });
+        if (next.state === "confirmed") void get().refresh().catch(() => {});
+      };
+      if (navigator.locks) await navigator.locks.request("optket-demo-wallet-transaction", { ifAvailable: true }, lock => { if (lock) persist(); });
+      else persist();
     } catch { /* An RPC error must never turn an unknown outcome into failure. */ }
     finally { set({ recovering: false }); }
   },
@@ -308,6 +339,7 @@ export const useChain = create<ChainState>((set, get) => ({
   requests: [],
   requestTransactions: {},
   history: [],
+  expiryReceipts: {},
   programHistory: [],
   exposure: { 0: 0, 1: 0 },
   setExposure: (assetId, shareEquiv) =>
@@ -320,32 +352,44 @@ export const useChain = create<ChainState>((set, get) => ({
   lastPurchaseAddress: null,
   clearError: () => set({ error: null }),
 
-  connect: async () => {
+  connect: async (restoreOnly = false) => {
+    if (get().busy) return;
     set({ busy: true, error: null, status: "connecting…" });
     try {
+      if (restoreOnly && !localStorage.getItem(BURNER_KEY)) return;
       const burner = loadBurner();
-      const cfg = await fetchJson<{ demoMint: string; quoteAuthority: string }>(`${get().svcUrl}/config`);
+      const cfg = await fetchJson<{ programId: string; demoMint: string; quoteAuthority: string }>(`${get().svcUrl}/config`);
+      if (cfg.programId !== OPTKET_PROGRAM_ID.toBase58()) throw new Error("Quote service program does not match this app.");
+      const genesis = await get().conn.getGenesisHash();
+      if (NETWORK === "devnet" && genesis !== "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG") throw new Error("RPC is not connected to Solana Devnet.");
+      registerEndpointChain(get().conn.rpcEndpoint, genesis);
       const demoMint = new PublicKey(cfg.demoMint);
       // Fees and account rent are sponsored (§19), so the burner needs no SOL —
       // the faucet only mints the demo tokens used to pay premiums.
-      set({ status: "claiming demo tokens…" });
-      const faucet = await fetchJson<{ tokenBalance?: number }>(`${get().svcUrl}/faucet`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ address: burner.publicKey.toBase58() }),
-      });
+      const account = associatedTokenAddress(demoMint, burner.publicKey);
+      const exists = await get().conn.getAccountInfo(account);
+      let tokenBalance = exists ? Number((await get().conn.getTokenAccountBalance(account)).value.uiAmountString) : 0;
+      if (!restoreOnly && tokenBalance === 0) {
+        set({ status: "claiming demo tokens…" });
+        const faucet = await fetchJson<{ tokenBalance?: number }>(`${get().svcUrl}/faucet`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ address: burner.publicKey.toBase58() }),
+        });
+        tokenBalance = faucet.tokenBalance ?? 0;
+      }
       const trial = await fetchJson<ChainState["trial"]>(`${get().svcUrl}/trial/status`).catch(() => null);
       set({
         burner, address: burner.publicKey.toBase58(), connected: true, demoMint,
         quoteAuthority: cfg.quoteAuthority,
         sponsor: trial?.budgetWallet ? new PublicKey(trial.budgetWallet) : null,
-        tokenBalance: faucet.tokenBalance ?? 0,
+        tokenBalance,
       });
       await get().refresh();
       set({ status: "" });
     } catch (e) {
       set({ error: friendly(e), status: "" });
     } finally {
-      set({ busy: false });
+      set({ busy: false, status: "" });
     }
   },
 
@@ -429,7 +473,10 @@ export const useChain = create<ChainState>((set, get) => ({
     });
     // Labels enrich confirmed history; RPC throttling must not block wallet
     // readiness or a completed purchase from reaching its success state.
-    void decodeTransactionActions(conn, allSignatures).then((actions) => {
+    void decodeTransactionActions(conn, allSignatures, (event, signature) => {
+      if (get().burner !== burner || get().conn !== conn) return;
+      set(latest => ({ expiryReceipts: { ...latest.expiryReceipts, [event.contractId.toString()]: { ...event, signature } } }));
+    }).then((actions) => {
       if (get().burner !== burner || get().conn !== conn || actions.size === 0) return;
       const label = <T extends { signature: string; action: string }>(entry: T): T => ({ ...entry, action: actions.get(entry.signature) ?? entry.action });
       set((latest) => ({

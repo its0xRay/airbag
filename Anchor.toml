@@ -21,6 +21,5 @@ wallet = "~/.config/solana/id.json"
 [scripts]
 test = "npm exec -- ts-mocha -p ./tsconfig.anchor.json -t 1000000 tests/**/*.ts"
 
-# NOTE: The program id above is a placeholder. After `anchor build`, run
-# `anchor keys sync` to write the real, locally-generated program id into
-# this file and into `declare_id!` in programs/optket/src/lib.rs.
+# The program id above is the deployed Devnet program. Do not replace it during
+# routine frontend/service work. Use separate keys/config for isolated deployments.

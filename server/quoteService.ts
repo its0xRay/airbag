@@ -32,6 +32,8 @@ import type { QuotePayload } from "../src/engine/types";
 import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
 import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
+import { createRpcRelay } from "./rpcRelay";
+import { tierAvailable } from "./seriesRotation";
 import { JupiterPreStocksAdapter, PythEquityAdapter, createNvdaTokenReference } from "./references";
 
 // See the note in keeper.ts: devnet is the default so an unset RPC_URL in a
@@ -43,6 +45,9 @@ const MAINNET_RPC = process.env.MAINNET_RPC || "https://api.mainnet-beta.solana.
 const JUP_API = process.env.JUP_PRICE_API || "https://lite-api.jup.ag/price/v3";
 
 const conn = new Connection(RPC_URL, "confirmed");
+const rpcRelay = process.env.RPC_PROXY_ENABLED === "true" ? createRpcRelay(RPC_URL, PROGRAM_ID.toBase58()) : null;
+let relayVerified = false;
+let relayVerification: Promise<boolean> | null = null;
 const mainnet = new Connection(MAINNET_RPC, "confirmed");
 const equityReference = new PythEquityAdapter(0);
 const prestocksReference = new JupiterPreStocksAdapter(1);
@@ -326,7 +331,17 @@ const SHORT_TIERS = [
   },
 ] as const;
 const activeShortIds = new Map<number, number>();
+const activeWeeklyIds = new Map<number, number>();
+const WEEKLY_ID_MIN = 4096;
+const WEEKLY_ID_MAX = 8191;
+const WEEKLY_TIERS = [
+  { 0: { strike: 215, maxSize: 100 }, 1: { strike: 1000, maxSize: 20 } },
+  { 0: { strike: 205, maxSize: 100 }, 1: { strike: 950, maxSize: 20 } },
+] as const;
+const weeklyId = (asset: number, tier: number) => activeWeeklyIds.get(tier) ?? (asset === 0 ? tier + 2 : tier);
+let nextWeeklyId: number | null = null;
 let nextShortId: number | null = null;
+const rotationStatus = { lastSuccessAt: 0, error: null as string | null };
 const fx = (n: number) => BigInt(Math.round(n * 1e6));
 
 function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSize: number, expiry: number) {
@@ -345,16 +360,27 @@ function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSi
   });
 }
 
+let rotating = false;
 async function rotateShortSeries() {
+  if (rotating) return;
+  rotating = true;
+  try { await rotateSeries(); } finally { rotating = false; }
+}
+
+async function rotateSeries() {
   if (!payer) return;
   try {
+    if (await conn.getGenesisHash() !== "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG") {
+      throw new Error("Automatic series rotation is restricted to Solana Devnet");
+    }
+    if (!Number.isInteger(SHORT_ID_MAX) || SHORT_ID_MAX >= WEEKLY_ID_MIN || SHORT_ID_MAX < SHORT_ID_MIN) throw new Error("Invalid short-series id range");
     const t = nowSec();
     if (nextShortId === null) {
       const ids = Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i);
       // Startup-only discovery. Existing ids are contiguous; stop at the first
       // gap and retain the newest usable id matching each configured floor.
-      discovery: for (let i = 0; i < ids.length; i += 100) {
-        const chunk = ids.slice(i, i + 100);
+      discovery: for (let i = 0; i < ids.length; i += 5) {
+        const chunk = ids.slice(i, i + 5);
         const infos = await conn.getMultipleAccountsInfo(chunk.map((id) => seriesPda(0, id)));
         for (let k = 0; k < chunk.length; k++) {
           const info = infos[k];
@@ -376,11 +402,12 @@ async function rotateShortSeries() {
     for (let tierIndex = 0; tierIndex < SHORT_TIERS.length; tierIndex++) {
       const currentId = activeShortIds.get(tierIndex);
       if (currentId != null) {
-        const current = await fetchSeries(0, currentId).catch(() => null);
-        if (current?.active && current.referenceVersion === ACTIVE_REFERENCE_VERSION[0] && current.purchaseCutoffTs > t + 150) continue;
+        const current = await Promise.all([0, 1].map(asset => fetchSeries(asset, currentId)));
+        const tier = SHORT_TIERS[tierIndex];
+        if (tierAvailable(current, { 0: tier[0].strike, 1: tier[1].strike }, t, 150)) continue;
       }
       if (nextShortId > SHORT_ID_MAX) throw new Error(`short-series id range exhausted at ${SHORT_ID_MAX}`);
-      const seriesId = nextShortId++;
+      const seriesId = nextShortId;
       const expiry = t + SHORT_MINUTES * 60;
       const tier = SHORT_TIERS[tierIndex];
       // Both assets are created atomically so a failed transaction cannot leave
@@ -390,10 +417,47 @@ async function rotateShortSeries() {
         createSeriesIx(1, seriesId, tier[1].strike, tier[1].maxSize, expiry),
       );
       await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" });
+      nextShortId++;
       activeShortIds.set(tierIndex, seriesId);
       console.log(`[rotate] published tier ${tierIndex + 1} short series id ${seriesId} (${SHORT_MINUTES}m) for both assets`);
     }
+    if (nextWeeklyId === null) {
+      discovery: for (let start = WEEKLY_ID_MIN; start <= WEEKLY_ID_MAX; start += 5) {
+        const ids = Array.from({ length: Math.min(5, WEEKLY_ID_MAX - start + 1) }, (_, i) => start + i);
+        const infos = await conn.getMultipleAccountsInfo(ids.map(id => seriesPda(0, id)));
+        for (let i = 0; i < ids.length; i++) {
+          if (!infos[i]) { nextWeeklyId = ids[i]; break discovery; }
+          const series = decodeSeries(infos[i]!.data as Buffer);
+          if (series.active && series.referenceVersion === ACTIVE_REFERENCE_VERSION[0] && series.purchaseCutoffTs > t + 86400) {
+            WEEKLY_TIERS.forEach((tier, index) => { if (series.strike === fx(tier[0].strike)) activeWeeklyIds.set(index, series.seriesId); });
+          }
+        }
+      }
+      if (nextWeeklyId === null) throw new Error("Weekly series id range exhausted");
+    }
+    for (let tierIndex = 0; tierIndex < WEEKLY_TIERS.length; tierIndex++) {
+      // A failed read must not be interpreted as permission to publish a replacement.
+      const current = await Promise.all([0, 1].map(asset => fetchSeries(asset, weeklyId(asset, tierIndex))));
+      const tier = WEEKLY_TIERS[tierIndex];
+      if (tierAvailable(current, { 0: tier[0].strike, 1: tier[1].strike }, t, 86400)) continue;
+      if (nextWeeklyId > WEEKLY_ID_MAX) throw new Error("Weekly series id range exhausted");
+      const id = nextWeeklyId;
+      const expiry = t + 7 * 86400;
+      await sendAndConfirmTransaction(conn, new Transaction().add(
+        createSeriesIx(0, id, tier[0].strike, tier[0].maxSize, expiry),
+        createSeriesIx(1, id, tier[1].strike, tier[1].maxSize, expiry),
+      ), [payer], { commitment: "confirmed" });
+      nextWeeklyId++;
+      activeWeeklyIds.set(tierIndex, id);
+      console.log(`[rotate] published weekly tier ${tierIndex + 1}, id ${id}, for both assets`);
+    }
+    rotationStatus.lastSuccessAt = nowSec();
+    rotationStatus.error = null;
   } catch (e) {
+    // Reconcile chain state after any uncertain submission; never skip its id.
+    nextShortId = null;
+    nextWeeklyId = null;
+    rotationStatus.error = "Series rotation failed; inspect service logs";
     console.warn("[rotate] failed:", (e as Error).message);
   }
 }
@@ -476,7 +540,7 @@ function json(res: ServerResponse, code: number, body: unknown) {
   res.writeHead(code, {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type,solana-client",
     "access-control-allow-methods": "GET,POST,OPTIONS",
   });
   res.end(JSON.stringify(body, null, 2));
@@ -487,13 +551,31 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://localhost:${PORT}`);
 
+    if (req.method === "POST" && url.pathname === "/rpc") {
+      if (!rpcRelay) return json(res, 503, { error: "RPC relay is not configured" });
+      if (!relayVerified) {
+        relayVerification ??= conn.getGenesisHash().then(hash => hash === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG").catch(() => false);
+        relayVerified = await relayVerification;
+        relayVerification = null;
+        if (!relayVerified) return json(res, 503, { error: "RPC relay network verification failed" });
+      }
+      let body = "";
+      for await (const chunk of req) {
+        body += chunk;
+        if (Buffer.byteLength(body) > 8192) return json(res, 413, { error: "Request too large" });
+      }
+      try { return json(res, 200, await rpcRelay(JSON.parse(body))); }
+      catch { return json(res, 400, { error: "RPC request not allowed" }); }
+    }
+
     if (req.method === "GET" && url.pathname === "/health") {
       let chain = "unreachable";
       try { chain = String(await conn.getSlot()); } catch { /* keep unreachable */ }
-      return json(res, 200, {
+      return json(res, chain === "unreachable" ? 503 : 200, {
         ok: chain !== "unreachable", network: "devnet", slot: chain, programId: PROGRAM_ID.toBase58(),
         referenceVersions: ACTIVE_REFERENCE_VERSION,
         quoteAuthority: quoteAuthority.publicKey.toBase58(), issued: usedQuoteIds.size,
+        seriesRotation: rotationStatus, rpcRelayEnabled: Boolean(rpcRelay),
       });
     }
     if (req.method === "GET" && url.pathname === "/config") {
@@ -544,8 +626,11 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/series/all") {
       const ids: Array<{ assetId: number; seriesId: number }> = [];
       const currentShortIds = [...new Set(activeShortIds.values())];
-      for (const assetId of [0, 1]) for (const seriesId of [...(assetId === 0 ? [2, 3] : [0, 1]), ...currentShortIds]) ids.push({ assetId, seriesId });
-      const infos = await conn.getMultipleAccountsInfo(ids.map((k) => seriesPda(k.assetId, k.seriesId)));
+      for (const assetId of [0, 1]) for (const seriesId of [weeklyId(assetId, 0), weeklyId(assetId, 1), ...currentShortIds]) ids.push({ assetId, seriesId });
+      const infos = [];
+      for (let i = 0; i < ids.length; i += 5) {
+        infos.push(...await conn.getMultipleAccountsInfo(ids.slice(i, i + 5).map((k) => seriesPda(k.assetId, k.seriesId))));
+      }
       const now = nowSec();
       const out = infos
         .map((info, i) => (info ? { ...decodeSeries(info.data as Buffer), ...ids[i] } : null))
@@ -554,7 +639,7 @@ const server = createServer(async (req, res) => {
           ...s,
           strike: s.strike.toString(),
           maxContractSize: s.maxContractSize.toString(),
-          shortDated: s.seriesId >= SHORT_ID_MIN,
+          shortDated: s.seriesId >= SHORT_ID_MIN && s.seriesId <= SHORT_ID_MAX,
         }));
       return json(res, 200, out);
     }
@@ -578,7 +663,7 @@ const server = createServer(async (req, res) => {
   } catch (e) {
     const serviceError = e instanceof ServiceError ? e : null;
     return json(res, serviceError?.status ?? 400, {
-      error: String((e as Error).message || e),
+      error: String((e as Error).message || e).replace(/https?:\/\/\S+/g, "[upstream endpoint]"),
       ...(serviceError?.code ? { code: serviceError.code } : {}),
       ...(serviceError?.details ?? {}),
     });
@@ -591,7 +676,7 @@ process.on("uncaughtException", (e) => console.error("[uncaughtException]", e));
 
 server.listen(PORT, async () => {
   console.log(`Optket quote service on :${PORT}`);
-  console.log(`  RPC:            ${RPC_URL}`);
+  console.log(`  RPC host:       ${new URL(RPC_URL).hostname}`);
   console.log(`  program:        ${PROGRAM_ID.toBase58()}`);
   console.log(`  quote authority ${quoteAuthority.publicKey.toBase58()}`);
   console.log(`  admin/payer:    ${payer ? payer.publicKey.toBase58() : "MISSING (token faucet disabled)"}`);

@@ -268,7 +268,19 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
           );
         })}
       </div>
-      <p className="disclosure">Contract status: {k.status}. Exercise payouts are recorded request outcomes, not projected returns. For expiry transfers, inspect the settlement transaction.</p>
+      {(() => {
+        const receipt = c.expiryReceipts[k.contractId.toString()];
+        if (!receipt) return k.status === "Expired" || k.status === "Refunded" ? <p className="disclosure">Expiry details are not loaded. The confirmed settlement transaction remains the source of record.</p> : null;
+        return <div className="lifecycle-request">
+          <div className="lifecycle-row"><div><strong>{receipt.invalidReference ? "Expiry premium refunded" : "Expiry settled"}</strong><span>{qty(receipt.quantity)} units · {fmtClock(receipt.timestamp)}</span></div></div>
+          <div className="lifecycle-result">
+            <div><span>Settlement reference</span><strong className="mono">{receipt.invalidReference ? "No qualifying reference" : fmtPrice(receipt.settlementReference)}</strong></div>
+            <div><span>{receipt.invalidReference ? "Premium refunded" : "Payout"}</span><strong className="mono">{tok(receipt.invalidReference ? receipt.refundedPremium : receipt.payout).toFixed(2)} oUSD</strong></div>
+          </div>
+          <a href={explorerUrl("tx", receipt.signature)} target="_blank" rel="noreferrer">Verify expiry settlement ↗</a>
+        </div>;
+      })()}
+      <p className="disclosure">Contract status: {k.status}. Receipt amounts come from confirmed accounts and program events, not projected returns.</p>
       <div className="lifecycle-transactions">{c.history.filter(entry => entry.contractId === k.contractId && !requests.some(request => c.requestTransactions[request.address]?.some(transaction => transaction.signature === entry.signature))).map(entry => <a key={entry.signature} href={explorerUrl("tx", entry.signature)} target="_blank" rel="noreferrer">{entry.err ? "Failed transaction" : entry.action} · <span className="mono">{entry.signature.slice(0, 10)}…</span> ↗</a>)}</div>
       <a href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">Verify contract account ↗</a>
       </details>

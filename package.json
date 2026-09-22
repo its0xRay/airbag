@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "quote-service": "tsx server/quoteService.ts",
     "keeper": "tsx server/keeper.ts",
+    "check:devnet": "node scripts/check-devnet.mjs",
     "test:adversarial": "tsx scripts/test-adversarial.ts",
     "setup:devnet": "node scripts/setup-devnet.mjs"
   },

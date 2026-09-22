@@ -43,6 +43,9 @@ export class TrialBudget {
   constructor(conn: Connection, cfg: TrialConfig, keypairPath: string, statePath: string) {
     this.conn = conn;
     this.cfg = cfg;
+    if (![cfg.capSol, cfg.perGrantSol, cfg.perWalletMaxSol].every(value => Number.isFinite(value) && value > 0 && Number.isSafeInteger(Math.round(value * LAMPORTS_PER_SOL)))) {
+      throw new Error("Invalid trial spending limits");
+    }
     this.statePath = statePath;
     // env secret in production (Railway), gitignored file locally
     this.budget = loadKey("TRIAL_BUDGET_SECRET", keypairPath);
@@ -58,8 +61,10 @@ export class TrialBudget {
       grantTimestamps?: number[];
       log?: LogEntry[];
     };
-    this.spentLamports = Math.max(0, Number(state.spentLamports || 0));
-    this.active = state.active !== false && this.spentLamports < this.cfg.capSol * LAMPORTS_PER_SOL;
+    if (!Number.isSafeInteger(state.spentLamports) || state.spentLamports! < 0) throw new Error("Invalid persisted trial spend; refusing to reset it");
+    this.spentLamports = state.spentLamports!;
+    // Recompute after an explicit operator cap change without resetting spend.
+    this.active = this.spentLamports < this.cfg.capSol * LAMPORTS_PER_SOL;
     this.wallets = new Map(state.wallets || []);
     this.grantTimestamps = state.grantTimestamps || [];
     this.log = state.log || [];
@@ -128,8 +133,7 @@ export class TrialBudget {
       return { ok: false, reason: "sponsorship amount exceeds the per-request limit", remainingSol: remaining() };
     }
     if (this.spentLamports + lamports > this.cfg.capSol * LAMPORTS_PER_SOL) {
-      this.active = false;
-      return { ok: false, reason: "trial budget cap reached — sponsorship disabled", remainingSol: remaining() };
+      return { ok: false, reason: "request exceeds remaining trial budget", remainingSol: remaining() };
     }
     this.grantTimestamps = this.grantTimestamps.filter((t) => now - t < this.cfg.rateWindowMs);
     if (this.grantTimestamps.length >= this.cfg.rateMax) {
@@ -165,8 +169,7 @@ export class TrialBudget {
 
     // hard cap → auto-shutdown
     if (this.spentLamports + grantLamports > this.cfg.capSol * LAMPORTS_PER_SOL) {
-      this.active = false;
-      return { ok: false, grantedSol: 0, remainingSol: remaining(), reason: "trial budget cap reached — shutting down", active: false };
+      return { ok: false, grantedSol: 0, remainingSol: remaining(), reason: "request exceeds remaining trial budget", active: this.active };
     }
     // global rate limit
     this.grantTimestamps = this.grantTimestamps.filter((t) => now - t < this.cfg.rateWindowMs);

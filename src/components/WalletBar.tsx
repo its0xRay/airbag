@@ -1,6 +1,4 @@
-import { useChain, explorerUrl } from "../onchain/store";
-
-const NETWORK = /devnet/.test(import.meta.env.VITE_RPC_URL || "") ? "devnet" : "localnet";
+import { useChain, explorerUrl, NETWORK } from "../onchain/store";
 const truncate = (s: string) => `${s.slice(0, 4)}…${s.slice(-4)}`;
 
 /**
@@ -35,6 +33,7 @@ export default function WalletBar() {
       <button className="btn ghost sm" disabled={c.busy} onClick={() => c.refresh()} aria-label="Refresh onchain data">
         {c.busy ? "…" : "↻"}
       </button>
+      {c.tokenBalance === 0 && <button className="btn ghost sm" disabled={c.busy} onClick={() => c.connect()}>Get demo oUSD</button>}
     </div>
   );
 }

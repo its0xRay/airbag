@@ -13,7 +13,7 @@ while keeping their tokens in their wallet.
 **Deployed to devnet** (program `Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky`).
 To host the public app (Vercel + Railway) so anyone can use it, see
 **[DEPLOY.md](DEPLOY.md)**. The full lifecycle — signed-quote purchase → exercise
-→ keeper settlement with **live Jupiter/Pyth references** → payout — runs on
+→ keeper settlement with **live token-market observations** → payout — runs on
 public devnet, and the Compare tab shows **real live mainnet prices** for the
 verified xStocks/PreStocks assets.
 
@@ -24,19 +24,19 @@ verified xStocks/PreStocks assets.
 | Layer | Path | Status |
 |---|---|---|
 | On-chain program (Anchor/Rust) | `programs/optket` | Complete source; build with the Solana/Anchor toolchain |
-| Protection engine (TypeScript) | `src/engine` | **Test oracle** for the Rust — 27 passing tests (`npm test`). Not used by the app. |
-| Web app — full protection journey | `src/App.tsx`, `src/components` | **Fully on-chain** (`npm run dev`) |
+| Protection engine (TypeScript) | `src/engine` | Pricing and hypothetical payoff arithmetic used by the app; tested against contract rules (`npm test`) |
+| Web app — full protection journey | `src/App.tsx`, `src/components` | Real onchain execution with labelled hypothetical payoff scenarios (`npm run dev`) |
 | On-chain client | `src/client/optketProgram.ts` | Account decoders + instruction builders used by the app |
 | Quote service + sponsorship | `server/quoteService.ts` | **Runs** (`npm run quote-service`) — signs quotes, pays fees/rent (§19) |
 | Anchor integration test | `tests/optket.ts` | Runs under `anchor test` |
 | Keeper (settlement service) | `server/keeper.ts` | **Runs** (`npm run keeper`) — live references, no synthetic fallback |
 
-**There is no simulated path.** Every tab reads and writes the deployed program:
-Protect buys on-chain, Portfolio reads real contract accounts, History comes
-from transaction signatures, and Underwriter reads the real pool. The
-TypeScript engine is a faithful mirror of the program's arithmetic kept as the
-**test oracle** — the vitest suite is an executable specification for the §22
-acceptance criteria, not a second implementation of the product.
+**Execution is not simulated.** Protect submits transactions, Positions reads
+contract accounts, Onchain shows transaction signatures, and Pools reads pool
+accounts. Explicitly labelled hypothetical scenarios explain the payoff; they
+do not change market observations or settle contracts. New NVDAx and ANTHROPIC
+contracts use token-market medians. Existing NVDAx v1 contracts retain their
+original NVIDIA benchmark reference rules.
 
 ---
 
@@ -44,7 +44,9 @@ acceptance criteria, not a second implementation of the product.
 
 ```bash
 cd optket
-npm install
+npm ci
+# Configure .env using .env.example; local defaults require a local validator
+# and a running quote service. Never put private RPC credentials in VITE_*.
 npm run dev        # http://localhost:5173
 npm test           # engine, instruction-decoder, service-boundary and reference tests
 npm run typecheck:server # quote service + keeper TypeScript check
@@ -54,16 +56,18 @@ npm run build      # production build
 ### Evidence
 
 ```bash
-# Attack the DEPLOYED program and assert every rejection code (PRD §22).
-# 30/30 passing against public devnet.
-# Stop the keeper first — it settles pending requests within seconds and would
-# race the settlement cases.
-pkill -f server/keeper
-RPC_URL=https://api.devnet.solana.com npm run test:adversarial
-
-# Re-publish the weekly series / top up pools (idempotent).
-RPC_URL=https://api.devnet.solana.com npm run setup:devnet
+# Read-only automated checks (no public transactions or secrets required).
+npm test
+npm run build
+npm run lint
+npm run typecheck:server
 ```
+
+The adversarial script is an operator-only transaction harness, not a CI check.
+It changes chain state and uses test observations. Do not run it against the
+public judging deployment or stop the live keeper to run it. Use an isolated
+deployment with dedicated test keys. Run `anchor test` separately with the
+Anchor/Solana toolchain and an isolated local validator.
 
 `test:adversarial` covers quote integrity (expired, over-long TTL, rogue signer,
 tampered payload, wrong buyer/strike, missing ed25519 instruction), the
@@ -74,13 +78,33 @@ few, out-of-window), role checks, and pool obligations.
 Connect the demo wallet → a burner wallet is created in your browser and given
 demo `oUSD`. Fees and account rent are sponsored, so you never need SOL. Then
 walk the journey: **select asset → choose quantity & strike → review scenarios →
-buy on-chain → monitor → request exercise → keeper settles → expire/refund →
+buy onchain → monitor → request exercise → keeper settles → expire/refund →
 history.** Every step is a real devnet transaction with an explorer link; the
 keeper runs as its own service and settles against live references.
 
 The keeper exposes `GET /health` with its last successful tick, pending work,
 buffered reference sample counts and latest settlement signature. Configure the
 worker deployment to use this endpoint for health checks.
+
+### Keeper restart recovery
+
+Mount a persistent Railway volume on the **keeper** service and set
+`KEEPER_STATE_PATH=/data/keeper-observations.json` (when mounted at `/data`).
+The web service's trial-budget volume is separate. Without this setting the
+keeper remains memory-only and reports `persistenceEnabled: false`.
+
+Snapshots retain genuine observation timestamps, slots, prices and reference
+versions. Loading checks the chain genesis hash, program and publisher; samples
+older than 15 minutes are discarded. A corrupt or mismatched file stops startup
+without overwriting the evidence. The keeper does not invent missing history.
+`/health` reports reference ages, persistence and settlement errors; stale
+references or failed settlement work return 503. An external uptime monitor
+still needs to be configured with the operator's notification destination.
+
+The browser demo wallet is stored locally. Refresh restores the same wallet
+without claiming tokens or signing a transaction. Clearing browser site data
+removes wallet access. Multiple tabs coordinate submissions through Web Locks;
+an unresolved transaction must be checked before another is sent.
 
 ---
 
@@ -92,7 +116,6 @@ worker deployment to use this endpoint for health checks.
 # one-time toolchain (versions per Anchor.toml):
 #   Rust + Solana CLI + Anchor 0.30.1 (via avm)
 anchor build
-anchor keys sync          # writes the real program id into lib.rs + Anchor.toml
 anchor test               # localnet integration test (tests/optket.ts)
 
 solana config set --url devnet
@@ -192,7 +215,8 @@ it remains unavailable; the program and keeper do not substitute synthetic price
 | Action | Access |
 |---|---|
 | Browse, purchase, exercise, inspect history | Public |
-| Trigger eligible settlement | Permissionless (recovery), reference data from publisher |
+| Settle exercise/expiry or refund an invalid expiry | Authorized publisher signer |
+| Fail an elapsed exercise request | Permissionless; program enforces the deadline |
 | Sign quotes | Quote authority |
 | Publish observations | Publisher authority |
 | Fund pool, create series, pause, trial budget | Admin/team |
@@ -200,9 +224,12 @@ it remains unavailable; the program and keeper do not substitute synthetic price
 
 A purchase pause does **not** block exercise or settlement of existing
 contracts. Keep quote signing, reference publishing and pool administration on
-separate keys. `scripts/keeper.ts` documents the monitoring targets: reference
+separate keys. `server/keeper.ts` reports reference
 freshness, pending requests, unsettled expiries, reserve consistency, failures,
-publisher activity, trial spend — with a two-minute settlement target.
+publisher activity and settlement errors. `npm run check:devnet` performs
+read-only quote-service, series, reference and sponsorship-headroom checks.
+Neither a successful build nor this command verifies the private keeper;
+inspect its `/health` separately. Notification delivery is operator-configured.
 
 ---
 
@@ -249,6 +276,6 @@ optket/
 ├── src/client/               # ed25519 quote bridge
 ├── src/{App.tsx,store.ts}    # web app
 ├── tests/optket.ts           # anchor integration test
-├── scripts/keeper.ts         # keeper/monitoring reference
+├── server/keeper.ts          # live reference collection and settlement
 └── Anchor.toml Cargo.toml
 ```

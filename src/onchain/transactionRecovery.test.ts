@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Connection } from "@solana/web3.js";
-import { loadTransaction, saveTransaction, pendingTransaction, reconcileTransaction, rpcScope, type TrackedTransaction } from "./transactionRecovery";
+import { loadTransaction, saveTransaction, pendingTransaction, reconcileTransaction, rpcScope, registerEndpointChain, type TrackedTransaction } from "./transactionRecovery";
 
 const tx: TrackedTransaction = { signature: "original", buyer: "buyer", rpc: rpcScope("test"), blockhash: "hash", lastValidBlockHeight: 100, state: "checking" };
 function connection(statuses: unknown[], height = 90) {
@@ -27,6 +27,14 @@ describe("transaction reconciliation", () => {
   });
   it("keeps an absent but unexpired signature pending", async () => {
     expect((await reconcileTransaction(connection([null]), tx)).state).toBe("checking");
+  });
+  it("keeps a transaction pending after a provider change on the same verified chain", () => {
+    registerEndpointChain("replacement-provider", "devnet-genesis");
+    registerEndpointChain("different-chain", "other-genesis");
+    const tracked = { ...tx, genesisHash: "devnet-genesis" };
+    expect(pendingTransaction(tracked, "replacement-provider", "buyer")).toBe(true);
+    expect(pendingTransaction(tracked, "different-chain", "buyer")).toBe(false);
+    expect(pendingTransaction(tx, "replacement-provider", "buyer")).toBe(false);
   });
   it("uses confirmed chain evidence", async () => {
     expect((await reconcileTransaction(connection([{ confirmationStatus: "confirmed", err: null }]), tx)).state).toBe("confirmed");

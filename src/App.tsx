@@ -8,6 +8,7 @@ import UnderwriterTab from "./components/UnderwriterTab";
 import HistoryTab from "./components/HistoryTab";
 import WalletBar, { NETWORK } from "./components/WalletBar";
 import TransactionProgress from "./components/TransactionProgress";
+import { loadTransaction } from "./onchain/transactionRecovery";
 
 type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history";
 const ROUTES: Record<string, Tab> = { protect: "protect", positions: "portfolio", markets: "compare", pools: "underwriter", onchain: "history" };
@@ -33,6 +34,16 @@ const TABS: [Tab, string][] = [
 export default function App() {
   const connected = useChain((s) => s.connected);
   const connect = useChain((s) => s.connect);
+  useEffect(() => {
+    void connect(true);
+    const syncTransaction = (event: StorageEvent) => {
+      if (event.key !== "optket.transaction.v1") return;
+      useChain.setState({ transaction: loadTransaction() });
+      void useChain.getState().recoverTransaction();
+    };
+    window.addEventListener("storage", syncTransaction);
+    return () => window.removeEventListener("storage", syncTransaction);
+  }, [connect]);
   const busy = useChain((s) => s.busy);
   const status = useChain((s) => s.status);
   const refresh = useChain((s) => s.refresh);
