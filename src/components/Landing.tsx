@@ -19,10 +19,9 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
-          <h1 className="lp-title">Risk management<br />for tokenized equities.</h1>
+          <h1 className="lp-title"><span className="hero-accent">Risk management</span><br />for tokenized equities.</h1>
           <p className="lp-hero-tagline">Own the upside. Set your downside.</p>
-          <p className="lp-sub">Choose a price floor for tokenized stocks and pre-IPO tokens.<br className="hide-sm" /> Pay once. Keep your tokens.</p>
-          <p className="lp-hero-boundary">Covers the contract’s token-market reference, not a guaranteed portfolio value.</p>
+          <p className="lp-sub">Choose a price floor. Pay once. Keep your tokens.</p>
           <div className="lp-asset-categories" aria-label="Supported token markets">
             {VERIFIED_ASSETS.map((asset, id) => <div key={asset.key}><AssetLogo asset={asset} /><span><strong>{id === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{id === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span></div>)}
           </div>
@@ -62,7 +61,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <ProtectionWalkthrough />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Two supported markets</span><h2 className="lp-h2">Public or private.<br /><span className="soft">One protection workflow.</span></h2><p className="lp-lede">Choose your floor in either market. Protection follows the token price—not the company’s valuation.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Two supported markets</span><h2 className="lp-h2">Public or private.<br /><span className="soft">One protection workflow.</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
@@ -79,7 +78,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <section className="lp-section lp-verification" id="onchain-proof">
         <div className="lp-proof-layout">
           <div className="lp-evidence">
-            <h2 className="lp-h2">Visible terms.<br /><span className="soft">Verifiable execution.</span></h2><p className="lp-lede">Follow a purchase through its contract, reserved collateral and settlement. Every record is on Solana Devnet.</p>
+            <h2 className="lp-h2">Visible terms.<br /><span className="soft">Verifiable execution.</span></h2><p className="lp-lede">Inspect the terms, reserves and settlement records on Solana Devnet.</p>
           </div>
           <div className="lp-faq">
             <details><summary>How are payouts funded?</summary><p>Maximum contractual payout is fully reserved onchain when protection is purchased. Reserves are held in oUSD, a demo token with no real value.</p></details>

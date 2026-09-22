@@ -230,10 +230,10 @@ export default function ProtectTab({
         <div className="protect-assets" role="group" aria-label="Protection asset">
           {VERIFIED_ASSETS.map((a, i) => <button key={a.key} className={"btn " + (assetId === i ? "primary" : "ghost")} aria-pressed={assetId === i} onClick={() => { userChoseAsset.current = true; setAssetId(i); setSeriesId(null); setTenor("short"); setScenario(null); setDone(null); }} disabled={c.busy}><AssetLogo asset={a} />{a.symbol}</button>)}
         </div>
-        <div className="reference-inline"><span>Reference price</span><strong className="mono">{spotReal != null ? fmtUsd(spotReal) : "—"}</strong><span>{referenceStatus}{reference?.available && reference.observedAt != null && <> · <span title={fmtClock(reference.observedAt)}>{fmtAge(reference.observedAt, now)}</span></>}</span><button className="text-action" onClick={() => setReferenceRetry((n) => n + 1)}>{marketError ? "Retry" : "Refresh"}</button></div>
+        <div className="reference-inline"><span>Reference price</span><strong className="mono">{spotReal != null ? fmtUsd(spotReal) : "—"}</strong><span>{reference?.available ? reference.observedAt != null ? <span title={fmtClock(reference.observedAt)}>{fmtAge(reference.observedAt, now).replace(/^updated/, "Updated")}</span> : "Timestamp unavailable" : referenceStatus}</span><button className="text-action" onClick={() => setReferenceRetry((n) => n + 1)}>{marketError ? "Retry" : "Refresh"}</button></div>
       </div>
-      <p className="coverage-scope">{asset.symbol} token-market protection · 5-minute median</p>
-      {reference && !reference.available && <p className="reference-explanation">{reference.reason}</p>}
+      <p className="coverage-scope">Token-market reference · 5-minute median</p>
+      {reference && !reference.available && <p className="reference-explanation"><span aria-hidden="true">⚠ </span>{reference.reason}</p>}
       {marketError && <p className="field-error" role="alert">{marketError}</p>}
       {done && receipt ? <section ref={receiptRef} tabIndex={-1} className="card protection-receipt" aria-label="Purchase confirmation">
         <span className="receipt-check" aria-hidden="true">✓</span><span className="pill green">Confirmed onchain · Devnet</span><h2>{now < receipt.expiry ? "Your protection is active." : "Your purchase is confirmed."}</h2><p className="receipt-quantity mono">{receipt.quantity} {receipt.symbol} protected</p>
@@ -244,11 +244,11 @@ export default function ProtectTab({
         <div className="receipt-actions"><button className="btn primary" onClick={() => onViewPositions?.(receipt.assetId, receipt.address ?? undefined)}>View position →</button><button className="btn ghost" onClick={() => setDone(null)}>Open another position</button><a className="lp-text-link" href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">Verify transaction ↗</a></div><p className="disclosure">oUSD is a demo token with no real value.</p>
       </section> : <div className="protect-layout">
         <aside className="card protection-ticket" aria-label="Configure protection">
-          <h2>Set your protection</h2>
+          <h2>Your terms</h2>
           <fieldset disabled={c.busy} className="ticket-fields" onClick={() => { if (approval) setApproval(null); }}><legend className="sr-only">Protection terms</legend>
           <label className="field" htmlFor="protected-quantity"><span className="lbl">Quantity · {asset.symbol}</span></label>
           <div className="quantity-control"><button type="button" disabled={quantity <= 0.01} aria-label="Decrease protected quantity by one" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setApproval(null); }} aria-describedby="quantity-help" aria-invalid={qty <= 0n || tooBig} /><button type="button" disabled={!!selected && qty >= selected.maxContractSize} aria-label="Increase protected quantity by one" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
-          <div className="field-help" id="quantity-help">{tooBig ? "Maximum " + (selected ? tok(selected.maxContractSize) : 0) + " units." : qty <= 0n ? "Enter a quantity above zero." : `Decimals accepted${selected ? ` · Max ${tok(selected.maxContractSize)}` : ""}.`}</div>
+          <div className="field-help" id="quantity-help">{tooBig ? "Maximum " + (selected ? tok(selected.maxContractSize) : 0) + " units." : qty <= 0n ? "Enter a quantity above zero." : selected ? `Max ${tok(selected.maxContractSize)} tokens` : ""}</div>
           {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setQtyStr(String(c.exposure[assetId]))}>Use reference holdings</button>}
           <div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{kind === "short" ? "Short duration" : "Weekly"}<span>{option ? fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
           <div className="ticket-label">Price floor</div>
@@ -259,14 +259,13 @@ export default function ProtectTab({
           </fieldset>
         </aside>
         <section className="protection-analysis" aria-label="Protection payout">
-          <div className="card scenario-card"><h2>See where protection begins</h2>
+          <div className="card scenario-card"><h2>Payout preview</h2>
           {selected && est && qty > 0n ? <>
             <ProtectionMechanism symbol={asset.symbol} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
             <div className="scenario-price-row"><label htmlFor="scenario-price">Explore settlement price</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>
             <div className="scenario-adjustment"><label className="scenario-slider"><span className="sr-only">Explore settlement price</span><input aria-label="Price at settlement (illustrative scenario)" aria-valuetext={fmtUsd(scenarioPrice)} type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setScenario(Math.max(chartMin, Math.min(chartMax, scenarioPrice + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1)))); setScenarioPreset(null); setScenarioText(null); } }} onChange={(e) => { setScenario(Number(e.target.value)); setScenarioPreset(null); setScenarioText(null); }} /></label>
-            <div className="scenario-presets">{["Current", "Floor", "Breakeven", "15% lower"].map(label => <button key={label} className="btn ghost sm" aria-pressed={scenarioPreset === label} onClick={() => { setScenarioPreset(label); setScenarioText(null); }}>{label}</button>)}</div>
+            <div className="scenario-presets">{["Current", "Floor", "Breakeven", "15% lower"].map(label => <button key={label} className="btn ghost sm" aria-pressed={scenarioPreset === label} onClick={() => { setScenarioPreset(label); setScenarioText(null); }}>{label === "Current" ? "Latest reference" : label}</button>)}</div>
             </div>
-            <p className="field-help">Current follows reference updates. Other scenarios are yours to adjust.</p>
           </> : <div className="empty"><strong>{qty <= 0n ? "Enter a valid quantity" : referenceStatus}</strong><p>Waiting for current pricing and protection terms.</p></div>}
           </div>
         </section>
@@ -274,7 +273,7 @@ export default function ProtectTab({
           {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase"><h3>Review protection</h3><p>{quantity} {asset.symbol} · {selected && fmtPrice(selected.strike)} floor · Expires {selected && fmtClock(selected.expiryTs)}</p><div className="kv"><span>Maximum premium</span><strong className="mono">{fmtOusd(tok(approved.maxPremium))}</strong></div><p>A fresh signed quote must cost no more than this amount. A higher quote stops the purchase. oUSD has no real value.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setApproval(null)}>Cancel review</button></section>}
           <div className="checkout-row"><div><div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div><div className="ticket-balance">oUSD · no real value{c.connected && <> · Balance {fmtOusd(c.tokenBalance, 0)}</>}</div></div>
           <div className="ticket-purchase"><button className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
-          <p className="ticket-footnote">{c.connected ? "Review your maximum premium before buying. Fees are sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>
+          <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </div>
         <section className="protection-secondary" aria-label="Additional protection details">

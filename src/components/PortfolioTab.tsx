@@ -171,7 +171,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
       </div>
       <ProtectionBoundary floor={k.strike} compact />
       <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)} · oUSD has no real value.</p>
-      {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry for automatic settlement, or request an early exercise below.</p>}
+      {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry or request early exercise.</p>}
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
           {qty(k.pendingQuantity)} pending — the keeper settles it against the next qualifying
@@ -199,10 +199,9 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
             </button>
           </div>
           {reviewQuantity === amount && valid && <div className="purchase-review" role="status"><strong>Exercise {amount} {asset.symbol}</strong><p>{qty(k.remainingQuantity - BigInt(Math.round(amount * 1e6)))} units remain protected. The requested quantity settles against a future qualifying reference, not the currently displayed price. The payout is not fixed now.</p><p>This request cannot be cancelled after submission. Remaining time value on the exercised quantity is forfeited.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setReviewQuantity(null)}>Cancel review</button></div>}
-          <div className="disclosure" style={{ marginTop: 8 }}>
-            Irrevocable once submitted. Settles at intrinsic value against the next qualifying
-            reference; remaining time value is forfeited and unrequested quantity stays protected.
-          </div>
+          {!(reviewQuantity === amount && valid) && <div className="disclosure" style={{ marginTop: 8 }}>
+            Early exercise is irreversible and forfeits remaining time value. Payout uses a future qualifying reference.
+          </div>}
           {exerciseTx && (
             <div className="callout" role="status" style={{ marginTop: 10 }}>
               Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Track settlement in the execution receipt.

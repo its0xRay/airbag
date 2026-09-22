@@ -1,6 +1,6 @@
 # Brand — Optket
 
-_Status: documented (existing system, captured 2026-09-19)_
+_Status: approved yellow-and-charcoal palette, updated 2026-09-22_
 
 This project already shipped a committed design language before `brand-design` was
 ever run, so this file **documents the system in use** rather than replacing it.
@@ -29,12 +29,17 @@ is safe for small text. Keep the hierarchy `text` → `dim` → `faint`.
 
 | Token | Value | Meaning |
 |---|---|---|
-| `--accent` / `--accent-dim` | `#4ade80` / `#16382a` | Primary action, success, "live"/verified |
+| `--accent` / `--accent-dim` | `#ffdc00` / `oklch(26% 0.045 98)` | Primary actions, hero category, floor marker, focus |
+| `--accent-foreground` | `#0a0e14` | Text on yellow buttons |
+| `--success` / `--success-dim` | `#4ade80` / `#16382a` | Confirmed success and positive actual results |
 | `--blue` / `--blue-dim` | `#5b9dff` / `#16273f` | Informational callouts, links, neutral status |
 | `--amber` / `--amber-dim` | `#f5c451` / `#3a2f12` | Devnet-value boundary, warnings, unavailable state |
 | `--red` / `--red-dim` | `#f87171` / `#3a1a1a` | Destructive, negative values, failures |
 
-Green is the single brand accent, concentrated on the purchase action and payoff.
+Yellow is the single brand accent; it replaces decorative green. "Risk management"
+is yellow; the rest of the hero heading is off-white and the tagline is neutral.
+Hypothetical payout amounts are off-white, not success green. Keep authentic asset
+logos unchanged. No yellow-filled cards, glowing borders or additional decorative hues.
 The compact oUSD demo/no-real-value disclosure is neutral and always readable.
 Amber signals warnings or unavailable data, not the normal Devnet environment.
 
@@ -72,8 +77,8 @@ available alongside active coverage.
 
 Lead with the category headline: "Risk management for tokenized equities."
 "Own the upside. Set your downside." is a secondary benefit line, followed by
-the specific price-floor capability. Keep token-market contract scope nearby;
-this is not a guaranteed portfolio value. The earlier onchain thesis
+the specific price-floor capability. Keep token-market contract scope in contract
+details and holdings calculations, not a repeated hero caveat. The earlier onchain thesis
 supports the Why protect section rather than competing with the hero.
 Show only supported token markets, distinguishing tokenized public equity from
 pre-IPO token exposure without implying issuer partnerships or company-share ownership.
@@ -99,7 +104,7 @@ The category uses the display headline with primary contrast, not an eyebrow.
 Important labels are 14–16px and supporting explanations 15–16px; only secondary metadata
 uses smaller text. Preserve fit by shortening copy, not shrinking primary labels.
 
-Product controls use neutral, checked selections; green remains the primary
+Product controls use neutral, checked selections; yellow marks the primary
 commitment action. Scenario prices are explicitly exploratory, support direct
 entry and keyboard adjustment, and never stand in for executable quotes.
 Public Markets, Pools and Onchain views do not require a wallet. App destinations
@@ -128,6 +133,11 @@ demo boundary is disclosed everywhere it matters.
 - Name the boundary rather than burying it: "Demo tokens — no redemption promise."
 - Never imply an indicative price is executable, or that a simulated value is settled.
 - Active voice, sentence case, no exclamation marks.
+- Set 12: shorten repeated explanations; preserve unavailable-reference states,
+  quote limits, browser-wallet access warnings and irreversible exercise review.
+  Normal references show freshness without a redundant "Reference available" label.
+  Label scenarios "Illustrative payout—not a quote." Keep oUSD's no-real-value
+  disclosure visible at checkout and combined holdings outcomes.
 
 ## Rules of thumb
 

@@ -74,6 +74,6 @@ describe("Positions presentation", () => {
     const html = renderToStaticMarkup(<PortfolioTab target={{ assetId: 1, address: account.address }} onRenew={() => {}} onProtect={() => {}} />);
     expect(html).toContain("Your selected position");
     expect(html.indexOf("#1 · ANTHROPIC")).toBeLessThan(html.indexOf("#2 · ANTHROPIC"));
-    expect(html).toContain("Hold to expiry for automatic settlement");
+    expect(html).toContain("Hold to expiry or request early exercise.");
   });
 });

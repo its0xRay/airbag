@@ -13,6 +13,6 @@ export default function ProtectionMechanism({ symbol, quantity, floor, reference
     <ProtectionBoundary floor={floor} reference={reference} />
     <div className="mechanism-payout"><span>Hypothetical payout</span><strong className="mono">{fmtOusd(fromFixed(gross))}</strong></div>
     <div className="mechanism-range"><span>Payout − premium <strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></span><span>Maximum {fmtOusd(fromFixed(maximum))}</span></div>
-    <p className="mechanism-disclosure">Hypothetical, not a quote or settlement. oUSD has no real value.</p>
+    <p className="mechanism-disclosure">Illustrative payout—not a quote.</p>
   </div>;
 }
