@@ -1,4 +1,10 @@
-# Optket — Public Devnet Deployment Runbook
+# Airbag — Public Devnet Deployment Runbook
+
+Airbag was previously named Optket. The public brand has changed; the repository,
+current frontend URL (`https://optket.vercel.app/`), program ID, browser storage
+keys and working service endpoints are unchanged. Keep the old storage keys so
+existing demo wallets, reminders and pending transaction recovery remain usable.
+A future domain change needs a separate browser-wallet continuity plan.
 
 The program is **already deployed to devnet** and the devnet environment (config,
 both assets, pools, four series, demo mint, funded trial budget) is **already set
@@ -22,7 +28,7 @@ locally, gitignored — never commit it).
 ## 1. Push to GitHub
 ```bash
 cd optket
-git init && git add . && git commit -m "Optket"
+git init && git add . && git commit -m "Airbag"
 git remote add origin <your-repo-url>
 git push -u origin main
 ```

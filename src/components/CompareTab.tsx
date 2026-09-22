@@ -47,7 +47,7 @@ export default function CompareTab() {
       <div className="environment-strip" style={{ marginBottom: 16 }}>
         <span><strong>Contract</strong> Solana Devnet</span>
         <span><strong>Reference</strong> External market data</span>
-        <span title="Optket verified the mint identity, token program, decimals and conversion configuration."><strong>Token identity</strong> Mainnet · verified</span>
+        <span title="Airbag verified the mint identity, token program, decimals and conversion configuration."><strong>Token identity</strong> Mainnet · verified</span>
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
         {VERIFIED_ASSETS.map((a) => (

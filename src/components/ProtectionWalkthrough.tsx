@@ -24,7 +24,7 @@ function Mechanism({ step }: { step: number }) {
     </>}
     {step === 2 && <>
       <div className="mechanism-hold"><div className="mechanism-wallet"><span className="mechanism-label">Your wallet</span><div className="mechanism-assets">{VERIFIED_ASSETS.map(asset => <AssetLogo key={asset.key} asset={asset} />)}</div><strong>Underlying tokens</strong></div><span className="mechanism-plus" aria-hidden="true">+</span><div className="mechanism-separate"><span className="mechanism-label">Alongside it</span><strong>Protection contract</strong></div></div>
-      <p>No underlying deposit into Optket.</p>
+      <p>No underlying deposit into Airbag.</p>
     </>}
     {step === 3 && <>
       <div className="mechanism-flow"><span>Verified settlement reference</span><span className="mechanism-arrow" aria-hidden="true">↓</span><div className="mechanism-formula"><span className="mechanism-label">Contract payout</span><strong>Quantity × max(floor − reference, 0)</strong></div><span className="mechanism-arrow" aria-hidden="true">↓</span><span>Onchain settlement in oUSD</span></div>

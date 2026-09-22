@@ -1,6 +1,6 @@
-# Optket — downside protection for tokenized equities on Solana
+# Airbag — downside protection for tokenized equities on Solana
 
-Two-asset MVP implementing the Optket PRD (v1.0). Optket lets a holder pick an
+Two-asset MVP implementing the original Optket PRD (v1.0). Airbag lets a holder pick an
 asset, protected quantity, strike and expiry, then buy put-style protection
 while keeping their tokens in their wallet.
 
@@ -195,7 +195,7 @@ Token identities and logos are matched by exact mint through the
 [Jupiter Tokens API](https://developers.jup.ag/docs/tokens/index.md).
 The [Price API](https://developers.jup.ag/docs/price/index.md) supplies market
 observations, not executable hedge fills. The pricing model's hedge loading is
-an assumption; Optket does not execute an external hedge.
+an assumption; Airbag does not execute an external hedge.
 
 **Trust limitation (§9.3):** an authorized publisher signature proves publisher
 *identity*, not that the upstream feed actually returned the submitted value.

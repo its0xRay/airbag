@@ -1,6 +1,6 @@
 import { ACTIVE_REFERENCE_VERSION, referenceKind } from "../src/data/referencePolicy";
 import { loadObservations, saveObservations, pruneObservations, type ObservationScope } from "./observationStore";
-// Optket keeper (PRD §21). Settles ready exercise requests, processes expiries
+// Airbag keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
 //
 // References are REAL (§9): a session-aware stock benchmark for the equity
@@ -321,7 +321,7 @@ function startHealthServer() {
 }
 
 async function main() {
-  console.log("Optket keeper");
+  console.log("Airbag keeper");
   console.log(`  RPC host:  ${new URL(RPC).hostname}`);
   console.log(`  keeper key ${publisher.publicKey.toBase58()}`);
   console.log("  references live (Pyth session + Jupiter); no synthetic reference path");

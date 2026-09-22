@@ -27,7 +27,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
 
       <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
-          <span className="lp-eyebrow">Why Optket</span>
+          <span className="lp-eyebrow">Why Airbag</span>
           <h2 className="lp-h2" id="why-protect-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h2>
         </div>
         <div className="lp-why-surface">
@@ -91,7 +91,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         </nav>
       </section>
 
-      <footer className="lp-footer"><span>Optket</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top ↑</a></footer>
+      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top ↑</a></footer>
     </main>
   );
 }

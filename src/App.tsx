@@ -112,8 +112,8 @@ export default function App() {
   return (
     <div className={"app" + (tab === "home" ? " home-mode" : "")}>
       <header className={"header" + (tab === "home" ? " public-header" : " app-header")}>
-        <button className="logo" onClick={() => { setTab("home"); window.scrollTo({ top: 0, behavior: "instant" }); }} aria-label="Optket home">
-          <span className="dot" aria-hidden="true" /> Optket
+        <button className="logo" onClick={() => { setTab("home"); window.scrollTo({ top: 0, behavior: "instant" }); }} aria-label="Airbag home">
+          <span className="dot" aria-hidden="true" /> Airbag
           {(tab !== "home" || connected) && (
             <span
               className="pill gray hide-sm"
@@ -128,12 +128,12 @@ export default function App() {
         {tab === "home" ? (
           <>
             <nav className="public-nav" aria-label="Product">
-              <a href="#why-protect">Why Optket</a>
+              <a href="#why-protect">Why Airbag</a>
               <a href="#how-it-works">How it works</a>
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
-            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Optket</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a></nav></details>
+            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Airbag</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a></nav></details>
             {connected ? <button className="btn ghost" onClick={() => goTo(useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app ↗</button> : <a className="btn ghost" href="#protection">Get started ↗</a>}
           </>
         ) : (

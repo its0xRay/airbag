@@ -1,5 +1,5 @@
 import { ACTIVE_REFERENCE_VERSION, effectiveMultiplier } from "../src/data/referencePolicy";
-// Optket quote-signing service (PRD §8) + real market-data proxy (§4/§13/§15)
+// Airbag quote-signing service (PRD §8) + real market-data proxy (§4/§13/§15)
 // + trial-budget faucet (§19).
 //
 // Hosted deployment (Railway/Render): all keys come from env secrets, the RPC
@@ -474,7 +474,7 @@ const SYSTEM_PROGRAM = SystemProgram.programId.toBase58();
 const MAX_SPONSOR_RENT_LAMPORTS = Number(process.env.MAX_SPONSOR_RENT_LAMPORTS || 12_000_000); // 0.012 SOL
 const SPONSOR_FEE_ALLOWANCE = 20_000; // generous per-tx fee headroom, for accounting
 // Conservative rent estimate charged against the budget when the sponsor is the
-// rent payer inside an Optket instruction (contract + quote-marker ≈ 0.0037 SOL).
+// rent payer inside an Airbag instruction (contract + quote-marker ≈ 0.0037 SOL).
 const ACCOUNT_RENT_ESTIMATE_LAMPORTS = 5_000_000;
 
 function sponsorReject(reason: string): never {
@@ -519,7 +519,7 @@ async function sponsor(txBase64: string, buyer: string) {
     }
     sponsorReject(`disallowed program ${pid}`);
   }
-  if (!touchesOptket) sponsorReject("transaction does not call the Optket program");
+  if (!touchesOptket) sponsorReject("transaction does not call the Airbag program");
   if (subsidy > MAX_SPONSOR_RENT_LAMPORTS) sponsorReject("rent subsidy above the per-request cap");
 
   // 4) budget controls (hard cap, per-wallet ceiling, rate limit)
@@ -675,7 +675,7 @@ process.on("unhandledRejection", (e) => console.error("[unhandledRejection]", e)
 process.on("uncaughtException", (e) => console.error("[uncaughtException]", e));
 
 server.listen(PORT, async () => {
-  console.log(`Optket quote service on :${PORT}`);
+  console.log(`Airbag quote service on :${PORT}`);
   console.log(`  RPC host:       ${new URL(RPC_URL).hostname}`);
   console.log(`  program:        ${PROGRAM_ID.toBase58()}`);
   console.log(`  quote authority ${quoteAuthority.publicKey.toBase58()}`);

@@ -42,7 +42,7 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
       </div>
       <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>
         {scope === "program"
-          ? "Confirmed transactions invoking the deployed Optket program, newest first."
+          ? "Confirmed transactions invoking the deployed Airbag program, newest first."
           : "Signatures touching contracts owned by this wallet, newest first."} Every row opens in the explorer.
       </div>
 

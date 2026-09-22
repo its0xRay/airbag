@@ -26,7 +26,7 @@ export function validateRpcRequest(input: unknown, program: string): RpcRequest 
     case "getBalance": case "getTokenAccountBalance": params = [address(p[0]), { commitment }]; break;
     case "getAccountInfo": params = [address(p[0]), { commitment, encoding: "base64" }]; break;
     case "getProgramAccounts": {
-      if (address(p[0]) !== program || !Array.isArray(config.filters) || config.filters.length < 1 || config.filters.length > 3) throw new Error("Only filtered Optket accounts are available");
+      if (address(p[0]) !== program || !Array.isArray(config.filters) || config.filters.length < 1 || config.filters.length > 3) throw new Error("Only filtered Airbag accounts are available");
       const filters = config.filters.map(filter => {
         const m = filter?.memcmp;
         if (!m || !Number.isInteger(m.offset) || m.offset < 0 || m.offset > 256 || typeof m.bytes !== "string" || m.bytes.length > 90) throw new Error("Invalid account filter");
@@ -50,7 +50,7 @@ export function validateRpcRequest(input: unknown, program: string): RpcRequest 
       const transaction = Transaction.from(bytes);
       const allowed = new Set([program, "Ed25519SigVerify111111111111111111111111111", "ComputeBudget111111111111111111111111111111"]);
       if (!transaction.verifySignatures() || !transaction.instructions.some(ix => ix.programId.toBase58() === program)
-        || transaction.instructions.some(ix => !allowed.has(ix.programId.toBase58()))) throw new Error("Only signed Optket transactions are allowed");
+        || transaction.instructions.some(ix => !allowed.has(ix.programId.toBase58()))) throw new Error("Only signed Airbag transactions are allowed");
       params = [p[0], { encoding: "base64", skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 3 }]; break;
     }
     default: throw new Error("RPC method not available");

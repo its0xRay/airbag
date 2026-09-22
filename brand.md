@@ -1,4 +1,9 @@
-# Brand — Optket
+# Brand — Airbag
+
+Public-facing rename from Optket, 2026-09-23. Keep the existing yellow mark and
+charcoal palette. The current site remains https://optket.vercel.app/.
+Repository paths, program identifiers, browser storage keys and service endpoints
+retain their existing names for compatibility; this is not a protocol migration.
 
 _Status: approved yellow-and-charcoal palette, updated 2026-09-22_
 
