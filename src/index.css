@@ -827,9 +827,35 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 .lp-reference-summary { margin:16px 0 0; }
 .lp-shared-reference { border-top:1px solid var(--border); padding-top:20px; margin-top:28px; font-size:13px; }
 .lp-product-links { border-top:1px solid var(--border); }
-.lp-benefits-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:32px; padding:32px 0; border-bottom:1px solid var(--border); scroll-margin-top:88px; }
-.lp-benefits-strip h2 { font-size:17px; margin:0 0 8px; }
-.lp-benefits-strip p { color:var(--text-dim); font-size:13px; line-height:1.6; margin:0; max-width:32ch; }
+.lp-why { padding-block:64px; scroll-margin-top:88px; }
+.lp-why .lp-eyebrow { display:block; margin-bottom:16px; }
+.lp-why-surface { display:grid; grid-template-columns:3fr 2fr; background:var(--bg-elev); border-radius:var(--radius); }
+.lp-why-ownership { padding:32px 40px; }
+.lp-why h3 { font-size:24px; font-weight:500; letter-spacing:-0.025em; margin:0 0 8px; }
+.lp-why p { color:var(--text-dim); font-size:14px; line-height:1.6; margin:0; max-width:42ch; }
+.lp-ownership-art { display:flex; align-items:center; justify-content:center; gap:32px; min-height:160px; margin-bottom:24px; }
+.lp-ownership-tokens, .lp-ownership-cover { display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--text-dim); font-size:12px; }
+.lp-ownership-logos { display:flex; align-items:center; height:64px; padding-inline:8px; }
+.lp-ownership-logos .token-logo { width:56px; height:56px; outline:4px solid var(--bg-elev); }
+.lp-ownership-logos .token-logo + .token-logo { margin-left:-8px; }
+.lp-ownership-plus { color:var(--text-faint); font-size:24px; margin-top:-32px; }
+.lp-ownership-cover svg { color:var(--accent); }
+.lp-why-support { margin:32px 0; padding:0 40px; border-left:1px solid var(--border); display:grid; grid-template-rows:1fr 1fr; }
+.lp-why-support article { display:flex; flex-direction:column; justify-content:center; padding-block:24px; }
+.lp-why-support article + article { border-top:1px solid var(--border); }
+@media (max-width:800px) {
+  .lp-why-surface { grid-template-columns:1fr; }
+  .lp-why-ownership { padding:24px; }
+  .lp-why-support { margin:0 24px; padding:0; border-left:0; border-top:1px solid var(--border); grid-template-columns:1fr 1fr; grid-template-rows:auto; gap:24px; }
+  .lp-why-support article + article { border-top:0; }
+}
+@media (max-width:480px) {
+  .lp-why { padding-block:48px; }
+  .lp-why h3 { font-size:22px; }
+  .lp-ownership-art { gap:20px; min-height:144px; margin-bottom:16px; }
+  .lp-why-support { grid-template-columns:1fr; gap:0; }
+  .lp-why-support article + article { border-top:1px solid var(--border); }
+}
 .lp-evidence .lp-text-link { display:block; width:fit-content; padding:12px 0; margin:16px 0 8px; }
 .lp-footer { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:28px 0; color:var(--text-dim); font-size:12px; border-top:1px solid var(--border); }
 .lp-footer > span:first-child { color:var(--text); font-size:16px; font-weight:500; }
@@ -875,8 +901,6 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 }
 .position-card:focus { outline:2px solid var(--accent); outline-offset:3px; }
 @media (max-width:640px) {
-  .lp-benefits-strip { grid-template-columns:1fr; gap:24px; }
-  .lp-benefits-strip p { max-width:none; }
   .lp-reference-card { padding:24px; }
   .lp-footer { flex-wrap:wrap; }
   .lp-footer > span:nth-child(2) { order:3; flex-basis:100%; }

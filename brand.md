@@ -51,7 +51,11 @@ Amber signals warnings or unavailable data, not the normal Devnet environment.
 
 The public page combines Set-COM's lighter typography and restrained colour with
 Optimus's flat numbered rows. Keep one contained Protect workspace; supporting
-benefits, asset descriptions and product links use separators rather than cards.
+asset descriptions and product links use separators rather than nested cards.
+The Why protect section uses one asymmetric shared surface: an ownership
+illustration beside two concise buyer benefits. Reserve funding belongs in
+onchain proof, not the buyer-benefit trio. Illustrations contain no balances,
+transaction statuses or simulated execution.
 The scroll-led walkthrough pairs readable steps with a sticky mechanism diagram.
 Only narrow viewports show diagrams inline. Short desktop windows use a compact
 right-side panel. Reduced motion retains the responsive layout with instant
@@ -59,7 +63,7 @@ diagram changes and no animated transitions.
 These explain mechanics only; they never depict simulated transactions.
 
 Landing hierarchy: one left-aligned introduction, the real Protect workspace,
-a compact benefit strip, the walkthrough, asset profiles, onchain evidence and
+an asymmetric benefit panel, the walkthrough, asset profiles, onchain evidence and
 a quiet footer. Avoid repeated feature lists or a second closing sales pitch.
 Connected navigation prioritizes Protect and Positions; Markets, Pools and
 Onchain are secondary destinations under Protocol. Position history remains

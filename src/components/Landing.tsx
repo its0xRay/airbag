@@ -28,12 +28,32 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
 
-      <section className="lp-benefits-strip" id="why-protect" aria-label="Why Optket">
-          {[
-            ["Keep the token", "Your underlying stays in your wallet."],
-            ["Fixed cost", "One premium. No buyer margin or liquidation."],
-            ["Fully reserved", "Maximum contractual payout is reserved onchain."],
-          ].map(([title, body]) => <article key={title}><h2>{title}</h2><p>{body}</p></article>)}
+      <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
+        <div className="lp-section-head">
+          <span className="lp-eyebrow">Why protect</span>
+          <h2 className="lp-h2" id="why-protect-title">Keep your investment.<br /><span className="soft">Add downside protection.</span></h2>
+        </div>
+        <div className="lp-why-surface">
+          <article className="lp-why-ownership">
+            <div className="lp-ownership-art" role="img" aria-label="Ownership illustration: NVDAx and Anthropic tokens stay in your wallet; protection is a separate contract.">
+              <div className="lp-ownership-tokens" aria-hidden="true">
+                <div className="lp-ownership-logos"><AssetLogo asset={VERIFIED_ASSETS[0]} /><AssetLogo asset={VERIFIED_ASSETS[1]} /></div>
+                <span>Your tokens</span>
+              </div>
+              <span className="lp-ownership-plus" aria-hidden="true">+</span>
+              <div className="lp-ownership-cover" aria-hidden="true">
+                <svg viewBox="0 0 64 64" width="64" height="64" fill="none"><path d="M16 12h24l8 8v32H16V12Z" stroke="currentColor" strokeWidth="1.5" /><path d="M40 12v8h8M24 30h16M24 38h10" stroke="currentColor" strokeWidth="1.5" /></svg>
+                <span>Separate protection</span>
+              </div>
+            </div>
+            <h3>Keep the token.</h3>
+            <p>Your tokens stay in your wallet. You keep their upside.</p>
+          </article>
+          <div className="lp-why-support">
+            <article><h3>One premium.</h3><p>Know your protection cost upfront.</p></article>
+            <article><h3>No margin calls.</h3><p>No buyer collateral top-ups or liquidation.</p></article>
+          </div>
+        </div>
       </section>
 
       <ProtectionWalkthrough />
@@ -60,6 +80,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
             <a className="lp-text-link" href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">View deployed program ↗</a><button className="btn ghost sm" onClick={() => onLaunch("history")}>Browse onchain activity</button>
           </div>
           <div className="lp-faq">
+            <details><summary>How are payouts funded?</summary><p>Maximum contractual payout is fully reserved onchain when protection is purchased. Reserves are held in oUSD, a demo token with no real value.</p></details>
             <details><summary>How is the reference verified?</summary><p>The authorized publisher submits external observations. The program checks timing, sample count and ordering, then calculates the median. The publisher remains a trust dependency.</p></details>
             <details><summary>What if a reference is unavailable?</summary><p>No price is invented. Failed exercise returns the requested quantity to coverage; invalid expiry follows the premium-refund rule.</p></details>
             <details><summary>What is real, and what is Devnet?</summary><p>Market references come from real tokens. Purchases, reserves and settlements are onchain. oUSD is a test token with no real value or redemption promise.</p></details>
