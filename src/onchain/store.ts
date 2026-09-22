@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import {
   Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
-  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
   OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress, decodeOptketInstruction, pdas,
@@ -9,6 +8,8 @@ import {
 } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 import { checkPurchaseLimit } from "../engine/quote";
+import bs58 from "bs58";
+import { loadTransaction, saveTransaction, reconcileTransaction, pendingTransaction, rpcScope, type TrackedTransaction } from "./transactionRecovery";
 
 // Hosted deployment: set VITE_RPC_URL (devnet RPC) and VITE_QUOTE_SVC (Railway
 // quote-service URL) in Vercel. Local dev falls back to localnet defaults.
@@ -118,7 +119,7 @@ const seriesKey = (a: number, s: number) => `${a}:${s}`;
  * Send a transaction with the trial budget as fee payer (PRD §19), so a user
  * never needs SOL. `rentLamports` is an exact top-up for any account the
  * instruction creates — the service caps it and refuses anything that isn't a
- * transfer to this buyer. Falls back to self-paying if sponsorship is refused.
+ * transfer to this buyer. A failed sponsored submission is never replaced.
  */
 async function sendSponsored(
   conn: Connection,
@@ -131,34 +132,59 @@ async function sendSponsored(
   sponsor: PublicKey | null,
   rentLamports = 0,
 ): Promise<string> {
+  const prior = useChain.getState().transaction;
+  if (pendingTransaction(prior, conn.rpcEndpoint, burner.publicKey.toBase58())) throw new Error("Check the pending transaction before submitting another.");
+  const lifetime = await conn.getLatestBlockhash("confirmed");
+  let signed: Transaction;
   if (sponsor) {
-    try {
       const prefix = rentLamports > 0
         ? [SystemProgram.transfer({ fromPubkey: sponsor, toPubkey: burner.publicKey, lamports: rentLamports })]
         : [];
       const tx = build(prefix, sponsor);
       tx.feePayer = sponsor;
-      tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+      tx.recentBlockhash = lifetime.blockhash;
       const unsigned = bytesToB64(Uint8Array.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })));
       const j = await fetchJson<{ tx: string }>(`${svcUrl}/sponsor`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ tx: unsigned, buyer: burner.publicKey.toBase58() }),
       });
-      const signed = Transaction.from(b64ToBytes(j.tx));
+      signed = Transaction.from(b64ToBytes(j.tx));
+      if (!signed.serializeMessage().equals(tx.serializeMessage())) throw new Error("Sponsor changed transaction terms.");
       signed.partialSign(burner);
-      return await conn.sendRawTransaction(signed.serialize(), { preflightCommitment: "confirmed" })
-        .then(async (sig) => { await conn.confirmTransaction(sig, "confirmed"); return sig; });
-    } catch (e) {
-      // Sponsorship unavailable (cap reached, service down) — fall through and
-      // let the burner pay from its own trial grant if it has one.
-      console.warn("[sponsorship unavailable]", (e as Error).message);
-    }
+  } else {
+    signed = build([], burner.publicKey);
+    signed.feePayer = burner.publicKey;
+    signed.recentBlockhash = lifetime.blockhash;
+    signed.sign(burner);
   }
-  const self = build([], burner.publicKey);
-  self.feePayer = burner.publicKey;
-  self.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-  return sendAndConfirmTransaction(conn, self, [burner], { commitment: "confirmed" });
+  const bytes = signed.serialize();
+  if (!signed.signature) throw new Error("Transaction signature is missing.");
+  const signature = bs58.encode(signed.signature);
+  const tracked: TrackedTransaction = { ...lifetime, signature, buyer: burner.publicKey.toBase58(), rpc: rpcScope(conn.rpcEndpoint), state: "checking" };
+  saveTransaction(tracked);
+  useChain.setState({ transaction: tracked, status: "Submitting transaction…" });
+  try {
+    await conn.sendRawTransaction(bytes, { preflightCommitment: "confirmed", maxRetries: 3 });
+    useChain.setState({ status: "Confirming onchain…" });
+    // HTTP status checks work with HTTP-only RPC endpoints as well as after
+    // refresh. A timeout is uncertainty, never permission to submit again.
+    const deadline = Date.now() + 60000;
+    while (Date.now() < deadline) {
+      const next = await reconcileTransaction(conn, tracked);
+      saveTransaction(next);
+      useChain.setState({ transaction: next });
+      if (next.state === "confirmed") return signature;
+      if (next.state === "failed") throw new Error("Transaction failed onchain. Inspect the transaction for details.");
+      if (next.state === "expired") throw new Error("Transaction expired without confirmation. Review your position before submitting again.");
+      await new Promise(resolve => setTimeout(resolve, 2500));
+    }
+    throw new Error("Confirmation is taking longer than expected. Your original signature is saved; check its status before submitting again.");
+  } catch (error) {
+    await useChain.getState().recoverTransaction();
+    if (useChain.getState().transaction?.state === "confirmed") return signature;
+    throw error;
+  }
 }
 
 function loadBurner(): Keypair {
@@ -172,6 +198,10 @@ function loadBurner(): Keypair {
 }
 
 interface ChainState {
+  transaction: TrackedTransaction | null;
+  recovering: boolean;
+  refreshing: boolean;
+  recoverTransaction: () => Promise<void>;
   rpcUrl: string;
   svcUrl: string;
   conn: Connection;
@@ -221,6 +251,22 @@ interface ChainState {
 const conn = new Connection(DEFAULT_RPC, "confirmed");
 
 export const useChain = create<ChainState>((set, get) => ({
+  transaction: loadTransaction(),
+  recovering: false,
+  refreshing: false,
+  recoverTransaction: async () => {
+    const tx = get().transaction;
+    if (!tx || tx.rpc !== rpcScope(get().conn.rpcEndpoint) || get().recovering) return;
+    set({ recovering: true });
+    try {
+      const next = await reconcileTransaction(get().conn, tx);
+      if (get().transaction?.signature !== tx.signature) return;
+      saveTransaction(next);
+      set({ transaction: next, ...(next.state === "confirmed" ? { lastTx: next.signature, error: null } : {}) });
+      if (next.state === "confirmed") void get().refresh().catch(() => {});
+    } catch { /* An RPC error must never turn an unknown outcome into failure. */ }
+    finally { set({ recovering: false }); }
+  },
   publicLoading: false,
   publicError: null,
   refreshPublic: async () => {
@@ -237,6 +283,8 @@ export const useChain = create<ChainState>((set, get) => ({
         signature: s.signature, slot: s.slot, blockTime: s.blockTime ?? null,
         err: !!s.err, action: prior.get(s.signature) ?? "Program instruction",
       })) });
+      const actions = await decodeTransactionActions(conn, signatures.filter(s => !prior.has(s.signature) || prior.get(s.signature) === "Program instruction").map(s => s.signature));
+      set(state => ({ programHistory: state.programHistory.map(entry => ({ ...entry, action: actions.get(entry.signature) ?? entry.action })) }));
     } catch { set({ publicError: "Could not refresh public Devnet data. Please retry." }); }
     finally { set({ publicLoading: false }); }
   },
@@ -303,7 +351,9 @@ export const useChain = create<ChainState>((set, get) => ({
 
   refresh: async () => {
     const { client, conn, burner, demoMint, svcUrl } = get();
-    if (!burner || !demoMint) return;
+    if (!burner || !demoMint || get().refreshing) return;
+    set({ refreshing: true });
+    try {
     const current = get();
     const [pool0, pool1, contracts, seriesList] = await Promise.all([
       client.getPool(0).catch(() => current.pools[0] ?? null), client.getPool(1).catch(() => current.pools[1] ?? null),
@@ -312,11 +362,12 @@ export const useChain = create<ChainState>((set, get) => ({
     ]);
 
     const requests = await client.getRequestsForContracts(contracts.map((contract) => new PublicKey(contract.address))).catch(() => current.requests);
+    // Coverage is useful before slower history and balance reads finish.
+    set({ contracts, requests, pools: { 0: pool0, 1: pool1 }, seriesList });
 
     // Real transaction history: every signature that touched a contract the
     // user owns (§13.7) — no local log, straight from the chain.
     const history: HistoryEntry[] = [];
-    const programHistory: ProgramHistoryEntry[] = [];
     const previousActions = new Map([
       ...get().history.map((entry) => [entry.signature, entry.action] as const),
       ...get().programHistory.map((entry) => [entry.signature, entry.action] as const),
@@ -336,20 +387,6 @@ export const useChain = create<ChainState>((set, get) => ({
           }
         } catch { /* rpc hiccup — keep what we have */ }
       }),
-      (async () => {
-        try {
-          const sigs = await conn.getSignaturesForAddress(OPTKET_PROGRAM_ID, { limit: 30 });
-          for (const s of sigs) {
-            programHistory.push({
-              signature: s.signature,
-              slot: s.slot,
-              blockTime: s.blockTime ?? null,
-              err: !!s.err,
-              action: previousActions.get(s.signature) ?? "Program instruction",
-            });
-          }
-        } catch { /* rpc hiccup — keep the wallet-scoped data */ }
-      })(),
       ...requests.slice(0, 20).map(async (request) => {
         const cached = requestTransactions[request.address];
         const finalActionPresent = cached?.some((entry) => entry.action.includes("settled") || entry.action.includes("failed"));
@@ -367,11 +404,9 @@ export const useChain = create<ChainState>((set, get) => ({
     ]);
     const allSignatures = [
       ...history.filter((entry) => entry.action === "Contract instruction").map((entry) => entry.signature),
-      ...programHistory.filter((entry) => entry.action === "Program instruction").map((entry) => entry.signature),
       ...Object.values(requestTransactions).flat().filter((entry) => entry.action === "Exercise instruction").map((entry) => entry.signature),
     ];
     history.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
-    programHistory.sort((a, b) => (b.blockTime ?? b.slot) - (a.blockTime ?? a.slot));
     let sol = current.solBalance;
     try { sol = (await conn.getBalance(burner.publicKey)) / 1e9; } catch { /* preserve last confirmed balance */ }
     let tokens = current.tokenBalance;
@@ -388,7 +423,6 @@ export const useChain = create<ChainState>((set, get) => ({
       requests,
       requestTransactions,
       history: history.length > 0 ? history : current.history,
-      programHistory: programHistory.length > 0 ? programHistory : current.programHistory,
       solBalance: sol,
       tokenBalance: tokens,
       trial,
@@ -404,9 +438,11 @@ export const useChain = create<ChainState>((set, get) => ({
         requestTransactions: Object.fromEntries(Object.entries(latest.requestTransactions).map(([address, entries]) => [address, entries.map(label)])),
       }));
     });
+    } finally { set({ refreshing: false }); }
   },
 
   buy: async (assetId, seriesId, quantityUnits, maxPremium) => {
+    if (get().busy || pendingTransaction(get().transaction, get().conn.rpcEndpoint, get().address)) throw new Error("Resolve the pending operation before buying protection.");
     const { client, conn, burner, demoMint, svcUrl, sponsor } = get();
     if (!burner || !demoMint) throw new Error("not connected");
     set({ busy: true, error: null, status: "requesting signed quote…" });
@@ -440,8 +476,8 @@ export const useChain = create<ChainState>((set, get) => ({
           client.purchaseTx(burner.publicKey, assetId, seriesId, demoMint, signedQuote, prefix, rentPayer),
         burner, sponsor, 0,
       );
-      await get().refresh();
       set({ status: "", lastTx: sig, lastPurchasePremium: Number(approvedPremium) / 1e6, lastPurchaseAddress: pdas.contract(signedQuote.quoteId).toBase58() });
+      void get().refresh().catch(() => {});
     } catch (e) {
       set({ error: friendly(e), status: "" });
       throw e;
@@ -451,6 +487,7 @@ export const useChain = create<ChainState>((set, get) => ({
   },
 
   requestExercise: async (contractAddr, assetId, nonce, quantityUnits) => {
+    if (get().busy || pendingTransaction(get().transaction, get().conn.rpcEndpoint, get().address)) throw new Error("Resolve the pending operation before requesting exercise.");
     const { client, conn, burner, svcUrl, sponsor } = get();
     if (!burner) throw new Error("not connected");
     set({ busy: true, error: null, status: "submitting exercise request…" });
@@ -465,8 +502,8 @@ export const useChain = create<ChainState>((set, get) => ({
         ),
         burner, sponsor, 0,
       );
-      await get().refresh();
       set({ status: "", lastTx: sig });
+      void get().refresh().catch(() => {});
     } catch (e) {
       set({ error: friendly(e), status: "" });
       throw e;
@@ -502,6 +539,7 @@ const PROGRAM_ERRORS: Record<number, string> = {
 };
 function friendly(e: unknown): string {
   const s = String((e as Error)?.message || e);
+  if (/429|too many requests/i.test(s)) return "The RPC is rate-limited. Wait briefly, then check transaction status before retrying.";
   if (/fetch|Failed to fetch|ECONNREFUSED|NetworkError|aborted|non-JSON response/i.test(s)) {
     return "Can't reach the RPC or quote service. Check your connection and that the services are up.";
   }

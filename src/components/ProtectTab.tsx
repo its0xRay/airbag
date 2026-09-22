@@ -1,5 +1,8 @@
 import AssetLogo from "./AssetLogo";
 import PayoffChart from "./PayoffChart";
+import HoldingsCard from "./HoldingsCard";
+import { combinedOutcome } from "../engine/combinedOutcome";
+import { pendingTransaction } from "../onchain/transactionRecovery";
 import { ACTIVE_REFERENCE_VERSION } from "../data/referencePolicy";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChain, explorerUrl, loadSeries, type SeriesInfo } from "../onchain/store";
@@ -174,7 +177,7 @@ export default function ProtectTab({
   const tooBig = !!selected && qty > selected.maxContractSize;
   const closed = !!selected && now > selected.purchaseCutoffTs;
   const affordable = !est || c.tokenBalance >= fromFixed(est.premium);
-  const canBuy = !!selected && referenceReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && c.connected;
+  const canBuy = !!selected && referenceReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && !pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address) && c.connected;
   const approvalKey = `${assetId}:${selected?.seriesId}:${qtyStr}`;
   const approved = approval?.key === approvalKey ? approval : null;
 
@@ -192,6 +195,7 @@ export default function ProtectTab({
   const presetValue = scenarioPreset === "Current" ? spotReal : scenarioPreset === "Floor" ? selected && tok(selected.strike) : scenarioPreset === "Breakeven" ? breakeven : scenarioPreset === "15% lower" ? spotReal && spotReal * 0.85 : scenario;
   const scenarioPrice = Math.max(chartMin, Math.min(chartMax, presetValue ?? spotReal ?? 0));
   const scenarioPayout = selected && est ? intrinsic(qty, selected.strike, toFixed(scenarioPrice)) : 0n;
+  const outcome = selected && est ? combinedOutcome(qty, qty, selected.strike, toFixed(scenarioPrice), est.premium) : null;
   const referenceStatus = referenceReady ? "Reference available" : reference?.status === "session_closed" ? "Equity session closed" : reference?.status === "stale" ? "Waiting for a fresh reference" : marketError ? "Reference unavailable" : reference ? "Reference unavailable" : "Checking reference…";
 
   const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : approved ? "Confirm purchase" : "Review protection";
@@ -232,7 +236,8 @@ export default function ProtectTab({
           <label className="field" htmlFor="protected-quantity"><span className="lbl">Quantity · {asset.symbol}</span></label>
           <div className="quantity-control"><button type="button" disabled={quantity <= 0.01} aria-label="Decrease protected quantity by one" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setApproval(null); }} aria-describedby="quantity-help" aria-invalid={qty <= 0n || tooBig} /><button type="button" disabled={!!selected && qty >= selected.maxContractSize} aria-label="Increase protected quantity by one" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
           <div className="field-help" id="quantity-help">{tooBig ? "Maximum " + (selected ? tok(selected.maxContractSize) : 0) + " units." : qty <= 0n ? "Enter a quantity above zero." : `Decimals accepted${selected ? ` · Max ${tok(selected.maxContractSize)}` : ""}.`}</div>
-          {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setQtyStr(String(c.exposure[assetId]))}>Use my holdings</button>}
+          {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setQtyStr(String(c.exposure[assetId]))}>Use reference holdings</button>}
+          <details className="position-details"><summary>Look up mainnet holdings</summary><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} /></details>
           <div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{kind === "short" ? "Short duration" : "Weekly"}<span>{option ? fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
           <div className="ticket-label">Price floor</div>
           <div className="floor-list">{tenorOptions.map((s) => { const distance = spotReal ? (tok(s.strike) - spotReal) / spotReal : null; return <button key={s.seriesId} className={"strike-option" + (selected?.seriesId === s.seriesId ? " active" : "")} aria-pressed={selected?.seriesId === s.seriesId} onClick={() => setSeriesId(s.seriesId)}><strong className="mono">{fmtPrice(s.strike)}</strong><span className="floor-distance">{distance == null ? "Reference unavailable" : Math.abs(distance * 100).toFixed(1) + "% " + (distance >= 0 ? "above" : "below") + " reference"}</span></button>; })}</div>
@@ -251,6 +256,12 @@ export default function ProtectTab({
           <div className="card scenario-card"><div className="between"><div><h2>What would you receive?</h2><p>Move the price to see how your payout changes.</p></div></div>
           {selected && est && qty > 0n ? <>
             <div className="scenario-results"><div><span>Payout</span><strong className="mono">{fmtOusd(tok(scenarioPayout))}</strong></div><div><span>Premium</span><strong className="mono">{fmtOusd(tok(est.premium))}</strong></div><div><span>Payout minus premium</span><strong className={"mono " + (scenarioPayout >= est.premium ? "pos" : "")}>{fmtOusd(tok(scenarioPayout - est.premium))}</strong></div></div>
+            <details className="position-details"><summary>Holdings + protection outcome</summary>
+              <p className="disclosure">Assumes you hold {quantity} {asset.symbol} and its market price equals this hypothetical settlement reference.</p>
+              <div className="kv"><span>Holdings value</span><strong className="mono">{outcome ? fmtUsd(tok(outcome.holdingsValue)) : "—"}</strong></div>
+              <div className="kv"><span>Combined model value, after premium</span><strong className="mono">{outcome ? fmtUsd(tok(outcome.combinedModelValue)) : "—"}</strong></div>
+              <p className="disclosure">Arithmetic illustration only: holdings value + payout − premium, treating one oUSD as one USD for comparison. oUSD has no real value; this is not a redeemable portfolio value.</p>
+            </details>
             <PayoffChart points={payoffPoints} min={chartMin} max={chartMax} floor={tok(selected.strike)} breakeven={breakeven} price={scenarioPrice} net={tok(scenarioPayout - est.premium)} scale={payoffScale} />
             <div className="chart-thresholds"><span>Floor <strong>{fmtPrice(selected.strike)}</strong></span><span>Breakeven <strong>{fmtUsd(breakeven)}</strong></span></div>
             <div className="scenario-price-row"><label htmlFor="scenario-price">Explore settlement price</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>

@@ -994,3 +994,7 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
   .reference-inline > span { flex-basis:auto; }
   .reference-inline > strong { text-align:right; }
 }
+.transaction-progress { margin: 16px auto; padding: 16px; max-width: 1200px; border: 1px solid var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.transaction-progress p { margin: 6px 0 0; }
+.transaction-progress .row { flex-wrap: wrap; flex-shrink: 0; }
+@media (max-width: 768px) { .transaction-progress { margin: 12px; align-items: flex-start; flex-direction: column; } }

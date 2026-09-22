@@ -13,7 +13,7 @@ interface Row { key: string; symbol: string; holdings: Holdings | null; error?: 
  * Holdings never modify a contract; they can optionally seed the reference
  * exposure so the coverage tracker (§16) compares against something real.
  */
-export default function HoldingsCard() {
+export default function HoldingsCard({ onProtect }: { onProtect?: (assetId: number, quantity: number) => void }) {
   const setExposure = useChain((s) => s.setExposure);
   const [address, setAddress] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -49,6 +49,7 @@ export default function HoldingsCard() {
   function applyExposure(assetIndex: number, shareEquiv: number) {
     setExposure(assetIndex, shareEquiv);
     setImported(VERIFIED_ASSETS[assetIndex].symbol);
+    onProtect?.(assetIndex, shareEquiv);
   }
 
   return (
@@ -112,11 +113,8 @@ export default function HoldingsCard() {
                   ) : hasBalance ? (
                     <>
                       <span className="mono">{shareEquiv.toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
-                      <span className="faint" style={{ fontSize: 11 }}>
-                        ({h.raw.toLocaleString(undefined, { maximumFractionDigits: 6 })} raw × {h.scaledMultiplier.toFixed(6)})
-                      </span>
                       <button className="btn ghost sm" onClick={() => applyExposure(i, shareEquiv)}>
-                        Use as exposure
+                        {onProtect ? "Use this quantity" : "Use as exposure"}
                       </button>
                     </>
                   ) : (
@@ -129,8 +127,7 @@ export default function HoldingsCard() {
 
           {imported && (
             <div className="callout" style={{ marginTop: 12 }}>
-              Using your {imported} balance as reference exposure in the coverage tracker. Your
-              contracts are unchanged — holdings are read-only and never modify coverage.
+              Using the inspected address’s {imported} balance as reference exposure. No tokens move; protection is purchased separately on Devnet.
             </div>
           )}
 

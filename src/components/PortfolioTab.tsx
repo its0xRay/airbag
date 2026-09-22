@@ -7,6 +7,7 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import type { ContractAcct } from "../client/optketProgram";
 import { fmtPrice, fmtDuration, fmtClock } from "../format";
 import HoldingsCard from "./HoldingsCard";
+import { pendingTransaction } from "../onchain/transactionRecovery";
 import RemindersPanel from "./RemindersPanel";
 import { useNowSeconds } from "../useNowSeconds";
 
@@ -22,7 +23,7 @@ const STATUS_TONE: Record<string, string> = {
  * Positions read straight from the program (PRD §13.5) plus the coverage
  * tracker (§16). Every action here is a real transaction.
  */
-export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number) => void; target?: PositionTarget | null }) {
+export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number, quantity?: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
   const [assetId, setAssetId] = useState(() => target?.assetId ?? -1);
   const [view, setView] = useState<"active" | "history">(() => {
@@ -112,7 +113,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       <details className="secondary-tool position-context">
         <summary>Inspect mainnet token holdings</summary>
         <p>This optional read-only tool can inspect any Solana address. It is separate from the connected Devnet wallet and does not modify a position.</p>
-        <HoldingsCard />
+        <HoldingsCard onProtect={onProtect} />
       </details>
     </div>
   );
@@ -183,7 +184,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
             <button
               className="btn"
               style={{ alignSelf: "flex-end" }}
-              disabled={!valid || c.busy}
+              disabled={!valid || c.busy || pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address)}
               aria-busy={c.busy}
               onClick={() => reviewQuantity === amount ? requestExercise() : setReviewQuantity(amount)}
             >
@@ -197,7 +198,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
           </div>
           {exerciseTx && (
             <div className="callout" role="status" style={{ marginTop: 10 }}>
-              Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Waiting for the next qualifying reference.
+              Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Track settlement in the execution receipt.
             </div>
           )}
         </details>
@@ -225,6 +226,9 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
         <div><div className="stat-label">Original quantity</div><div className="stat-value sm mono">{qty(k.originalQuantity)}</div></div>
       </div>
 
+      </details>
+      <details className="position-details"><summary>Execution receipt</summary>
+      <p className="disclosure">Recorded on Devnet · oUSD has no real value.</p>
       <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
         <div className="lifecycle-row">
           <span className="lifecycle-dot complete" aria-hidden="true" />
@@ -262,7 +266,9 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
           );
         })}
       </div>
-
+      <p className="disclosure">Contract status: {k.status}. Exercise payouts are recorded request outcomes, not projected returns. For expiry transfers, inspect the settlement transaction.</p>
+      <div className="lifecycle-transactions">{c.history.filter(entry => entry.contractId === k.contractId && !requests.some(request => c.requestTransactions[request.address]?.some(transaction => transaction.signature === entry.signature))).map(entry => <a key={entry.signature} href={explorerUrl("tx", entry.signature)} target="_blank" rel="noreferrer">{entry.err ? "Failed transaction" : entry.action} · <span className="mono">{entry.signature.slice(0, 10)}…</span> ↗</a>)}</div>
+      <a href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">Verify contract account ↗</a>
       </details>
     </div>
   );

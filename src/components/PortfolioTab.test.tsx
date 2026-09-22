@@ -5,7 +5,7 @@ import type { ContractAcct } from "../client/optketProgram";
 import PortfolioTab from "./PortfolioTab";
 
 // Test-only onchain account fixtures; no mock data is imported by the app.
-const state = vi.hoisted(() => ({ connected: true, contracts: [] as ContractAcct[], requests: [], requestTransactions: {}, exposure: {}, busy: false }));
+const state = vi.hoisted(() => ({ connected: true, contracts: [] as ContractAcct[], requests: [], requestTransactions: {}, history: [], exposure: {}, busy: false, transaction: null, conn: { rpcEndpoint: "test" } }));
 vi.mock("../onchain/store", () => ({ useChain: () => state, explorerUrl: (_kind: string, address: string) => `https://explorer.solana.com/address/${address}?cluster=devnet` }));
 vi.mock("./HoldingsCard", () => ({ default: () => <p>Holdings inspector</p> }));
 vi.mock("./RemindersPanel", () => ({ default: () => <p>Renewal reminders</p> }));
@@ -35,6 +35,9 @@ describe("Positions presentation", () => {
     expect(html).toContain('<details class="position-details">');
     expect(html).toContain("Protected quantity");
     expect(html).toContain("Price floor");
+    expect(html).toContain("Execution receipt");
+    expect(html).toContain("Protection purchased");
+    expect(html).toContain("Verify contract account");
   });
   it("shows pending settlement guidance without an exercise action when no quantity remains", () => {
     state.contracts = [{ ...account, remainingQuantity: 0n, pendingQuantity: 1_000_000n }];

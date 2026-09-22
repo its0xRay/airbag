@@ -7,6 +7,7 @@ import CompareTab from "./components/CompareTab";
 import UnderwriterTab from "./components/UnderwriterTab";
 import HistoryTab from "./components/HistoryTab";
 import WalletBar, { NETWORK } from "./components/WalletBar";
+import TransactionProgress from "./components/TransactionProgress";
 
 type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history";
 const ROUTES: Record<string, Tab> = { protect: "protect", positions: "portfolio", markets: "compare", pools: "underwriter", onchain: "history" };
@@ -93,7 +94,7 @@ export default function App() {
   // Keep onchain state fresh while the user is looking at it.
   useEffect(() => {
     if (!connected) return;
-    const t = setInterval(() => { refresh().catch(() => {}); }, 12000);
+    const t = setInterval(() => { const chain = useChain.getState(); if (!chain.busy && chain.transaction?.state !== "checking") refresh().catch(() => {}); }, 12000);
     return () => clearInterval(t);
   }, [connected, refresh]);
 
@@ -128,6 +129,7 @@ export default function App() {
           <WalletBar />
         )}
       </header>
+      <TransactionProgress onViewPositions={() => void launch("portfolio")} />
 
       {tab !== "home" && (
         <nav className="tabs journey-tabs" aria-label="Application sections">
@@ -167,7 +169,7 @@ export default function App() {
           onInitialDraftConsumed={() => setProtectDraft(null)}
         />
       )}
-      {tab === "portfolio" && <PortfolioTab key={positionTarget?.address ?? "positions"} target={positionTarget} onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} onProtect={(assetId) => { setProtectDraft({ assetId }); setTab("protect"); }} />}
+      {tab === "portfolio" && <PortfolioTab key={positionTarget?.address ?? "positions"} target={positionTarget} onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} onProtect={(assetId, quantity) => { setProtectDraft({ assetId, quantity }); setTab("protect"); }} />}
       {tab === "compare" && <CompareTab />}
       {tab === "underwriter" && <UnderwriterTab />}
       {tab === "history" && <HistoryTab onProtect={() => { setProtectDraft({ assetId: 1 }); setTab("protect"); }} />}
