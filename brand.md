@@ -1,16 +1,7 @@
 # Brand — Airbag
 
-Public-facing rename from Optket, 2026-09-23. Keep the existing yellow mark and
-charcoal palette. The current site remains https://optket.vercel.app/.
-Repository paths, program identifiers, browser storage keys and service endpoints
-retain their existing names for compatibility; this is not a protocol migration.
-
-_Status: approved yellow-and-charcoal palette, updated 2026-09-22_
-
-This project already shipped a committed design language before `brand-design` was
-ever run, so this file **documents the system in use** rather than replacing it.
-All tokens live in `src/index.css` under `:root`. Use these tokens — never inline
-hex values or magic spacing.
+Yellow-and-charcoal identity for risk management on Solana.
+Design tokens live in `src/index.css` under `:root`.
 
 ## Palette
 

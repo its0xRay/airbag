@@ -1,281 +1,70 @@
-# Airbag — downside protection for tokenized equities on Solana
+# Airbag
 
-Two-asset MVP implementing the original Optket PRD (v1.0). Airbag lets a holder pick an
-asset, protected quantity, strike and expiry, then buy put-style protection
-while keeping their tokens in their wallet.
+Risk management for tokenized equities on Solana. Choose a price floor, pay one premium and keep your tokens.
 
-> **Devnet deployment.** Collateral, premiums and payouts use `oUSD`, a real SPL
-> token with **no monetary value** — as is true of every devnet asset. The
-> mechanics are not simulated: every transfer, reservation and payout is
-> executed and enforced by the deployed program. Real USDC is rejected by
-> design, and hedging is modelled rather than executed.
+[Try Airbag](https://optket.vercel.app/) · [Deployed program](https://explorer.solana.com/address/Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky?cluster=devnet) · [Architecture](docs/architecture.md) · [Deployment](DEPLOY.md)
 
-**Deployed to devnet** (program `Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky`).
-To host the public app (Vercel + Railway) so anyone can use it, see
-**[DEPLOY.md](DEPLOY.md)**. The full lifecycle — signed-quote purchase → exercise
-→ keeper settlement with **live token-market observations** → payout — runs on
-public devnet, and the Compare tab shows **real live mainnet prices** for the
-verified xStocks/PreStocks assets.
+## The product
 
----
+- **Markets:** NVDAx and Anthropic PreStocks.
+- **Positions:** signed-quote purchases, fully reserved maximum payouts, partial or full early exercise, and expiry settlement.
+- **Transparency:** inspect references, pool reserves, contract accounts and confirmed transactions.
 
-## What's in the box
+Payout = quantity × max(price floor − settlement reference, 0).
 
-| Layer | Path | Status |
-|---|---|---|
-| On-chain program (Anchor/Rust) | `programs/optket` | Complete source; build with the Solana/Anchor toolchain |
-| Protection engine (TypeScript) | `src/engine` | Pricing and hypothetical payoff arithmetic used by the app; tested against contract rules (`npm test`) |
-| Web app — full protection journey | `src/App.tsx`, `src/components` | Real onchain execution with labelled hypothetical payoff scenarios (`npm run dev`) |
-| On-chain client | `src/client/optketProgram.ts` | Account decoders + instruction builders used by the app |
-| Quote service + sponsorship | `server/quoteService.ts` | **Runs** (`npm run quote-service`) — signs quotes, pays fees/rent (§19) |
-| Anchor integration test | `tests/optket.ts` | Runs under `anchor test` |
-| Keeper (settlement service) | `server/keeper.ts` | **Runs** (`npm run keeper`) — live references, no synthetic fallback |
+New positions follow token-market references, not guaranteed portfolio values. The underlying tokens stay in your wallet.
 
-**Execution is not simulated.** Protect submits transactions, Positions reads
-contract accounts, Onchain shows transaction signatures, and Pools reads pool
-accounts. Explicitly labelled hypothetical scenarios explain the payoff; they
-do not change market observations or settle contracts. New NVDAx and ANTHROPIC
-contracts use token-market medians. Existing NVDAx v1 contracts retain their
-original NVIDIA benchmark reference rules.
+## Try the Devnet app
 
----
+Choose an asset, quantity, floor and expiry. Start with a browser demo wallet, review the maximum premium, then open a position. Follow it in Positions.
 
-## Quick start (web demo)
+Purchases and settlements execute on Solana Devnet. Premiums and payouts use **oUSD, a test token with no monetary value**; transaction fees are sponsored. Payout previews are illustrative, not executable quotes.
+
+Your demo wallet is stored in that browser on that domain. Clearing site data removes access.
+
+## Run the frontend locally
+
+Requires Node.js 22 and npm. This configuration uses the hosted Devnet services.
 
 ```bash
-cd optket
+git clone https://github.com/its0xRay/airbag.git
+cd airbag
 npm ci
-# Configure .env using .env.example; local defaults require a local validator
-# and a running quote service. Never put private RPC credentials in VITE_*.
-npm run dev        # http://localhost:5173
-npm test           # engine, instruction-decoder, service-boundary and reference tests
-npm run typecheck:server # quote service + keeper TypeScript check
-npm run build      # production build
 ```
 
-### Evidence
+Create `.env.local`:
+
+```dotenv
+VITE_QUOTE_SVC=https://web-production-44d1a.up.railway.app
+VITE_USE_RPC_RELAY=true
+```
 
 ```bash
-# Read-only automated checks (no public transactions or secrets required).
+npm run dev
+```
+
+Open the URL printed by Vite. Never put private keys or credential-bearing RPC URLs in `VITE_*` variables.
+
+## Checks
+
+```bash
 npm test
-npm run build
 npm run lint
 npm run typecheck:server
+npm run build
 ```
 
-The adversarial script is an operator-only transaction harness, not a CI check.
-It changes chain state and uses test observations. Do not run it against the
-public judging deployment or stop the live keeper to run it. Use an isolated
-deployment with dedicated test keys. Run `anchor test` separately with the
-Anchor/Solana toolchain and an isolated local validator.
+Anchor integration tests require the Solana/Anchor toolchain and an isolated local validator. The adversarial transaction harness is for isolated test deployments only, not the public app.
 
-`test:adversarial` covers quote integrity (expired, over-long TTL, rogue signer,
-tampered payload, wrong buyer/strike, missing ed25519 instruction), the
-real-USDC/wrong-mint guard, replay protection, exercise limits and
-no-double-payout, the observation rules (historical, stale, duplicate slots, too
-few, out-of-window), role checks, and pool obligations.
+## Source map
 
-Connect the demo wallet → a burner wallet is created in your browser and given
-demo `oUSD`. Fees and account rent are sponsored, so you never need SOL. Then
-walk the journey: **select asset → choose quantity & strike → review scenarios →
-buy onchain → monitor → request exercise → keeper settles → expire/refund →
-history.** Every step is a real devnet transaction with an explorer link; the
-keeper runs as its own service and settles against live references.
-
-The keeper exposes `GET /health` with its last successful tick, pending work,
-buffered reference sample counts and latest settlement signature. Configure the
-worker deployment to use this endpoint for health checks.
-
-### Keeper restart recovery
-
-Mount a persistent Railway volume on the **keeper** service and set
-`KEEPER_STATE_PATH=/data/keeper-observations.json` (when mounted at `/data`).
-The web service's trial-budget volume is separate. Without this setting the
-keeper remains memory-only and reports `persistenceEnabled: false`.
-
-Snapshots retain genuine observation timestamps, slots, prices and reference
-versions. Loading checks the chain genesis hash, program and publisher; samples
-older than 15 minutes are discarded. A corrupt or mismatched file stops startup
-without overwriting the evidence. The keeper does not invent missing history.
-`/health` reports reference ages, persistence and settlement errors; stale
-references or failed settlement work return 503. An external uptime monitor
-still needs to be configured with the operator's notification destination.
-
-The browser demo wallet is stored locally. Refresh restores the same wallet
-without claiming tokens or signing a transaction. Clearing browser site data
-removes wallet access. Multiple tabs coordinate submissions through Web Locks;
-an unresolved transaction must be checked before another is sent.
-
----
-
-## On-chain program
-
-### Build & deploy
-
-```bash
-# one-time toolchain (versions per Anchor.toml):
-#   Rust + Solana CLI + Anchor 0.30.1 (via avm)
-anchor build
-anchor test               # localnet integration test (tests/optket.ts)
-
-solana config set --url devnet
-anchor deploy --provider.cluster devnet
-```
-
-### Instructions → PRD mapping
-
-| Instruction | PRD | Notes |
-|---|---|---|
-| `initialize_config` / `set_pause` / `set_roles` | §20 | admin, quote & publisher authorities, demo mint, pause, trial cap |
-| `init_asset` / `set_asset_active` | §4, §12 | per-asset config + pool + vault; activation gate |
-| `create_series` | §7 | strike, weekly expiry, purchase & exercise cutoffs, max size |
-| `fund_pool` / `withdraw_pool` | §12 | withdrawals blocked below outstanding obligations |
-| `purchase` | §8 | ed25519 quote verify, replay guard, exposure & collateral checks, premium transfer, contract creation — all atomic |
-| `request_exercise` | §10 | full/partial; irrevocable; locks pending reserve |
-| `settle_exercise_equity` / `settle_exercise_prestocks` | §9, §10 | next-observation-after-request / 5-min median window |
-| `fail_exercise` | §10.4 | restores exact quantity once the window elapses (permissionless) |
-| `settle_expiry_equity` / `settle_expiry_prestocks` | §11 | reference at/after expiry / 5-min window ending at expiry |
-| `expire_refund` | §11.2 | disclosed demo refund of premium on unextinguished quantity |
-
-### Accounts
-
-`Config`, `AssetConfig`, `Pool` (+ SPL vault), `Series`, `Contract`,
-`ExerciseRequest`, `QuoteMarker` (replay guard). See
-`programs/optket/src/state.rs`.
-
-### Fixed-point conventions (§6.3)
-
-Prices/strikes and quantities are `u64` scaled by `1e6`; the demo token has 6
-decimals. **Reserves round up, payouts round down**, all in `u128` intermediates
-with overflow checks. `payout = qty·max(strike−ref,0)`, `liability = qty·strike`.
-The identical rules live in `programs/optket/src/math.rs` and `src/engine/fixed.ts`.
-
----
-
-## Reference & trust model (§9)
-
-Each asset has its own adapter behind a common observation interface; **one
-asset's reference failure never disables the other** (enforced by per-asset
-pools and independent settlement paths — see the invariant test).
-
-- **NVDAx v2 (new contracts):** Jupiter token-market price, using a median of
-  at least three distinct upstream updates in the five-minute window. Each
-  update's mainnet block timestamp must be at most 60 seconds old when collected.
-  Equity-session hours do not gate this path; fresh data and active series do.
-  Prices are per displayed token (Jupiter `usdPrice`, already scaled), matching
-  protected quantities. No last print is re-stamped to make it fresh.
-- **NVDAx v1 (existing contracts only):** underlying-stock benchmark.
-  Early exercise selects the earliest qualifying observation **strictly after**
-  the request; expiry selects the earliest at/after the fixed expiry, within the
-  allowed delay. The value is an oracle benchmark, **not** an exchange close.
-- **Anthropic PreStocks v1:** median of at least three real Jupiter API snapshots
-  in the window, sequenced by the confirmed Devnet slot at collection. Its
-  original snapshot policy is retained; it is not NVDAx v2's upstream-update
-  policy, and does not independently validate last-trade age.
-
-For token paths, early exercise uses observations strictly after the request;
-expiry uses the five-minute window ending at expiry. Existing contract terms
-are immutable: `(asset_id, reference_version)` selects the path, not current
-asset metadata. Wrong-path expiry instructions are rejected onchain.
-
-### NVDAx v2 rollout
-
-1. Build and deploy the version-aware program before activating v2 metadata.
-2. Dry-run `node --import tsx scripts/migrate-nvda-token.ts`; use `--execute`
-   only after the program upgrade. The script checks Devnet/admin identity and
-   atomically creates NVDAx weekly series 2/3 with v2 metadata, leaving v1 intact.
-3. Deploy both services and frontend. New quotes reject v1 NVDAx series;
-   the keeper continues settling v1 positions with their original reference.
-4. Verify real quotes and lifecycle transactions, not only unit fixtures.
-
-The isolated Anchor regression suite is local-validator-only:
-`ANCHOR_PROVIDER_URL=http://127.0.0.1:8898 ANCHOR_WALLET=/path/to/test-key.json node --import tsx node_modules/mocha/bin/mocha.js --timeout 60000 tests/optket.ts`.
-
-Token identities and logos are matched by exact mint through the
-[Jupiter Tokens API](https://developers.jup.ag/docs/tokens/index.md).
-The [Price API](https://developers.jup.ag/docs/price/index.md) supplies market
-observations, not executable hedge fills. The pricing model's hedge loading is
-an assumption; Airbag does not execute an external hedge.
-
-**Trust limitation (§9.3):** an authorized publisher signature proves publisher
-*identity*, not that the upstream feed actually returned the submitted value.
-**Manipulation (§9.4):** a median does not eliminate the risk that a buyer
-depresses a thin token market — multiple samples can reflect the same
-manipulated market. This must be evaluated (depth, cost-to-move, max payout,
-source concentration) before any real-money use.
-
-**Activation gate (§4.3):** an asset only becomes available for live-reference
-contracts after identity, reference and conversion rules are verified. Otherwise
-it remains unavailable; the program and keeper do not substitute synthetic prices.
-
----
-
-## Roles & operations (§20, §21)
-
-| Action | Access |
+| Component | Location |
 |---|---|
-| Browse, purchase, exercise, inspect history | Public |
-| Settle exercise/expiry or refund an invalid expiry | Authorized publisher signer |
-| Fail an elapsed exercise request | Permissionless; program enforces the deadline |
-| Sign quotes | Quote authority |
-| Publish observations | Publisher authority |
-| Fund pool, create series, pause, trial budget | Admin/team |
-| Real-USDC purchases & public underwriting | **Disabled** |
+| React/Vite frontend | `src/components`, `src/App.tsx` |
+| Pricing and payoff arithmetic | `src/engine` |
+| Transaction client and account decoders | `src/client` |
+| Anchor program | `programs/optket` |
+| Signed quotes, RPC relay and fee sponsorship | `server/quoteService.ts`, `server/rpcRelay.ts` |
+| Reference collection and settlement | `server/keeper.ts` |
 
-A purchase pause does **not** block exercise or settlement of existing
-contracts. Keep quote signing, reference publishing and pool administration on
-separate keys. `server/keeper.ts` reports reference
-freshness, pending requests, unsettled expiries, reserve consistency, failures,
-publisher activity and settlement errors. `npm run check:devnet` performs
-read-only quote-service, series, reference and sponsorship-headroom checks.
-Neither a successful build nor this command verifies the private keeper;
-inspect its `/health` separately. Notification delivery is operator-configured.
-
----
-
-## Security & acceptance criteria (§22)
-
-Covered by the on-chain constraints and the vitest suite (`src/engine/__tests__`):
-
-- Wrong mints can't fund protection; real USDC rejected (`demo_mint` gate).
-- Invalid/altered/expired/replayed quotes fail (ed25519 verify + `QuoteMarker`).
-- Insufficient reserves & aggregate-exposure limits block purchases.
-- Invalid quantities / arithmetic overflow fail (`checked_*`, `overflow-checks`).
-- Partial exercise preserves remaining quantity; pending can't be requested twice.
-- Exercise and expiry can't duplicate payouts; failed requests restore quantity.
-- Rounding preserves accounting invariants (`vault == available + reserved + refund`,
-  `reserved == Σ contract reserves`), checked after every mutation.
-- Historical/repeated/out-of-window observations can't qualify; missing data
-  never becomes synthetic; one asset's outage doesn't disable the other.
-- Withdrawals can't consume outstanding obligations; refunds stay funded.
-
----
-
-## Decisions required before activation (§28)
-
-Public-equity mint & benchmark, PreStocks asset & mint, live-data access,
-reference thresholds/timeouts, weekly expiry & strikes, exposure limits, trial
-SOL budget, corporate-action rules, publisher/admin controls, and a mainnet
-acceptance pass. **Real-money release additionally requires** suitable
-references, demonstrated paid demand, sustainable underwriting, committed
-capital, executable hedge access where assumed, a security review, and
-jurisdiction-specific legal clearance.
-
----
-
-## Layout
-
-```
-optket/
-├── programs/optket/src/      # Anchor program
-│   ├── lib.rs                # #[program] entrypoints
-│   ├── state.rs errors.rs constants.rs math.rs events.rs
-│   ├── quote.rs references.rs
-│   └── instructions/{admin,purchase,exercise,expiry}.rs
-├── src/engine/               # TS mirror (runs + tested)
-├── src/client/               # ed25519 quote bridge
-├── src/{App.tsx,store.ts}    # web app
-├── tests/optket.ts           # anchor integration test
-├── server/keeper.ts          # live reference collection and settlement
-└── Anchor.toml Cargo.toml
-```
+Internal program paths retain their existing names for compatibility. Airbag does not execute external hedges. Reference publishing depends on an authorized publisher; market liquidity and manipulation risks remain. See [architecture and trust boundaries](docs/architecture.md).
