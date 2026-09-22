@@ -24,7 +24,7 @@ const STATUS_TONE: Record<string, string> = {
  */
 export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
-  const [assetId, setAssetId] = useState(() => target?.assetId ?? c.contracts.find(k => k.status === "Active" || k.status === "PartiallySettled")?.assetId ?? c.contracts[0]?.assetId ?? 1);
+  const [assetId, setAssetId] = useState(() => target?.assetId ?? -1);
   const [view, setView] = useState<"active" | "history">(() => {
     const position = c.contracts.find(k => k.address === target?.address);
     return position && position.status !== "Active" && position.status !== "PartiallySettled" ? "history" : "active";
@@ -35,13 +35,13 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
     const card = document.getElementById(`position-${target.address}`);
     if (card) { card.scrollIntoView({ block: "start", behavior: "instant" }); card.focus({ preventScroll: true }); focused.current = true; }
   }, [target, c.contracts, view]);
-  const asset = VERIFIED_ASSETS[assetId];
+  const asset = VERIFIED_ASSETS[assetId < 0 ? 1 : assetId];
 
   if (!c.connected) {
     return <div className="card empty">Connect the demo wallet to see your onchain positions.</div>;
   }
 
-  const mine = c.contracts.filter((k) => k.assetId === assetId);
+  const mine = c.contracts.filter((k) => assetId < 0 || k.assetId === assetId);
   const open = mine.filter((k) => k.status === "Active" || k.status === "PartiallySettled");
   const history = mine.filter(k => k.status !== "Active" && k.status !== "PartiallySettled");
   const visible = view === "active" ? open : history;
@@ -51,19 +51,20 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   const protectedUnits = tok(activeProtected);
   const unprotected = Math.max(0, held - protectedUnits);
   const excess = Math.max(0, protectedUnits - held);
-  const hasCoverageData = protectedUnits > 0 || held > 0 || pending > 0n;
+  const hasCoverageData = assetId >= 0 && (protectedUnits > 0 || held > 0 || pending > 0n);
   const trackerScale = Math.max(held, protectedUnits, 1);
 
   return (
     <div className="positions-page">
       <div className="app-page-head">
         <div><h1>Your positions</h1><p>Your active protection and completed contracts.</p></div>
-        {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId)}>Protect another asset</button>}
+        {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>New protection</button>}
       </div>
 
       <div className="position-toolbar">
         <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({open.length})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({history.length})</button></div>
         <div className="position-assets" role="group" aria-label="Filter positions by asset">
+        <button className="btn ghost sm" aria-pressed={assetId < 0} onClick={() => setAssetId(-1)}>All assets</button>
         {VERIFIED_ASSETS.map((a, i) => (
           <button key={a.key} className="btn ghost sm" aria-pressed={i === assetId} onClick={() => setAssetId(i)}>
             {a.symbol}
@@ -75,7 +76,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
 
       <div className="position-list">
       {visible.length === 0 ? (
-        <div className="card empty"><strong>{view === "active" ? `No active ${asset.symbol} protection.` : `No completed ${asset.symbol} positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId)}>Protect {asset.symbol}</button></div>}</div>
+        <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}protection.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set up protection</button></div>}</div>
       ) : (
         visible.map((k) => <ContractCard key={k.address} contract={k} />)
       )}
@@ -122,6 +123,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
   const asset = VERIFIED_ASSETS[k.assetId];
   const [exQty, setExQty] = useState("");
   const [exerciseTx, setExerciseTx] = useState<string | null>(null);
+  const [reviewQuantity, setReviewQuantity] = useState<number | null>(null);
   const now = useNowSeconds();
   const open = k.status === "Active" || k.status === "PartiallySettled";
   const beforeCutoff = now <= k.exerciseCutoffTs;
@@ -131,12 +133,14 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
   const requests = c.requests.filter((request) => request.contract.toBase58() === k.address);
 
   async function requestExercise() {
+    if (!valid || reviewQuantity !== amount || !beforeCutoff || !open) return;
     setExerciseTx(null);
     try {
       await c.requestExercise(k.address, k.assetId, k.nextRequestNonce, amount);
       setExerciseTx(useChain.getState().lastTx);
       setExQty("");
     } catch { /* the shared error callout retains the entered quantity */ }
+    finally { setReviewQuantity(null); }
   }
 
   return (
@@ -147,7 +151,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
           <div>
             <div className="row" style={{ gap: 8 }}>
               <strong>#{k.contractId.toString()} · {asset.symbol}</strong>
-              <span className={"pill " + (STATUS_TONE[k.status] || "gray")}>{k.status}</span>
+              <span className={"pill " + (STATUS_TONE[k.status] || "gray")}>{k.status === "PartiallySettled" ? "Partially settled" : k.status}</span>
               {open && expired && <span className="pill amber">awaiting settlement</span>}
             </div>
           </div>
@@ -173,18 +177,20 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
           <div className="row" style={{ flexWrap: "wrap" }}>
             <label className="field" style={{ flex: "0 1 180px" }}>
               <span className="lbl">Quantity to exercise</span>
-              <input className="input" value={exQty} onChange={(e) => setExQty(e.target.value)} inputMode="decimal" placeholder="0.0" />
+              <input className="input" value={exQty} onChange={(e) => { setExQty(e.target.value); setReviewQuantity(null); }} inputMode="decimal" placeholder="0.0" disabled={c.busy} />
             </label>
             <button className="btn ghost sm" style={{ alignSelf: "flex-end" }} onClick={() => setExQty(String(tok(k.remainingQuantity)))}>Max</button>
             <button
               className="btn"
               style={{ alignSelf: "flex-end" }}
               disabled={!valid || c.busy}
-              onClick={requestExercise}
+              aria-busy={c.busy}
+              onClick={() => reviewQuantity === amount ? requestExercise() : setReviewQuantity(amount)}
             >
-              Request exercise
+              {c.busy ? "Submitting…" : reviewQuantity === amount ? "Confirm exercise" : "Review exercise"}
             </button>
           </div>
+          {reviewQuantity === amount && valid && <div className="purchase-review" role="status"><strong>Exercise {amount} {asset.symbol}</strong><p>{qty(k.remainingQuantity - BigInt(Math.round(amount * 1e6)))} units remain protected. The requested quantity settles against a future qualifying reference, not the currently displayed price. The payout is not fixed now.</p><p>This request cannot be cancelled after submission. Remaining time value on the exercised quantity is forfeited.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setReviewQuantity(null)}>Cancel review</button></div>}
           <div className="disclosure" style={{ marginTop: 8 }}>
             Irrevocable once submitted. Settles at intrinsic value against the next qualifying
             reference; remaining time value is forfeited and unrequested quantity stays protected.

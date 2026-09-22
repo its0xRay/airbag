@@ -136,10 +136,10 @@ button { font-family: inherit; }
   border-radius: var(--radius-sm); padding: 9px 16px; cursor: pointer; font-weight: 600; font-size: 13px;
   transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
-.btn:hover { border-color: var(--text-faint); background: #1b2434; }
+.btn:hover:not(:disabled) { border-color: var(--text-faint); background: var(--bg-elev2); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: #052012; border-color: var(--accent); }
-.btn.primary:hover { background: #6ee79b; }
+.btn.primary:hover:not(:disabled) { filter:brightness(1.06); }
 .btn.ghost { background: none; border-color: var(--border); }
 .btn.danger { background: var(--red-dim); border-color: #582626; color: #fca5a5; }
 .btn.sm { min-height: 40px; padding: 6px 11px; font-size: 12px; }
@@ -398,7 +398,7 @@ table.log tr:hover td { background: var(--bg-elev2); }
 @media (hover: hover) {
   .btn:hover .arrow { transform: translateX(3px); }
 }
-.btn:active { transform: translateY(1px); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
 
 .lp-meta {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
@@ -940,3 +940,57 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
   .protect-assets .btn { min-height:44px; }
 }
 @media (max-width:760px) { .protect-workspace { padding-bottom:150px; } .mobile-buy-summary { display:grid; gap:10px; position:fixed; bottom:0; left:0; right:0; padding:14px 16px max(14px,env(safe-area-inset-bottom)); background:var(--bg-elev); border-top:1px solid var(--border-strong); z-index:15; } .mobile-buy-summary strong,.mobile-buy-summary span { display:block; font-size:12px; line-height:1.6; } .mobile-buy-summary span { color:var(--text-dim); } .mobile-buy-summary .btn { min-height:44px; } .protection-ticket .ticket-purchase { display:none; } }
+
+/* Shared control grammar: neutral selections; green reserved for commitment. */
+.btn { min-height:44px; }
+.btn[aria-pressed="true"], .strike-option.active { background:var(--bg-elev2); border-color:var(--text-dim); color:var(--text); }
+.protect-workspace .strike-option.active { background:var(--bg-elev2); border-color:var(--text-dim); }
+.strike-option.active::after { content:"✓"; color:var(--text); }
+.quantity-control button:disabled { opacity:0.4; cursor:not-allowed; }
+.scenario-price-row { display:flex; align-items:center; gap:8px; margin-top:24px; }
+.scenario-price-row label { margin-right:auto; font-size:14px; }
+.scenario-price-row .input { width:120px; text-align:right; min-height:44px; }
+.scenario-slider input { appearance:none; -webkit-appearance:none; height:44px; min-height:44px; background:transparent; cursor:ew-resize; margin:4px 0; }
+.scenario-slider input::-webkit-slider-runnable-track { height:4px; background:var(--border-strong); border-radius:var(--radius-sm); }
+.scenario-slider input::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:20px; height:20px; margin-top:-8px; border-radius:50%; background:var(--text); border:3px solid var(--bg-elev); outline:1px solid var(--text-dim); }
+.scenario-slider input::-moz-range-track { height:4px; background:var(--border-strong); border-radius:var(--radius-sm); }
+.scenario-slider input::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--text); border:3px solid var(--bg-elev); outline:1px solid var(--text-dim); }
+.scenario-slider > .sr-only { display:block; margin:0; }
+.scenario-results > div:first-child strong { font-size:28px; }
+.scenario-results > div:not(:first-child) strong { font-size:16px; font-weight:500; }
+.scenario-results { align-items:baseline; }
+.scenario-card .unified-payoff svg, .protect-embedded .scenario-card .unified-payoff svg { width:100%; height:auto; aspect-ratio:600 / 270; overflow:visible; }
+.unified-payoff text { fill:var(--text-dim); font:12px var(--mono); }
+.unified-payoff { container-type:inline-size; }
+@container (max-width:500px) { .unified-payoff svg text { font-size:20px; } }
+@container (max-width:340px) { .unified-payoff svg text { font-size:26px; } }
+.purchase-review { padding:20px; margin-block:16px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--bg); }
+.purchase-review h3 { font-size:18px; }
+.purchase-review p { font-size:13px; color:var(--text-dim); line-height:1.6; }
+.purchase-review .kv { flex-wrap:wrap; gap:8px; }
+.public-section-menu { display:none; position:relative; margin-right:12px; }
+.public-section-menu summary { list-style:none; display:flex; align-items:center; }
+.public-section-menu summary::-webkit-details-marker { display:none; }
+.public-section-menu nav { position:absolute; top:calc(100% + 8px); right:0; width:180px; padding:8px; background:var(--bg-elev); border:1px solid var(--border-strong); border-radius:var(--radius-sm); }
+.public-section-menu a { display:block; padding:12px; color:var(--text); }
+.public-section-menu a:hover { background:var(--bg-elev2); }
+.scenario-card > .empty { min-height:320px; display:flex; flex-direction:column; justify-content:center; }
+@media (max-width:900px) { .public-nav { display:none; } .public-section-menu { display:block; } }
+@media (max-width:1000px) {
+  .protect-layout { display:flex; flex-direction:column; }
+  .protection-ticket, .protection-analysis { width:100%; position:static; }
+  .protect-embedded .protection-ticket { padding:0 0 24px; border-right:0; border-bottom:1px solid var(--border); }
+  .protect-embedded .protection-analysis { padding-top:12px; }
+}
+@media (max-width:480px) {
+  .public-section-menu { margin-right:8px; }
+  .public-section-menu .btn { padding-inline:12px; }
+  .scenario-price-row { flex-wrap:wrap; }
+  .scenario-price-row label { flex-basis:100%; }
+  .position-assets { flex-wrap:wrap; }
+  .unified-payoff text { font-size:24px; }
+  .scenario-presets { display:grid; grid-template-columns:1fr 1fr; }
+  .reference-inline { display:grid; grid-template-columns:1fr auto; align-items:center; gap:4px 12px; width:100%; }
+  .reference-inline > span { flex-basis:auto; }
+  .reference-inline > strong { text-align:right; }
+}

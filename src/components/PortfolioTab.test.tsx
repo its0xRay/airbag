@@ -24,13 +24,13 @@ describe("Positions presentation", () => {
   beforeEach(() => { state.contracts = []; });
   it("has one purchase CTA in the active empty state", () => {
     const html = render();
-    expect(html).toContain("No active ANTHROPIC protection.");
+    expect(html).toContain("No active protection.");
     expect(html).not.toContain("Protect another asset");
   });
   it("places the position before optional context and collapses exercise and technical detail", () => {
     state.contracts = [account];
     const html = render();
-    expect(html.indexOf('class="position-list"')).toBeLessThan(html.indexOf("Coverage and holdings comparison"));
+    expect(html.indexOf('class="position-list"')).toBeLessThan(html.indexOf("Renewals and reminders"));
     expect(html).toContain('<details class="position-exercise">');
     expect(html).toContain('<details class="position-details">');
     expect(html).toContain("Protected quantity");
@@ -41,5 +41,14 @@ describe("Positions presentation", () => {
     const html = render();
     expect(html).toContain("pending — the keeper settles");
     expect(html).not.toContain('<details class="position-exercise">');
+  });
+  it("shows positions from both assets by default", () => {
+    state.contracts = [account, { ...account, assetId: 0, address: "second-position", contractId: 2n }];
+    const html = render();
+    expect(html).toContain("All assets");
+    expect(html).toContain("#1 · ANTHROPIC");
+    expect(html).toContain("#2 · NVDAx");
+    expect(html).toContain("Review exercise");
+    expect(html).not.toContain("Confirm exercise");
   });
 });

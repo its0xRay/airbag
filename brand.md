@@ -69,6 +69,14 @@ Connected navigation prioritizes Protect and Positions; Markets, Pools and
 Onchain are secondary destinations under Protocol. Position history remains
 available alongside active coverage.
 
+Product controls use neutral, checked selections; green remains the primary
+commitment action. Scenario prices are explicitly exploratory, support direct
+entry and keyboard adjustment, and never stand in for executable quotes.
+Public Markets, Pools and Onchain views do not require a wallet. App destinations
+use a `view` query parameter so refresh and browser Back preserve navigation.
+Purchases require review of a maximum premium, enforced against signed payload
+bytes before submission. Exercise has a separate irreversible-action review.
+
 - Radius: `--radius` 12px (cards), `--radius-sm` 8px (buttons, inputs), 100px (pills).
 - **Borders, not shadows.** The system is flat-with-1px-borders; don't add shadows
   to separate surfaces.

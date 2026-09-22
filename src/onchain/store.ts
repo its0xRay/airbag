@@ -8,6 +8,7 @@ import {
   type ContractAcct, type ExerciseRequestAcct, type PoolAcct, type SeriesAcct,
 } from "../client/optketProgram";
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
+import { checkPurchaseLimit } from "../engine/quote";
 
 // Hosted deployment: set VITE_RPC_URL (devnet RPC) and VITE_QUOTE_SVC (Railway
 // quote-service URL) in Vercel. Local dev falls back to localnet defaults.
@@ -210,13 +211,35 @@ interface ChainState {
 
   connect: () => Promise<void>;
   refresh: () => Promise<void>;
-  buy: (assetId: number, seriesId: number, quantityUnits: number) => Promise<void>;
+  publicLoading: boolean;
+  publicError: string | null;
+  refreshPublic: () => Promise<void>;
+  buy: (assetId: number, seriesId: number, quantityUnits: number, maxPremium: bigint) => Promise<void>;
   requestExercise: (contractAddr: string, assetId: number, nonce: number, quantityUnits: number) => Promise<void>;
 }
 
 const conn = new Connection(DEFAULT_RPC, "confirmed");
 
 export const useChain = create<ChainState>((set, get) => ({
+  publicLoading: false,
+  publicError: null,
+  refreshPublic: async () => {
+    if (get().publicLoading) return;
+    set({ publicLoading: true, publicError: null });
+    try {
+      const { conn, client } = get();
+      const [pool0, pool1, signatures] = await Promise.all([
+        client.getPool(0), client.getPool(1),
+        conn.getSignaturesForAddress(OPTKET_PROGRAM_ID, { limit: 30 }),
+      ]);
+      const prior = new Map(get().programHistory.map(h => [h.signature, h.action]));
+      set({ pools: { 0: pool0, 1: pool1 }, programHistory: signatures.map(s => ({
+        signature: s.signature, slot: s.slot, blockTime: s.blockTime ?? null,
+        err: !!s.err, action: prior.get(s.signature) ?? "Program instruction",
+      })) });
+    } catch { set({ publicError: "Could not refresh public Devnet data. Please retry." }); }
+    finally { set({ publicLoading: false }); }
+  },
   rpcUrl: DEFAULT_RPC,
   svcUrl: DEFAULT_SVC,
   conn,
@@ -383,7 +406,7 @@ export const useChain = create<ChainState>((set, get) => ({
     });
   },
 
-  buy: async (assetId, seriesId, quantityUnits) => {
+  buy: async (assetId, seriesId, quantityUnits, maxPremium) => {
     const { client, conn, burner, demoMint, svcUrl, sponsor } = get();
     if (!burner || !demoMint) throw new Error("not connected");
     set({ busy: true, error: null, status: "requesting signed quote…" });
@@ -399,9 +422,11 @@ export const useChain = create<ChainState>((set, get) => ({
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ buyer: burner.publicKey.toBase58(), assetId, seriesId, quantity: quantity.toString() }),
       });
-      set({ status: `signing & sending purchase (premium ${resp.premiumTokens} oUSD)…` });
+      const message = b64ToBytes(resp.message);
+      const approvedPremium = checkPurchaseLimit(message, maxPremium);
+      set({ status: "Submitting purchase…" });
       const signedQuote = {
-        message: b64ToBytes(resp.message),
+        message,
         signature: b64ToBytes(resp.signature),
         quoteAuthority: new PublicKey(resp.quoteAuthority),
         quoteId: BigInt(resp.quote.quoteId),
@@ -416,7 +441,7 @@ export const useChain = create<ChainState>((set, get) => ({
         burner, sponsor, 0,
       );
       await get().refresh();
-      set({ status: "", lastTx: sig, lastPurchasePremium: resp.premiumTokens, lastPurchaseAddress: pdas.contract(signedQuote.quoteId).toBase58() });
+      set({ status: "", lastTx: sig, lastPurchasePremium: Number(approvedPremium) / 1e6, lastPurchaseAddress: pdas.contract(signedQuote.quoteId).toBase58() });
     } catch (e) {
       set({ error: friendly(e), status: "" });
       throw e;
@@ -481,7 +506,7 @@ function friendly(e: unknown): string {
     return "Can't reach the RPC or quote service. Check your connection and that the services are up.";
   }
   if (/reference unavailable/i.test(s)) return "The live settlement reference is unavailable. Purchases are paused until a fresh price returns.";
-  if (/blockhash|block height exceeded/i.test(s)) return "Transaction expired before confirming (network congestion) — try again.";
+  if (/blockhash|block height exceeded/i.test(s)) return "Confirmation did not complete. Check Positions and onchain activity before retrying.";
   if (/insufficient lamports|insufficient funds for rent/i.test(s)) return "Fee sponsorship is temporarily unavailable. Try again shortly.";
   const m = s.match(/custom program error: (0x[0-9a-fA-F]+)/);
   if (m) {

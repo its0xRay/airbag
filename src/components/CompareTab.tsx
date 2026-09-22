@@ -25,7 +25,7 @@ export default function CompareTab() {
   useEffect(() => {
     let alive = true;
     const load = () => fetchMarket(asset.mint)
-      .then((m) => { if (alive) { setMarket(m); setLoading(false); } })
+      .then((m) => { if (alive) { setMarket(m); setErr(null); setLoading(false); } })
       .catch((e) => { if (alive) { setErr(String(e.message || e)); setLoading(false); } });
     load();
     const t = setInterval(load, 15000);

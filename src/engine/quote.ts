@@ -8,6 +8,16 @@ export const QUOTE_PAYLOAD_LEN = 95; // 32+1+2+8+8+8+4+8+8+8+8
 export const MAX_QUOTE_TTL_SECS = 300;
 export const QUOTE_VALIDITY_SECS = 60; // PRD §8.1 initial quote validity
 
+/** Check the actual signed bytes, not the service's display-only price. */
+export function checkPurchaseLimit(message: Uint8Array, maxPremium: bigint): bigint {
+  if (message.length !== QUOTE_PAYLOAD_LEN || typeof maxPremium !== "bigint" || maxPremium < 0n) throw new Error("Invalid purchase approval.");
+  const view = new DataView(message.buffer, message.byteOffset, message.byteLength);
+  const premium = view.getBigUint64(63, true);
+  const fees = view.getBigUint64(71, true);
+  if (premium + fees > maxPremium) throw new Error("The fresh quote exceeds your approved maximum. Review the updated cost and try again.");
+  return premium;
+}
+
 function writeU64LE(view: DataView, offset: number, value: bigint) {
   view.setBigUint64(offset, value, true);
 }

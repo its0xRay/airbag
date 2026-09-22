@@ -21,7 +21,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         <div className="lp-hero-copy">
           <span className="lp-eyebrow">Solana Devnet</span>
           <h1 className="lp-title">Protect the downside.<br /><span className="soft">Keep the upside.</span></h1>
-          <p className="lp-sub">Choose a price floor for your tokenized stocks. Pay once. Keep your tokens.</p>
+          <p className="lp-sub">Fixed-cost downside protection for your tokenized stocks.</p>
           <p className="lp-asset-intro">For NVDAx and Anthropic PreStocks—even without a listed-options market.</p>
           <div className="lp-meta"><span className="demo-label">oUSD <small>demo · no real value</small></span><span>Fees and rent sponsored</span></div>
         </div>

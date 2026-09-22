@@ -25,9 +25,6 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
     }
   }
 
-  if (!c.connected) {
-    return <div className="card empty">Connect the demo wallet to see your onchain history.</div>;
-  }
 
   return (
     <>
@@ -36,12 +33,12 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
     </div>
     <div className="row activity-scope" role="group" aria-label="Activity scope">
       <button className={"btn sm " + (scope === "program" ? "primary" : "ghost")} aria-pressed={scope === "program"} onClick={() => setScope("program")}>Program activity</button>
-      <button className={"btn sm " + (scope === "wallet" ? "primary" : "ghost")} aria-pressed={scope === "wallet"} onClick={() => setScope("wallet")}>Your activity</button>
+      {c.connected && <button className={"btn sm " + (scope === "wallet" ? "primary" : "ghost")} aria-pressed={scope === "wallet"} onClick={() => setScope("wallet")}>Your activity</button>}
     </div>
     <div className="card">
       <div className="between" style={{ marginBottom: 4 }}>
         <div className="card-title" style={{ margin: 0 }}>{scope === "program" ? "Program-wide Devnet activity" : "Connected-wallet activity"}</div>
-        <button className="btn ghost sm" disabled={c.busy} onClick={() => c.refresh()}>Refresh</button>
+        <button className="btn ghost sm" disabled={c.busy || c.publicLoading} aria-busy={c.publicLoading} onClick={() => scope === "program" ? c.refreshPublic() : c.refresh()}>{c.publicLoading ? "Refreshing…" : "Refresh"}</button>
       </div>
       <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>
         {scope === "program"
@@ -49,8 +46,9 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
           : "Signatures touching contracts owned by this wallet, newest first."} Every row opens in the explorer.
       </div>
 
+      {c.publicError && <p className="field-error" role="alert">{c.publicError}</p>}
       {scope === "program" ? c.programHistory.length === 0 ? (
-        <div className="empty"><strong>No program activity returned.</strong><br />The Devnet RPC may be catching up. Refresh in a moment.</div>
+        <div className="empty" role="status"><strong>{c.publicLoading ? "Reading confirmed activity…" : "No program activity returned."}</strong><br />{c.publicLoading ? "Fetching signatures from Solana Devnet." : "Refresh to check again."}</div>
       ) : (
         <>
           <div className="table-scroll"><table className="log">

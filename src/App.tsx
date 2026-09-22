@@ -9,6 +9,8 @@ import HistoryTab from "./components/HistoryTab";
 import WalletBar, { NETWORK } from "./components/WalletBar";
 
 type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history";
+const ROUTES: Record<string, Tab> = { protect: "protect", positions: "portfolio", markets: "compare", pools: "underwriter", onchain: "history" };
+const tabFromUrl = (): Tab => ROUTES[new URLSearchParams(window.location.search).get("view") ?? ""] ?? "home";
 
 export interface ProtectDraft {
   assetId: number;
@@ -35,7 +37,22 @@ export default function App() {
   const refresh = useChain((s) => s.refresh);
   const chainError = useChain((s) => s.error);
   const clearError = useChain((s) => s.clearError);
-  const [tab, setTab] = useState<Tab>(() => useChain.getState().connected ? (useChain.getState().contracts.length ? "portfolio" : "protect") : "home");
+  const [tab, updateTab] = useState<Tab>(tabFromUrl);
+  const setTab = (next: Tab) => {
+    const url = new URL(window.location.href);
+    const route = Object.entries(ROUTES).find(([, value]) => value === next)?.[0];
+    if (route) url.searchParams.set("view", route); else url.searchParams.delete("view");
+    url.hash = "";
+    if (url.href !== window.location.href) window.history.pushState(null, "", url);
+    updateTab(next);
+  };
+  useEffect(() => { const restore = () => updateTab(tabFromUrl()); window.addEventListener("popstate", restore); return () => window.removeEventListener("popstate", restore); }, []);
+  useEffect(() => {
+    if (tab !== "underwriter" && tab !== "history") return;
+    void useChain.getState().refreshPublic();
+    const timer = window.setInterval(() => { void useChain.getState().refreshPublic(); }, 30000);
+    return () => window.clearInterval(timer);
+  }, [tab]);
   const [positionTarget, setPositionTarget] = useState<PositionTarget | null>(null);
   const protocolMenu = useRef<HTMLDetailsElement>(null);
   const [protectDraft, setProtectDraft] = useState<ProtectDraft | null>(null);
@@ -66,7 +83,7 @@ export default function App() {
   const launch = async (nextTab: Exclude<Tab, "home">, draft?: ProtectDraft) => {
     if (busy) return;
     if (nextTab === "protect") setProtectDraft(draft ?? null);
-    if (!useChain.getState().connected) {
+    if (nextTab === "portfolio" && !useChain.getState().connected) {
       await connect();
       if (!useChain.getState().connected) return;
     }
@@ -104,6 +121,7 @@ export default function App() {
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
+            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why protect</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a></nav></details>
             {connected ? <button className="btn ghost" onClick={() => goTo(useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app ↗</button> : <a className="btn ghost" href="#protection">Get started ↗</a>}
           </>
         ) : (
@@ -130,7 +148,7 @@ export default function App() {
         </nav>
       )}
 
-      {chainError && (
+      {chainError && tab !== "protect" && tab !== "home" && (
         <div className="callout warn" role="alert" style={{ margin: "14px 16px" }}>
           <div className="between">
             <span>{chainError}</span>
