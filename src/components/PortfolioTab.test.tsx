@@ -47,8 +47,10 @@ describe("Positions presentation", () => {
     expect(html).toContain('<details class="position-exercise">');
     expect(html).toContain('<details class="position-details">');
     expect(html).toContain("Protected quantity");
-    expect(html).toContain("Price floor");
-    expect(html).toContain("Execution receipt");
+    expect(html).toContain("Contract price floor");
+    expect(html).toContain("Contract terms &amp; execution receipt");
+    expect(html).toContain("Reserved now");
+    expect(html).not.toContain("Hypothetical reference");
     expect(html).toContain("Protection purchased");
     expect(html).toContain("Verify contract account");
   });

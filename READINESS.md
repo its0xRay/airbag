@@ -16,7 +16,7 @@
 
 ## Verified locally
 
-- Build, lint, server type check and 101 unit/component tests pass.
+- Build, lint, server type check and 103 unit/component tests pass.
 - Browser reload restores an existing wallet; scenario holdings can differ from
   protected quantity and change the displayed arithmetic independently.
 - Live read-only service check: references available, two floors per asset and
@@ -34,6 +34,23 @@
 - Review repository publication separately; visibility has not been changed.
 
 Video and pitch materials are outside this checklist. No mainnet readiness claim.
+
+## Set Grand1 presentation checks
+
+- Category/hero copy, connected protocol sequence, price-floor boundary visual,
+  shared checkout row and secondary disclosures implemented without changing
+  pricing, reference policy, transaction submission or onchain programs.
+- At 1280 × 800, the embedded primary workspace (asset/reference through purchase
+  row) spans approximately 670px. No fixed-height clipping or internal scrolling.
+  Browser checks at 375/768/1280px found no horizontal overflow. Keyboard floor
+  preset and reference adjustment produced the expected contractual payout.
+- Actual hosted Devnet purchase from the local frontend: contract #35,
+  0.01 NVDAx, $225 floor, displayed 0.02 oUSD premium, 2.25 oUSD reserved.
+  Signature `4oEy6ZBAvjpZ21m27tqAHtmhXUkZSZsA6UYohoiCDsrFSnHTQVvezKcSFBfNRxQJmkeEiVApeLwwKh3Av19NDL3z`.
+  Receipt focus and exact-position handoff verified. A prior ANTHROPIC quote above
+  the approved premium was correctly rejected, preserving the editable terms.
+- Confirmed positions reuse the floor motif with actual reserve/reference data;
+  no hypothetical reference or calculated payout is inserted into a receipt.
 
 ## Hosted activation and presentation checks
 

@@ -63,22 +63,35 @@ diagram changes and no animated transitions.
 These explain mechanics only; they never depict simulated transactions.
 
 Landing hierarchy: one left-aligned introduction, the real Protect workspace,
-a quiet linked protocol-proof strip, an asymmetric benefit panel, the walkthrough, asset profiles, onchain evidence and
+a quiet linked execution sequence, an asymmetric benefit panel, the walkthrough, asset profiles, onchain evidence and
 a quiet footer. Avoid repeated feature lists or a second closing sales pitch.
 Connected navigation prioritizes Protect and Positions; Markets, Pools and
 Onchain are secondary destinations under Protocol. Position history remains
 available alongside active coverage.
 
-Lead with the thesis: "Your stocks are onchain. Your protection should be too."
+Category: "Risk management for tokenized equities."
+Lead with "Own the upside. Set your downside." Keep token-market contract scope
+nearby; this is not a guaranteed portfolio value. The earlier onchain thesis
+supports the Why protect section rather than competing with the hero.
 Show only supported token markets, distinguishing tokenized public equity from
 pre-IPO token exposure without implying issuer partnerships or company-share ownership.
 The signature payoff surface uses selected contract terms and existing fixed-point
 calculations. Hypothetical references and payouts are labelled, not presented as
-quotes or settlement receipts. Only the proportional payout bar transitions (200ms,
-reduced-motion safe); values never count up to suggest live trading activity.
+quotes or settlement receipts. A price-axis boundary connects the chosen floor,
+hypothetical reference and calculated payout; it is not a historical price chart.
+Confirmed receipts and positions reuse the floor motif without an invented reference.
+Values update directly, never counting up to suggest live trading activity.
 Purchase confirmation follows confirmed execution, snapshots its own contract target,
 and directs the user to the highlighted position. The detailed payoff curve remains
 available through progressive disclosure.
+
+The desktop Protect workspace places terms left and the payout boundary right,
+with one shared premium/action row beneath. Holdings lookup, detailed curve and
+methodology expand below the primary workflow. Use natural height and responsive
+stacking, never clipped panels, internal scrolling or tiny type to force a fit.
+The hero keeps breathing room and a product peek; it does not squeeze the entire
+workspace above the fold. Protocol steps describe the mechanism, not fictional
+completion status. Reserve amounts and receipts in Positions come from chain data.
 
 Product controls use neutral, checked selections; green remains the primary
 commitment action. Scenario prices are explicitly exploratory, support direct

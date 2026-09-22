@@ -1,5 +1,6 @@
 import { contractReferenceLabel } from "../data/referencePolicy";
 import AssetLogo from "./AssetLogo";
+import ProtectionBoundary from "./ProtectionBoundary";
 import { useEffect, useRef, useState } from "react";
 import type { PositionTarget } from "../App";
 import { useChain, explorerUrl } from "../onchain/store";
@@ -165,9 +166,11 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
 
       <div className="position-overview">
         <div><span>Protected quantity</span><strong className="mono">{qty(k.remainingQuantity)} {asset.symbol}</strong></div>
-        <div><span>Price floor</span><strong className="mono">{fmtPrice(k.strike)}</strong></div>
+        <div><span>Reserved now</span><strong className="mono">{tok(k.reservedCollateral).toFixed(2)} oUSD</strong></div>
         <div><span>Expiry</span><strong>{fmtClock(k.expiryTs)}</strong></div>
       </div>
+      <ProtectionBoundary floor={k.strike} compact />
+      <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)} · oUSD has no real value.</p>
       {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry for automatic settlement, or request an early exercise below.</p>}
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
@@ -218,7 +221,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
           failed-reference refund if no qualifying reference exists.
         </div>
       )}
-      <details className="position-details"><summary>Contract details and activity</summary>
+      <details className="position-details"><summary>Contract terms & execution receipt</summary>
       <p className="disclosure">{contractReferenceLabel(k.assetId, k.referenceVersion)} · Early exercise cutoff: {fmtClock(k.exerciseCutoffTs)}</p>
       <div className="grid cols-3">
         <div><div className="stat-label">Remaining protected</div><div className="stat-value sm mono">{qty(k.remainingQuantity)}</div></div>
@@ -230,8 +233,6 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
         <div><div className="stat-label">Original quantity</div><div className="stat-value sm mono">{qty(k.originalQuantity)}</div></div>
       </div>
 
-      </details>
-      <details className="position-details"><summary>Execution receipt</summary>
       <p className="disclosure">Recorded on Devnet · oUSD has no real value.</p>
       <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
         <div className="lifecycle-row">

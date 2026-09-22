@@ -19,9 +19,10 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
-          <span className="lp-eyebrow">Protection for tokenized equities</span>
-          <h1 className="lp-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h1>
-          <p className="lp-sub">Choose a price floor for NVDAx or Anthropic PreStocks.<br className="hide-sm" /> Pay one premium. Keep your tokens.</p>
+          <span className="lp-eyebrow">Risk management for tokenized equities</span>
+          <h1 className="lp-title">Own the upside.<br /><span className="soft">Set your downside.</span></h1>
+          <p className="lp-sub">Price-floor protection for tokenized stocks and pre-IPO tokens.<br className="hide-sm" /> Choose your terms, pay once, and keep your tokens.</p>
+          <p className="lp-hero-boundary">Covers the contract’s token-market reference, not a guaranteed portfolio value.</p>
           <div className="lp-asset-categories" aria-label="Supported token markets">
             {VERIFIED_ASSETS.map((asset, id) => <div key={asset.key}><AssetLogo asset={asset} /><span><strong>{id === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{id === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span></div>)}
           </div>
@@ -30,16 +31,17 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
 
-      <nav className="lp-proof-strip" aria-label="Verify the protocol">
-        <a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer"><span>Deployed on Devnet</span><strong>Inspect the program ↗</strong></a>
-        <button onClick={() => onLaunch("underwriter")}><span>Maximum payout reserved in oUSD</span><strong>Inspect collateral →</strong></button>
-        <button onClick={() => onLaunch("history")}><span>Actual onchain transactions</span><strong>Browse settlement activity →</strong></button>
+      <nav className="lp-proof-strip" aria-label="How the protocol executes — not your transaction status">
+        <a href="#protection"><span>01 · Configure</span><strong>Choose terms</strong><small>Quantity, floor and expiry</small></a>
+        <button onClick={() => onLaunch("underwriter")}><span>02 · At purchase</span><strong>Collateral reserved</strong><small>Maximum contractual payout →</small></button>
+        <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><span>03 · At settlement</span><strong>Reference verified</strong><small>Timing and median rules ↓</small></a>
+        <button onClick={() => onLaunch("history")}><span>04 · After settlement</span><strong>Payout recorded</strong><small>Browse actual onchain activity →</small></button>
       </nav>
 
       <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
           <span className="lp-eyebrow">Why protect</span>
-          <h2 className="lp-h2" id="why-protect-title">Keep your investment.<br /><span className="soft">Add downside protection.</span></h2>
+          <h2 className="lp-h2" id="why-protect-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h2>
         </div>
         <div className="lp-why-surface">
           <article className="lp-why-ownership">
@@ -67,7 +69,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <ProtectionWalkthrough />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Public equities. Pre-IPO exposure.</span><h2 className="lp-h2">Different markets.<br /><span className="soft">One way to protect.</span></h2><p className="lp-lede">Choose your floor in either market. Protection follows the token price—not the company’s valuation.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Two supported markets</span><h2 className="lp-h2">Public markets. Private-company exposure.<br /><span className="soft">One protection workflow.</span></h2><p className="lp-lede">Choose your floor in either market. Protection follows the token price—not the company’s valuation.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
@@ -89,7 +91,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
           </div>
           <div className="lp-faq">
             <details><summary>How are payouts funded?</summary><p>Maximum contractual payout is fully reserved onchain when protection is purchased. Reserves are held in oUSD, a demo token with no real value.</p></details>
-            <details><summary>How is the reference verified?</summary><p>The authorized publisher submits external observations. The program checks timing, sample count and ordering, then calculates the median. The publisher remains a trust dependency.</p></details>
+            <details id="reference-rules"><summary>How is the reference verified?</summary><p>The authorized publisher submits external observations. The program checks timing, sample count and ordering, then calculates the median. The publisher remains a trust dependency.</p></details>
             <details><summary>What if a reference is unavailable?</summary><p>No price is invented. Failed exercise returns the requested quantity to coverage; invalid expiry follows the premium-refund rule.</p></details>
             <details><summary>What is real, and what is Devnet?</summary><p>Market references come from real tokens. Purchases, reserves and settlements are onchain. oUSD is a test token with no real value or redemption promise.</p></details>
             <details><summary>What happens to older NVDAx positions?</summary><p>Benchmark v1 contracts keep their original NVIDIA benchmark and equity-session rules. New v2 contracts protect the NVDAx token market. Each position identifies its reference.</p></details>
