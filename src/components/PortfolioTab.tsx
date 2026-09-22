@@ -59,8 +59,8 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   return (
     <div className="positions-page">
       <div className="app-page-head">
-        <div><h1>Your positions</h1><p>Your active protection and completed contracts.</p></div>
-        {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>New protection</button>}
+        <div><h1>Your positions</h1><p>Your open positions and completed contracts.</p></div>
+        {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Open another</button>}
       </div>
 
       <div className="position-toolbar">
@@ -80,7 +80,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       {awaitingTarget || (c.refreshing && c.contracts.length === 0) ? (
         <div className="card empty" role="status" aria-busy={c.refreshing}><strong>{c.refreshing ? "Loading your position…" : "Position data hasn’t loaded yet."}</strong><p>Your transaction receipt remains available while we read the contract account.</p><button className="btn ghost" disabled={c.refreshing || c.busy} onClick={() => void c.refresh()}>{c.refreshing ? "Reading onchain data…" : "Refresh positions"}</button></div>
       ) : visible.length === 0 ? (
-        <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}protection.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set up protection</button></div>}</div>
+        <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}positions yet.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set your floor</button></div>}</div>
       ) : (
         [...visible].sort((a, b) => Number(b.address === target?.address) - Number(a.address === target?.address) || b.createdTs - a.createdTs).map((k) => <ContractCard key={k.address} contract={k} highlighted={k.address === target?.address} />)
       )}
@@ -181,7 +181,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
 
       {open && beforeCutoff && k.remainingQuantity > 0n && (
         <details className="position-exercise">
-          <summary>Exercise protection <span className="faint">{fmtDuration(k.exerciseCutoffTs - now)} left</span></summary>
+          <summary>Request early exercise <span className="faint">{fmtDuration(k.exerciseCutoffTs - now)} left</span></summary>
           <div className="row" style={{ flexWrap: "wrap" }}>
             <label className="field" style={{ flex: "0 1 180px" }}>
               <span className="lbl">Quantity to exercise</span>
@@ -236,7 +236,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
       <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
         <div className="lifecycle-row">
           <span className="lifecycle-dot complete" aria-hidden="true" />
-          <div><strong>Protection purchased</strong><span>{tok(k.premiumPaid).toFixed(2)} oUSD premium · {fmtClock(k.createdTs)}</span></div>
+          <div><strong>Position opened</strong><span>{tok(k.premiumPaid).toFixed(2)} oUSD premium · {fmtClock(k.createdTs)}</span></div>
         </div>
         {requests.map((request) => {
           const transactions = c.requestTransactions[request.address] ?? [];

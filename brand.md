@@ -71,12 +71,12 @@ Landing hierarchy: category-led hero, the real Protect workspace, an asymmetric
 benefit panel, the walkthrough, asset profiles, FAQ with a quiet linked evidence
 strip beneath it, and a quiet footer. Avoid repeated feature lists or a second
 closing sales pitch.
-Connected navigation prioritizes Protect and Positions; Markets, Pools and
+Connected navigation prioritizes Open position and Positions; Markets, Pools and
 Onchain are secondary destinations under Protocol. Position history remains
 available alongside active coverage.
 
 Lead with the category headline: "Risk management for tokenized equities."
-"Choose your downside. Keep your upside." is the single supporting line.
+"Keep the upside. Define your downside." is the single supporting line.
 Keep the hero free of environment labels; Devnet and oUSD disclosures remain
 in the product, checkout and transaction screens. Keep token-market contract scope in contract
 details and holdings calculations, not a repeated hero caveat. The earlier onchain thesis
@@ -146,3 +146,9 @@ demo boundary is disclosed everywhere it matters.
 2. Addresses truncate (`Xsc9qv…9qEh`) and link to the cluster-correct explorer.
 3. Live data shows its source and freshness; unavailable data is labelled, never faked.
 4. One accent per element — a card is bordered *or* tinted, not both plus a shadow.
+Set Hero: show asset logos, names and category labels only in the functional selector,
+not as a duplicate hero row. Preserve headline size and the gap above the workspace.
+- Use “Set your floor” for configuration, “Review position” before purchase and
+  “Open position” for the final action. Use protection selectively to explain the
+  mechanism, not as the label for every action. Early exercise remains an explicit
+  request, never “cash out” or an immediate, known payout.

@@ -24,7 +24,7 @@ export interface ProtectDraft {
 export interface PositionTarget { assetId: number; address?: string }
 
 const TABS: [Tab, string][] = [
-  ["protect", "Protect"],
+  ["protect", "Open position"],
   ["portfolio", "Positions"],
   ["compare", "Markets"],
   ["underwriter", "Pools"],
@@ -128,12 +128,12 @@ export default function App() {
         {tab === "home" ? (
           <>
             <nav className="public-nav" aria-label="Product">
-              <a href="#why-protect">Why protect</a>
+              <a href="#why-protect">Why Optket</a>
               <a href="#how-it-works">How it works</a>
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
             </nav>
-            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why protect</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a></nav></details>
+            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Optket</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a></nav></details>
             {connected ? <button className="btn ghost" onClick={() => goTo(useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app ↗</button> : <a className="btn ghost" href="#protection">Get started ↗</a>}
           </>
         ) : (

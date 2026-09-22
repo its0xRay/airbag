@@ -24,7 +24,7 @@ describe("Positions presentation", () => {
   beforeEach(() => { state.contracts = []; });
   it("has one purchase CTA in the active empty state", () => {
     const html = render();
-    expect(html).toContain("No active protection.");
+    expect(html).toContain("No active positions yet.");
     expect(html).not.toContain("Protect another asset");
   });
   it("does not call a confirmed position absent while its account is loading", () => {
@@ -51,7 +51,7 @@ describe("Positions presentation", () => {
     expect(html).toContain("Contract terms &amp; execution receipt");
     expect(html).toContain("Reserved now");
     expect(html).not.toContain("Hypothetical reference");
-    expect(html).toContain("Protection purchased");
+    expect(html).toContain("Position opened");
     expect(html).toContain("Verify contract account");
   });
   it("shows pending settlement guidance without an exercise action when no quantity remains", () => {

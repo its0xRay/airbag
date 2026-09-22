@@ -68,7 +68,7 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
         </>
       ) : c.history.length === 0 ? (
         <div className="empty">
-          <strong>No onchain activity yet.</strong><br />Create a position and its confirmed signature will appear here.<div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={onProtect}>Buy protection</button></div>
+          <strong>No onchain activity yet.</strong><br />Create a position and its confirmed signature will appear here.<div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={onProtect}>Open position</button></div>
         </div>
       ) : (
         <div className="table-scroll"><table className="log">

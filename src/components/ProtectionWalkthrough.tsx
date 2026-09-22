@@ -4,17 +4,17 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import "./ProtectionWalkthrough.css";
 
 const steps = [
-  { title: "Choose a floor", heading: "Set your protection.", body: "Choose an asset, quantity, price floor and expiry. Explore the payout before connecting your wallet." },
+  { title: "Choose a floor", heading: "Set your floor.", body: "Choose an asset, quantity, price floor and expiry. Explore the payout before connecting your wallet." },
   { title: "Pay once", heading: "One premium upfront.", body: "Buy with a fresh signed quote. The pool reserves your maximum contractual payout when the position is issued." },
   { title: "Keep holding", heading: "Your tokens stay with you.", body: "The underlying stays in your wallet. Protection is a separate contract, without buyer margin or liquidation." },
-  { title: "Exercise or settle", heading: "A reference. A defined payout.", body: "Request partial or full exercise before the cutoff, or let the keeper settle at expiry. Payout follows your contract’s floor and verified reference." },
+  { title: "Exercise or settle", heading: "A reference. A defined payout.", body: "Request partial or full exercise before the cutoff, or let the keeper settle at expiry. A separate contract pays when its settlement reference falls below your floor." },
 ] as const;
 
 function Mechanism({ step }: { step: number }) {
   return <div className="mechanism">
     {step === 0 && <>
       <div className="mechanism-assets">{VERIFIED_ASSETS.map(asset => <span key={asset.key}><AssetLogo asset={asset} />{asset.symbol}</span>)}</div>
-      <div className="mechanism-contract"><span className="mechanism-label">Your protection terms</span><div className="mechanism-terms"><span>Asset</span><span>Quantity</span><span>Price floor</span><span>Expiry</span></div></div>
+      <div className="mechanism-contract"><span className="mechanism-label">Your contract terms</span><div className="mechanism-terms"><span>Asset</span><span>Quantity</span><span>Price floor</span><span>Expiry</span></div></div>
       <p>Choose what to protect. Define the floor.</p>
     </>}
     {step === 1 && <>
@@ -78,6 +78,6 @@ export default function ProtectionWalkthrough() {
         <nav className="walkthrough-nav" aria-label="Jump to an explanation">{steps.map((step, i) => <a key={step.title} href={`#protection-step-${i + 1}`} aria-label={`${i + 1}. ${step.title}`} aria-current={active === i ? "step" : undefined}>0{i + 1}</a>)}</nav>
       </aside>
     </div>
-    <a className="lp-text-link" href="#protection">Configure protection →</a>
+    <a className="lp-text-link" href="#protection">Set your floor →</a>
   </section>;
 }

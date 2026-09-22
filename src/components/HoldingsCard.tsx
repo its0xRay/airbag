@@ -134,7 +134,7 @@ export default function HoldingsCard({ onProtect }: { onProtect?: (assetId: numb
           {rows.every((r) => r.holdings && r.holdings.displayed === 0) && (
             <div className="disclosure" style={{ marginTop: 12 }}>
               This wallet holds neither asset. That's expected for most wallets — try one that
-              holds NVDAx or Anthropic PreStocks, or just enter a quantity manually in Protect.
+              holds NVDAx or Anthropic PreStocks, or just enter a quantity manually in Open position.
             </div>
           )}
         </div>

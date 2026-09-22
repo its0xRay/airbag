@@ -20,17 +20,14 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
           <h1 className="lp-title"><span className="hero-accent">Risk management</span><br />for tokenized equities.</h1>
-          <p className="lp-hero-tagline">Choose your downside. Keep your upside.</p>
-          <div className="lp-asset-categories" aria-label="Supported token markets">
-            {VERIFIED_ASSETS.map((asset, id) => <div key={asset.key}><AssetLogo asset={asset} /><span><strong>{id === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{id === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span></div>)}
-          </div>
+          <p className="lp-hero-tagline">Keep the upside. Define your downside.</p>
         </div>
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
 
       <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
-          <span className="lp-eyebrow">Why protect</span>
+          <span className="lp-eyebrow">Why Optket</span>
           <h2 className="lp-h2" id="why-protect-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h2>
         </div>
         <div className="lp-why-surface">

@@ -738,6 +738,16 @@ table.log tr:hover td { background: var(--bg-elev2); }
 /* Protection workspace: analysis and a focused transaction ticket. */
 .protect-market-head { display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
 .protect-assets { display:flex; gap:8px; }
+.protect-assets .btn { gap:12px; text-align:left; white-space:normal; padding:12px; }
+.asset-choice-copy { display:block; }
+.asset-choice-copy strong { display:block; font-size:15px; font-weight:500; }
+.asset-choice-copy small { display:block; color:var(--text-dim); font-size:13px; font-weight:400; margin-top:4px; }
+.asset-choice-check { width:12px; flex-shrink:0; color:var(--text); }
+@media (max-width:540px) {
+  .protect-assets { display:grid; grid-template-columns:1fr; width:100%; }
+  .protect-assets .btn { justify-content:flex-start; }
+  .asset-choice-check { margin-left:auto; }
+}
 .reference-inline { display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--text-dim); }
 .reference-inline > strong { font-size:22px; color:var(--text); }
 .coverage-scope { font-size:13px; line-height:1.6; color:var(--text-dim); margin:12px 0 24px; max-width:800px; }
