@@ -63,7 +63,7 @@ diagram changes and no animated transitions.
 These explain mechanics only; they never depict simulated transactions.
 
 Landing hierarchy: one left-aligned introduction, the real Protect workspace,
-a quiet linked execution sequence, an asymmetric benefit panel, the walkthrough, asset profiles, onchain evidence and
+a quiet linked evidence strip, an asymmetric benefit panel, the walkthrough, asset profiles, onchain evidence and
 a quiet footer. Avoid repeated feature lists or a second closing sales pitch.
 Connected navigation prioritizes Protect and Positions; Markets, Pools and
 Onchain are secondary destinations under Protocol. Position history remains
@@ -90,8 +90,12 @@ with one shared premium/action row beneath. Holdings lookup, detailed curve and
 methodology expand below the primary workflow. Use natural height and responsive
 stacking, never clipped panels, internal scrolling or tiny type to force a fit.
 The hero keeps breathing room and a product peek; it does not squeeze the entire
-workspace above the fold. Protocol steps describe the mechanism, not fictional
-completion status. Reserve amounts and receipts in Positions come from chain data.
+workspace above the fold. The evidence strip links to program, pool funding,
+reference rules and actual activity; it is not a second numbered walkthrough.
+Reserve amounts and receipts in Positions come from chain data.
+Category text is 18px desktop / 16px mobile with primary contrast. Important
+labels are 14–16px and supporting explanations 15–16px; only secondary metadata
+uses smaller text. Preserve fit by shortening copy, not shrinking primary labels.
 
 Product controls use neutral, checked selections; green remains the primary
 commitment action. Scenario prices are explicitly exploratory, support direct

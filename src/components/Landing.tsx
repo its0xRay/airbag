@@ -31,11 +31,11 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
 
-      <nav className="lp-proof-strip" aria-label="How the protocol executes — not your transaction status">
-        <a href="#protection"><span>01 · Configure</span><strong>Choose terms</strong><small>Quantity, floor and expiry</small></a>
-        <button onClick={() => onLaunch("underwriter")}><span>02 · At purchase</span><strong>Collateral reserved</strong><small>Maximum contractual payout →</small></button>
-        <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><span>03 · At settlement</span><strong>Reference verified</strong><small>Timing and median rules ↓</small></a>
-        <button onClick={() => onLaunch("history")}><span>04 · After settlement</span><strong>Payout recorded</strong><small>Browse actual onchain activity →</small></button>
+      <nav className="lp-proof-strip" aria-label="Protocol evidence">
+        <a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer"><strong>Onchain program</strong><small>Inspect the deployment ↗</small></a>
+        <button onClick={() => onLaunch("underwriter")}><strong>Reserved collateral</strong><small>Inspect pool funding →</small></button>
+        <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><strong>Reference rules</strong><small>Understand settlement ↓</small></a>
+        <button onClick={() => onLaunch("history")}><strong>Transaction history</strong><small>Inspect actual activity →</small></button>
       </nav>
 
       <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
@@ -69,7 +69,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <ProtectionWalkthrough />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Two supported markets</span><h2 className="lp-h2">Public markets. Private-company exposure.<br /><span className="soft">One protection workflow.</span></h2><p className="lp-lede">Choose your floor in either market. Protection follows the token price—not the company’s valuation.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Two supported markets</span><h2 className="lp-h2">Public or private.<br /><span className="soft">One protection workflow.</span></h2><p className="lp-lede">Choose your floor in either market. Protection follows the token price—not the company’s valuation.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
