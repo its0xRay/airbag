@@ -62,16 +62,18 @@ right-side panel. Reduced motion retains the responsive layout with instant
 diagram changes and no animated transitions.
 These explain mechanics only; they never depict simulated transactions.
 
-Landing hierarchy: one left-aligned introduction, the real Protect workspace,
-a quiet linked evidence strip, an asymmetric benefit panel, the walkthrough, asset profiles, onchain evidence and
-a quiet footer. Avoid repeated feature lists or a second closing sales pitch.
+Landing hierarchy: category-led hero, the real Protect workspace, an asymmetric
+benefit panel, the walkthrough, asset profiles, FAQ with a quiet linked evidence
+strip beneath it, and a quiet footer. Avoid repeated feature lists or a second
+closing sales pitch.
 Connected navigation prioritizes Protect and Positions; Markets, Pools and
 Onchain are secondary destinations under Protocol. Position history remains
 available alongside active coverage.
 
-Category: "Risk management for tokenized equities."
-Lead with "Own the upside. Set your downside." Keep token-market contract scope
-nearby; this is not a guaranteed portfolio value. The earlier onchain thesis
+Lead with the category headline: "Risk management for tokenized equities."
+"Own the upside. Set your downside." is a secondary benefit line, followed by
+the specific price-floor capability. Keep token-market contract scope nearby;
+this is not a guaranteed portfolio value. The earlier onchain thesis
 supports the Why protect section rather than competing with the hero.
 Show only supported token markets, distinguishing tokenized public equity from
 pre-IPO token exposure without implying issuer partnerships or company-share ownership.
@@ -93,8 +95,8 @@ The hero keeps breathing room and a product peek; it does not squeeze the entire
 workspace above the fold. The evidence strip links to program, pool funding,
 reference rules and actual activity; it is not a second numbered walkthrough.
 Reserve amounts and receipts in Positions come from chain data.
-Category text is 18px desktop / 16px mobile with primary contrast. Important
-labels are 14–16px and supporting explanations 15–16px; only secondary metadata
+The category uses the display headline with primary contrast, not an eyebrow.
+Important labels are 14–16px and supporting explanations 15–16px; only secondary metadata
 uses smaller text. Preserve fit by shortening copy, not shrinking primary labels.
 
 Product controls use neutral, checked selections; green remains the primary

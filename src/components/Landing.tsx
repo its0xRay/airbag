@@ -19,9 +19,9 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
-          <span className="lp-eyebrow">Risk management for tokenized equities</span>
-          <h1 className="lp-title">Own the upside.<br /><span className="soft">Set your downside.</span></h1>
-          <p className="lp-sub">Price-floor protection for tokenized stocks and pre-IPO tokens.<br className="hide-sm" /> Choose your terms, pay once, and keep your tokens.</p>
+          <h1 className="lp-title">Risk management<br />for tokenized equities.</h1>
+          <p className="lp-hero-tagline">Own the upside. Set your downside.</p>
+          <p className="lp-sub">Choose a price floor for tokenized stocks and pre-IPO tokens.<br className="hide-sm" /> Pay once. Keep your tokens.</p>
           <p className="lp-hero-boundary">Covers the contract’s token-market reference, not a guaranteed portfolio value.</p>
           <div className="lp-asset-categories" aria-label="Supported token markets">
             {VERIFIED_ASSETS.map((asset, id) => <div key={asset.key}><AssetLogo asset={asset} /><span><strong>{id === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{id === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span></div>)}
@@ -30,13 +30,6 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         </div>
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
-
-      <nav className="lp-proof-strip" aria-label="Protocol evidence">
-        <a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer"><strong>Onchain program</strong><small>Inspect the deployment ↗</small></a>
-        <button onClick={() => onLaunch("underwriter")}><strong>Reserved collateral</strong><small>Inspect pool funding →</small></button>
-        <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><strong>Reference rules</strong><small>Understand settlement ↓</small></a>
-        <button onClick={() => onLaunch("history")}><strong>Transaction history</strong><small>Inspect actual activity →</small></button>
-      </nav>
 
       <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
@@ -87,7 +80,6 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
         <div className="lp-proof-layout">
           <div className="lp-evidence">
             <h2 className="lp-h2">Visible terms.<br /><span className="soft">Verifiable execution.</span></h2><p className="lp-lede">Follow a purchase through its contract, reserved collateral and settlement. Every record is on Solana Devnet.</p>
-            <a className="lp-text-link" href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">View deployed program ↗</a><button className="btn ghost sm" onClick={() => onLaunch("history")}>Browse onchain activity</button>
           </div>
           <div className="lp-faq">
             <details><summary>How are payouts funded?</summary><p>Maximum contractual payout is fully reserved onchain when protection is purchased. Reserves are held in oUSD, a demo token with no real value.</p></details>
@@ -97,6 +89,12 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
             <details><summary>What happens to older NVDAx positions?</summary><p>Benchmark v1 contracts keep their original NVIDIA benchmark and equity-session rules. New v2 contracts protect the NVDAx token market. Each position identifies its reference.</p></details>
           </div>
         </div>
+        <nav className="lp-proof-strip" aria-label="Protocol evidence">
+          <a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer"><strong>Onchain program</strong><small>Inspect the deployment ↗</small></a>
+          <button onClick={() => onLaunch("underwriter")}><strong>Reserved collateral</strong><small>Inspect pool funding →</small></button>
+          <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><strong>Reference rules</strong><small>Understand settlement ↑</small></a>
+          <button onClick={() => onLaunch("history")}><strong>Transaction history</strong><small>Inspect actual activity →</small></button>
+        </nav>
       </section>
 
       <footer className="lp-footer"><span>Optket</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top ↑</a></footer>
