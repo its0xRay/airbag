@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { explorerUrl, useChain } from "../onchain/store";
 import { matchesTransactionChain } from "../onchain/transactionRecovery";
 
-export default function TransactionProgress({ onViewPositions }: { onViewPositions: () => void }) {
+export default function TransactionProgress({ onViewPositions, showConfirmed = true }: { onViewPositions: () => void; showConfirmed?: boolean }) {
   const c = useChain();
   const tx = c.transaction;
   const recover = c.recoverTransaction;
@@ -16,6 +16,9 @@ export default function TransactionProgress({ onViewPositions }: { onViewPositio
     return () => window.clearInterval(timer);
   }, [relevant, tx?.signature, tx?.state, recover, busy]);
   if (!relevant || !tx || (dismissed === tx.signature && tx.state !== "checking")) return null;
+  // A completed receipt must not displace the public hero on every return visit.
+  // Pending checks and failures remain visible; history retains confirmed receipts.
+  if (tx.state === "confirmed" && !showConfirmed) return null;
   return <section className="transaction-progress" aria-label="Transaction recovery" role="status">
     <div><strong>{tx.state === "checking" ? "Checking your transaction" : tx.state === "confirmed" ? "Transaction confirmed onchain" : tx.state === "failed" ? "Transaction failed" : "Transaction expired without confirmation"}</strong>
       <p className="faint">{tx.state === "checking" ? "Keep this page open or return later. We’ll check the original signature before allowing another submission." : tx.state === "confirmed" ? "Your execution is recorded. Open Positions for coverage and settlement status." : "No successful execution was found. Review your position before submitting again."}</p></div>

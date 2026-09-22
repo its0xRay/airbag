@@ -16,7 +16,7 @@
 
 ## Verified locally
 
-- Build, lint, server type check and 91 unit/component tests pass.
+- Build, lint, server type check and 101 unit/component tests pass.
 - Browser reload restores an existing wallet; scenario holdings can differ from
   protected quantity and change the displayed arithmetic independently.
 - Live read-only service check: references available, two floors per asset and
@@ -26,15 +26,33 @@
 
 ## Still requires completion
 
-- Approve and attach a separate keeper volume, set `KEEPER_STATE_PATH`, then
-  verify real observation recovery through a controlled hosted restart.
-- Configure/enable the private RPC relay on Railway, integration-test it, enable
-  the frontend flag on Vercel, and verify the published bundle has no credentials.
 - Select the operational-alert destination and verify delivery.
-- Verify hosted weekly rollover and expiry receipts after deployment.
+- Verify hosted weekly rollover; an actual expiry receipt has been checked live.
 - Finish two-tab submission/refresh testing, positive mainnet holdings import,
   sponsorship/network failure checks and physical mobile-browser testing.
 - Complete social preview artwork and final accessibility/performance review.
 - Review repository publication separately; visibility has not been changed.
 
 Video and pitch materials are outside this checklist. No mainnet readiness claim.
+
+## Hosted activation and presentation checks
+
+- Keeper `/data` volume and `KEEPER_STATE_PATH` activated. Controlled restart
+  retained original observation timestamps; private health returned healthy with
+  persistence enabled and fresh samples after restart.
+- Railway restricted relay uses the existing QuickNode Devnet endpoint; Vercel
+  production opts in through `VITE_USE_RPC_RELAY`. Verified Devnet genesis,
+  rejected unsupported RPC, restored wallet/positions and loaded expiry receipt.
+  Published JavaScript contained no QuickNode hostname.
+- Refined hero, supported-asset categories, selected-term payoff illustration,
+  progressive disclosure, proof links and confirmed-purchase position handoff.
+  No pricing, reference policy or program changes.
+- Local frontend against hosted Devnet: real NVDAx purchase of 0.01 units,
+  contract #34, confirmed signature
+  `4vvx3uqoJ6aFp4vMYXNkSQzAxRDrqYsku7C4XCjrdnkv4Axgj4iYGiKj3CkfP6afKcG4z4A6pQG6UatJKDL67rmJ`.
+  Confirmation and exact-contract focus verified. Responsive browser checks do not
+  replace physical mobile-device testing.
+- Browser checks at 375, 768 and 1280px: no horizontal overflow, readable asset
+  logos, responsive hero/controls, keyboard scenario adjustment and real position
+  handoff. Reduced-motion handling inspected in CSS. Existing large-bundle build
+  warning remains a performance follow-up.

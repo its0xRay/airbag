@@ -67,4 +67,11 @@ describe("Positions presentation", () => {
     expect(html).toContain("Review exercise");
     expect(html).not.toContain("Confirm exercise");
   });
+  it("highlights and leads with the position selected after purchase", () => {
+    state.contracts = [{ ...account, address: "another", contractId: 2n, createdTs: now }, account];
+    const html = renderToStaticMarkup(<PortfolioTab target={{ assetId: 1, address: account.address }} onRenew={() => {}} onProtect={() => {}} />);
+    expect(html).toContain("Your selected position");
+    expect(html.indexOf("#1 · ANTHROPIC")).toBeLessThan(html.indexOf("#2 · ANTHROPIC"));
+    expect(html).toContain("Hold to expiry for automatic settlement");
+  });
 });

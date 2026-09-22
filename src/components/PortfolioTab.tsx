@@ -81,7 +81,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       ) : visible.length === 0 ? (
         <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}protection.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set up protection</button></div>}</div>
       ) : (
-        visible.map((k) => <ContractCard key={k.address} contract={k} />)
+        [...visible].sort((a, b) => Number(b.address === target?.address) - Number(a.address === target?.address) || b.createdTs - a.createdTs).map((k) => <ContractCard key={k.address} contract={k} highlighted={k.address === target?.address} />)
       )}
       </div>
 
@@ -121,7 +121,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   );
 }
 
-function ContractCard({ contract: k }: { contract: ContractAcct }) {
+function ContractCard({ contract: k, highlighted = false }: { contract: ContractAcct; highlighted?: boolean }) {
   const c = useChain();
   const asset = VERIFIED_ASSETS[k.assetId];
   const [exQty, setExQty] = useState("");
@@ -147,7 +147,8 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
   }
 
   return (
-    <div className="card position-card" id={`position-${k.address}`} tabIndex={-1}>
+    <div className={"card position-card" + (highlighted ? " position-highlighted" : "")} id={`position-${k.address}`} tabIndex={-1}>
+      {highlighted && <span className="position-selected-label">Your selected position</span>}
       <div className="between">
         <div className="row">
           <AssetLogo asset={asset} />
@@ -167,6 +168,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
         <div><span>Price floor</span><strong className="mono">{fmtPrice(k.strike)}</strong></div>
         <div><span>Expiry</span><strong>{fmtClock(k.expiryTs)}</strong></div>
       </div>
+      {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry for automatic settlement, or request an early exercise below.</p>}
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
           {qty(k.pendingQuantity)} pending — the keeper settles it against the next qualifying
@@ -206,7 +208,7 @@ function ContractCard({ contract: k }: { contract: ContractAcct }) {
         </details>
       )}
 
-      {open && !expired && (
+      {open && !expired && (!beforeCutoff || k.remainingQuantity === 0n) && (
         <div className="auto-settle-note"><span className="pill blue">automatic at expiry</span><span>Any remaining quantity is settled by the keeper; you do not need to submit an expiry transaction.</span></div>
       )}
 

@@ -112,7 +112,7 @@ export default function App() {
   return (
     <div className={"app" + (tab === "home" ? " home-mode" : "")}>
       <header className={"header" + (tab === "home" ? " public-header" : " app-header")}>
-        <button className="logo" onClick={() => setTab("home")} aria-label="Optket home">
+        <button className="logo" onClick={() => { setTab("home"); window.scrollTo({ top: 0, behavior: "instant" }); }} aria-label="Optket home">
           <span className="dot" aria-hidden="true" /> Optket
           {(tab !== "home" || connected) && (
             <span
@@ -140,7 +140,7 @@ export default function App() {
           <WalletBar />
         )}
       </header>
-      <TransactionProgress onViewPositions={() => void launch("portfolio")} />
+      <TransactionProgress showConfirmed={tab !== "home"} onViewPositions={() => void launch("portfolio")} />
 
       {tab !== "home" && (
         <nav className="tabs journey-tabs" aria-label="Application sections">

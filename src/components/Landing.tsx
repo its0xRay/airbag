@@ -19,14 +19,22 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
-          <span className="lp-eyebrow">Solana Devnet</span>
-          <h1 className="lp-title">Protect the downside.<br /><span className="soft">Keep the upside.</span></h1>
-          <p className="lp-sub">Fixed-cost downside protection for your tokenized stocks.</p>
-          <p className="lp-asset-intro">For NVDAx and Anthropic PreStocks—even without a listed-options market.</p>
-          <div className="lp-meta"><span className="demo-label">oUSD <small>demo · no real value</small></span><span>Fees and rent sponsored</span></div>
+          <span className="lp-eyebrow">Protection for tokenized equities</span>
+          <h1 className="lp-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h1>
+          <p className="lp-sub">Choose a price floor for NVDAx or Anthropic PreStocks.<br className="hide-sm" /> Pay one premium. Keep your tokens.</p>
+          <div className="lp-asset-categories" aria-label="Supported token markets">
+            {VERIFIED_ASSETS.map((asset, id) => <div key={asset.key}><AssetLogo asset={asset} /><span><strong>{id === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{id === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span></div>)}
+          </div>
+          <div className="lp-meta"><span>Solana Devnet</span><span className="demo-label">oUSD <small>no real value</small></span></div>
         </div>
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>
+
+      <nav className="lp-proof-strip" aria-label="Verify the protocol">
+        <a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer"><span>Deployed on Devnet</span><strong>Inspect the program ↗</strong></a>
+        <button onClick={() => onLaunch("underwriter")}><span>Maximum payout reserved in oUSD</span><strong>Inspect collateral →</strong></button>
+        <button onClick={() => onLaunch("history")}><span>Actual onchain transactions</span><strong>Browse settlement activity →</strong></button>
+      </nav>
 
       <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
@@ -59,13 +67,13 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <ProtectionWalkthrough />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><h2 className="lp-h2">Two assets. Protection for each.</h2><p className="lp-lede">Protection follows the token’s market price—not the company’s valuation.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Public equities. Pre-IPO exposure.</span><h2 className="lp-h2">Different markets.<br /><span className="soft">One way to protect.</span></h2><p className="lp-lede">Choose your floor in either market. Protection follows the token price—not the company’s valuation.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
             return <article className="lp-reference-card" key={asset.key}>
               <div className="lp-reference-card-head"><div className="row"><AssetLogo asset={asset} /><div><span className="lp-reference-kind">{id === 0 ? "xStock" : "PreStocks"}</span><h3>{asset.symbol}</h3></div></div></div>
-              <p className="lp-reference-summary">{id === 0 ? "Protect NVDAx token-price downside, including a discount to the NVIDIA stock benchmark." : "Protect the traded token price—not the private company’s valuation."}</p>
+              <p className="lp-reference-summary">{id === 0 ? "Protection against NVDAx token-price declines, including discounts to NVIDIA’s stock price." : "Protection for Anthropic PreStocks’ traded token price. Not direct ownership of Anthropic shares or protection of its private valuation."}</p>
             </article>;
           })}
         </div>
@@ -76,7 +84,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <section className="lp-section lp-verification" id="onchain-proof">
         <div className="lp-proof-layout">
           <div className="lp-evidence">
-            <h2 className="lp-h2">Check it onchain.</h2><p className="lp-lede">Purchases, collateral and payouts are recorded on Solana Devnet.</p>
+            <h2 className="lp-h2">Visible terms.<br /><span className="soft">Verifiable execution.</span></h2><p className="lp-lede">Follow a purchase through its contract, reserved collateral and settlement. Every record is on Solana Devnet.</p>
             <a className="lp-text-link" href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">View deployed program ↗</a><button className="btn ghost sm" onClick={() => onLaunch("history")}>Browse onchain activity</button>
           </div>
           <div className="lp-faq">

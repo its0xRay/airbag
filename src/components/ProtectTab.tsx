@@ -1,5 +1,6 @@
 import AssetLogo from "./AssetLogo";
 import PayoffChart from "./PayoffChart";
+import ProtectionMechanism from "./ProtectionMechanism";
 import HoldingsCard from "./HoldingsCard";
 import { combinedOutcome } from "../engine/combinedOutcome";
 import { pendingTransaction } from "../onchain/transactionRecovery";
@@ -68,7 +69,11 @@ export default function ProtectTab({
   const [approval, setApproval] = useState<{ key: string; maxPremium: bigint } | null>(null);
   const reviewRef = useRef<HTMLElement>(null);
   useEffect(() => { if (approval) { reviewRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); reviewRef.current?.focus({ preventScroll: true }); } }, [approval]);
-  const [receipt, setReceipt] = useState<{ symbol: string; quantity: number; strike: bigint; expiry: number; premium: number | null } | null>(null);
+  const [receipt, setReceipt] = useState<{ assetId: number; address: string | null; symbol: string; quantity: number; strike: bigint; expiry: number; premium: number | null } | null>(null);
+  const receiptRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (done) { receiptRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); receiptRef.current?.focus({ preventScroll: true }); }
+  }, [done]);
   const [isRenewal, setIsRenewal] = useState(false);
   const [referenceRetry, setReferenceRetry] = useState(0);
   const choseInitialAsset = useRef(false);
@@ -187,7 +192,7 @@ export default function ProtectTab({
     setDone(null);
     try {
       await c.buy(assetId, selected.seriesId, parseFloat(qtyStr), approved.maxPremium);
-      setReceipt({ symbol: asset.symbol, quantity, strike: selected.strike, expiry: selected.expiryTs, premium: useChain.getState().lastPurchasePremium });
+      setReceipt({ assetId, address: useChain.getState().lastPurchaseAddress, symbol: asset.symbol, quantity, strike: selected.strike, expiry: selected.expiryTs, premium: useChain.getState().lastPurchasePremium });
       setDone(useChain.getState().lastTx);
     } catch { /* surfaced via c.error */ }
     finally { setApproval(null); }
@@ -229,10 +234,11 @@ export default function ProtectTab({
       <p className="coverage-scope">{asset.symbol} token-market protection · 5-minute median</p>
       {reference && !reference.available && <p className="reference-explanation">{reference.reason}</p>}
       {marketError && <p className="field-error" role="alert">{marketError}</p>}
-      {done && receipt ? <section className="card protection-receipt" role="status">
-        <span className="pill green">Confirmed onchain</span><h2>Protection active</h2><p>{receipt.quantity} {receipt.symbol} protected</p>
+      {done && receipt ? <section ref={receiptRef} tabIndex={-1} className="card protection-receipt" aria-label="Purchase confirmation">
+        <span className="receipt-check" aria-hidden="true">✓</span><span className="pill green">Confirmed onchain · Devnet</span><h2>{now < receipt.expiry ? "Your protection is active." : "Your purchase is confirmed."}</h2><p className="receipt-quantity mono">{receipt.quantity} {receipt.symbol} protected</p>
+        <p>Your tokens stay yours. Follow this contract in Positions{now >= receipt.expiry ? " for its settlement status" : " or exercise before the cutoff"}.</p>
         <div className="receipt-metrics"><div><span>Floor</span><strong>{fmtPrice(receipt.strike)}</strong></div><div><span>Premium paid</span><strong>{receipt.premium != null ? fmtOusd(receipt.premium) : "See transaction"}</strong></div><div><span>Expires</span><strong>{fmtClock(receipt.expiry)}</strong></div></div>
-        <div className="row"><button className="btn primary" onClick={() => onViewPositions?.(assetId, c.lastPurchaseAddress ?? undefined)}>View position</button><button className="btn ghost" onClick={() => setDone(null)}>Protect another asset</button><a href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">View transaction ↗</a></div>
+        <div className="receipt-actions"><button className="btn primary" onClick={() => onViewPositions?.(receipt.assetId, receipt.address ?? undefined)}>View position →</button><button className="btn ghost" onClick={() => setDone(null)}>Open another position</button><a className="lp-text-link" href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">Verify transaction ↗</a></div><p className="disclosure">oUSD is a demo token with no real value.</p>
       </section> : <div className="protect-layout">
         <aside className="card protection-ticket" aria-label="Configure protection">
           <h2>Set your protection</h2>
@@ -257,9 +263,9 @@ export default function ProtectTab({
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </aside>
         <section className="protection-analysis" aria-label="Protection payout">
-          <div className="card scenario-card"><div className="between"><div><h2>What would you receive?</h2><p>Move the price to see how your payout changes.</p></div></div>
+          <div className="card scenario-card"><div className="between"><div><h2>Your floor. Your protection.</h2><p>Explore what this contract would pay at settlement.</p></div></div>
           {selected && est && qty > 0n ? <>
-            <div className="scenario-results"><div><span>Payout</span><strong className="mono">{fmtOusd(tok(scenarioPayout))}</strong></div><div><span>Premium</span><strong className="mono">{fmtOusd(tok(est.premium))}</strong></div><div><span>Payout minus premium</span><strong className={"mono " + (scenarioPayout >= est.premium ? "pos" : "")}>{fmtOusd(tok(scenarioPayout - est.premium))}</strong></div></div>
+            <ProtectionMechanism symbol={asset.symbol} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
             <details className="position-details"><summary>Holdings + protection outcome</summary>
               <label htmlFor="scenario-holdings">Holdings in this scenario · {asset.symbol}</label>
               <input id="scenario-holdings" className="input mono" inputMode="decimal" autoComplete="off" value={holdingsText} aria-invalid={!holdingsValid} aria-describedby="holdings-scenario-help" onChange={e => setHoldingsInputs(current => ({ ...current, [assetId]: e.target.value }))} />
@@ -269,13 +275,11 @@ export default function ProtectTab({
               <div className="kv"><span>Combined model value, after premium</span><strong className="mono">{outcome ? fmtUsd(tok(outcome.combinedModelValue)) : "—"}</strong></div>
               <p className="disclosure">Arithmetic illustration only: holdings value + payout − premium, treating one oUSD as one USD for comparison. oUSD has no real value; this is not a redeemable portfolio value.</p>
             </details>
-            <PayoffChart points={payoffPoints} min={chartMin} max={chartMax} floor={tok(selected.strike)} breakeven={breakeven} price={scenarioPrice} net={tok(scenarioPayout - est.premium)} scale={payoffScale} />
-            <div className="chart-thresholds"><span>Floor <strong>{fmtPrice(selected.strike)}</strong></span><span>Breakeven <strong>{fmtUsd(breakeven)}</strong></span></div>
             <div className="scenario-price-row"><label htmlFor="scenario-price">Explore settlement price</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>
             <label className="scenario-slider"><span className="sr-only">Explore settlement price</span><input aria-label="Price at settlement (illustrative scenario)" aria-valuetext={fmtUsd(scenarioPrice)} type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setScenario(Math.max(chartMin, Math.min(chartMax, scenarioPrice + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1)))); setScenarioPreset(null); setScenarioText(null); } }} onChange={(e) => { setScenario(Number(e.target.value)); setScenarioPreset(null); setScenarioText(null); }} /></label>
             <div className="scenario-presets">{["Current", "Floor", "Breakeven", "15% lower"].map(label => <button key={label} className="btn ghost sm" aria-pressed={scenarioPreset === label} onClick={() => { setScenarioPreset(label); setScenarioText(null); }}>{label}</button>)}</div>
-            <p className="field-help">Current follows reference updates. Type a price for an exact scenario.</p>
-            <p className="scenario-note">Payout minus premium describes the protection contract only. It excludes changes in the value of your token holdings.</p>
+            <p className="field-help">Current follows reference updates. Other scenarios are yours to adjust.</p>
+            <details className="position-details"><summary>Payoff curve & breakeven</summary><PayoffChart points={payoffPoints} min={chartMin} max={chartMax} floor={tok(selected.strike)} breakeven={breakeven} price={scenarioPrice} net={tok(scenarioPayout - est.premium)} scale={payoffScale} /><div className="chart-thresholds"><span>Floor <strong>{fmtPrice(selected.strike)}</strong></span><span>Breakeven <strong>{fmtUsd(breakeven)}</strong></span></div><p className="scenario-note">Contract payout minus premium only. Excludes changes in your token holdings.</p></details>
           </> : <div className="empty"><strong>{qty <= 0n ? "Enter a valid quantity" : referenceStatus}</strong><p>Waiting for current pricing and protection terms.</p></div>}
           </div>
           <details className="card protection-details"><summary>Coverage & settlement</summary><div className="kv"><span>Protection reference</span><strong>{asset.benchmarkLabel}</strong></div><div className="kv"><span>Source</span><strong>{reference?.available ? referenceSourceLabel(reference.source) : "Checking…"}</strong></div><p>Early exercise uses a median of qualifying observations after your request. At expiry, the keeper uses the final 5-minute window. Missing references trigger the contract’s recovery or refund rules.</p><div className="kv"><span>Maximum payout</span><strong>{selected ? fmtOusd(tok(notional)) : "—"}</strong></div><p>Quantity × floor, reached if the settlement reference is zero. This amount is reserved onchain when protection is issued.</p></details>
