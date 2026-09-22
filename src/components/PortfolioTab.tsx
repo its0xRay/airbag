@@ -26,10 +26,9 @@ const STATUS_TONE: Record<string, string> = {
 export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number, quantity?: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
   const [assetId, setAssetId] = useState(() => target?.assetId ?? -1);
-  const [view, setView] = useState<"active" | "history">(() => {
-    const position = c.contracts.find(k => k.address === target?.address);
-    return position && position.status !== "Active" && position.status !== "PartiallySettled" ? "history" : "active";
-  });
+  const [viewChoice, setView] = useState<"active" | "history" | null>(null);
+  const targetedPosition = c.contracts.find(k => k.address === target?.address);
+  const view = viewChoice ?? (targetedPosition && targetedPosition.status !== "Active" && targetedPosition.status !== "PartiallySettled" ? "history" : "active");
   const focused = useRef(false);
   useEffect(() => {
     if (!target?.address || focused.current) return;
@@ -46,6 +45,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   const open = mine.filter((k) => k.status === "Active" || k.status === "PartiallySettled");
   const history = mine.filter(k => k.status !== "Active" && k.status !== "PartiallySettled");
   const visible = view === "active" ? open : history;
+  const awaitingTarget = !!target?.address && !c.contracts.some(k => k.address === target.address);
   const activeProtected = open.reduce((a, k) => a + k.remainingQuantity, 0n);
   const pending = mine.reduce((a, k) => a + k.pendingQuantity, 0n);
   const held = c.exposure[assetId] || 0;
@@ -76,7 +76,9 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
 
 
       <div className="position-list">
-      {visible.length === 0 ? (
+      {awaitingTarget || (c.refreshing && c.contracts.length === 0) ? (
+        <div className="card empty" role="status" aria-busy={c.refreshing}><strong>{c.refreshing ? "Loading your position…" : "Position data hasn’t loaded yet."}</strong><p>Your transaction receipt remains available while we read the contract account.</p><button className="btn ghost" disabled={c.refreshing || c.busy} onClick={() => void c.refresh()}>{c.refreshing ? "Reading onchain data…" : "Refresh positions"}</button></div>
+      ) : visible.length === 0 ? (
         <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}protection.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set up protection</button></div>}</div>
       ) : (
         visible.map((k) => <ContractCard key={k.address} contract={k} />)

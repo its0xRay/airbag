@@ -27,6 +27,19 @@ describe("Positions presentation", () => {
     expect(html).toContain("No active protection.");
     expect(html).not.toContain("Protect another asset");
   });
+  it("does not call a confirmed position absent while its account is loading", () => {
+    const html = renderToStaticMarkup(<PortfolioTab target={{ assetId: 1, address: account.address }} onRenew={() => {}} onProtect={() => {}} />);
+    expect(html).toContain("Position data hasn’t loaded yet.");
+    expect(html).toContain("Refresh positions");
+    expect(html).not.toContain("No active");
+  });
+  it("opens a completed target in history", () => {
+    state.contracts = [{ ...account, status: "Expired", remainingQuantity: 0n, reservedCollateral: 0n }];
+    const html = renderToStaticMarkup(<PortfolioTab target={{ assetId: 1, address: account.address }} onRenew={() => {}} onProtect={() => {}} />);
+    expect(html).toContain("#1 · ANTHROPIC");
+    expect(html).toContain("Expired");
+    expect(html).not.toContain("No active");
+  });
   it("places the position before optional context and collapses exercise and technical detail", () => {
     state.contracts = [account];
     const html = render();
