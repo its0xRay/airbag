@@ -76,8 +76,9 @@ Onchain are secondary destinations under Protocol. Position history remains
 available alongside active coverage.
 
 Lead with the category headline: "Risk management for tokenized equities."
-"Own the upside. Set your downside." is a secondary benefit line, followed by
-the specific price-floor capability. Keep token-market contract scope in contract
+"Choose your downside. Keep your upside." is the single supporting line.
+Keep the hero free of environment labels; Devnet and oUSD disclosures remain
+in the product, checkout and transaction screens. Keep token-market contract scope in contract
 details and holdings calculations, not a repeated hero caveat. The earlier onchain thesis
 supports the Why protect section rather than competing with the hero.
 Show only supported token markets, distinguishing tokenized public equity from

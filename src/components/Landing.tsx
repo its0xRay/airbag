@@ -20,12 +20,10 @@ export default function Landing({ onLaunch, onViewPosition, onConnected }: {
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
           <h1 className="lp-title"><span className="hero-accent">Risk management</span><br />for tokenized equities.</h1>
-          <p className="lp-hero-tagline">Own the upside. Set your downside.</p>
-          <p className="lp-sub">Choose a price floor. Pay once. Keep your tokens.</p>
+          <p className="lp-hero-tagline">Choose your downside. Keep your upside.</p>
           <div className="lp-asset-categories" aria-label="Supported token markets">
             {VERIFIED_ASSETS.map((asset, id) => <div key={asset.key}><AssetLogo asset={asset} /><span><strong>{id === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{id === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span></div>)}
           </div>
-          <div className="lp-meta"><span>Solana Devnet</span><span className="demo-label">oUSD <small>no real value</small></span></div>
         </div>
         <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
       </section>

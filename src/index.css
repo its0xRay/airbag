@@ -798,11 +798,9 @@ table.log tr:hover td { background: var(--bg-elev2); }
 .btn:has(> .token-logo) { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .lp-product-hero { padding-top:64px; }
-.lp-product-hero .lp-hero-copy { display:block; max-width:1060px; margin-bottom:80px; }
+.lp-product-hero .lp-hero-copy { display:block; max-width:1060px; margin-bottom:56px; }
 .lp-product-hero .lp-title { font-size:clamp(40px,5.5vw,72px); margin:0 0 28px; line-height:1.08; max-width:none; text-wrap:balance; }
 .lp-hero-tagline { font-size:clamp(20px,2vw,24px); font-weight:500; color:var(--text); margin:0 0 16px; line-height:1.4; }
-.lp-product-hero .lp-meta { margin:20px 0 0; }
-.lp-product-hero .lp-sub { max-width:640px; font-size:18px; margin:0; }
 .lp-asset-intro { color:var(--text-dim); font-size:13px; margin:12px 0 0; line-height:1.6; }
 #protection { scroll-margin-top:88px; }
 .protect-embedded .protect-layout { grid-template-columns:350px minmax(0,1fr); }
@@ -939,7 +937,7 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 }
 @media (max-width:760px) {
   .lp-product-hero { padding-top:40px; }
-  .lp-product-hero .lp-hero-copy { display:block; margin-bottom:56px; }
+  .lp-product-hero .lp-hero-copy { display:block; margin-bottom:40px; }
   .lp-product-hero .lp-title { margin:20px 0; }
   .protect-embedded.protect-workspace { padding-bottom:0; }
   .protect-embedded .protection-ticket .ticket-purchase { display:block; position:static; }
