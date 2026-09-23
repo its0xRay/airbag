@@ -2,7 +2,7 @@
 
 Risk management for tokenized equities on Solana. Choose a price floor, pay one premium and keep your tokens.
 
-[Try Airbag](https://optket.vercel.app/) · [Deployed program](https://explorer.solana.com/address/Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky?cluster=devnet) · [Architecture](docs/architecture.md) · [Deployment](DEPLOY.md)
+[Try Airbag](https://www.airbag.fyi/) · [Deployed program](https://explorer.solana.com/address/Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky?cluster=devnet) · [Architecture](docs/architecture.md) · [Deployment](DEPLOY.md)
 
 ## The product
 

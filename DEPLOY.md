@@ -1,5 +1,7 @@
 # Deploy Airbag
 
+Public website: [www.airbag.fyi](https://www.airbag.fyi/).
+
 The application has three services. The Solana program and its accounts are managed separately.
 
 | Service | Host | Command |
