@@ -11,6 +11,7 @@ import HoldingsCard from "./HoldingsCard";
 import { pendingTransaction } from "../onchain/transactionRecovery";
 import RemindersPanel from "./RemindersPanel";
 import { useNowSeconds } from "../useNowSeconds";
+import VaultDepositList from "./VaultDepositList";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 const qty = (v: bigint) => tok(v).toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -59,9 +60,12 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   return (
     <div className="positions-page">
       <div className="app-page-head">
-        <div><h1>Your positions</h1><p>Your open positions and completed contracts.</p></div>
+        <div><h1>Your positions</h1><p>Your buyer contracts and vault deposits.</p></div>
         {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Open another</button>}
       </div>
+
+      {import.meta.env.VITE_VAULTS_ENABLED === "true" && <VaultDepositList deposits={c.vaultDeposits ?? []} />}
+      <h2>Buyer contracts</h2>
 
       <div className="position-toolbar">
         <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({open.length})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({history.length})</button></div>

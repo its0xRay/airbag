@@ -23,6 +23,12 @@ function fixture(assetId: number) {
 }
 afterEach(() => vi.restoreAllMocks());
 describe("vault executable quotes", () => {
+  it("does not sign when aggregate market admission fails", async () => {
+    const { client, reference, input } = fixture(0);
+    const admit = vi.fn(async () => { throw new Error("market capacity"); });
+    await expect(signedVaultQuote(client, signer, reference, input, admit)).rejects.toThrow("market capacity");
+    expect(admit).toHaveBeenCalledWith(0, 100n * U);
+  });
   it.each([0, 1])("signs a round-bound quote for asset %s", async asset => {
     const { client, reference, input } = fixture(asset);
     const q = await signedVaultQuote(client, signer, reference, input);

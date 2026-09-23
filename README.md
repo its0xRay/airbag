@@ -19,7 +19,7 @@ New positions follow token-market references, not guaranteed portfolio values. T
 
 Choose an asset, quantity, floor and expiry. Start with a browser demo wallet, review the maximum premium, then open a position. Follow it in Positions.
 
-To fund positions, open Vaults and choose an asset. Deposits can be cancelled during funding; after activation they lock until every obligation settles. Administrator deposits have the same proportional rights. New funding rounds are published by the operator; deposits are not automatically reinvested.
+To fund positions, open Vaults and choose an asset. Deposits can be cancelled during funding; after activation they lock until every obligation settles. Positions shows buyer contracts and vault deposits together. Administrator deposits have the same proportional rights. New empty funding rounds are published automatically when reference and operational checks pass; deposits are never automatically reinvested.
 
 Purchases and settlements execute on Solana Devnet. Premiums and payouts use **oUSD, a test token with no monetary value**; transaction fees are sponsored. Payout previews are illustrative, not executable quotes.
 

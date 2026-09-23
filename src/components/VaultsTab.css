@@ -25,7 +25,29 @@
 .vault-owned { font-size: 28px; }
 .vault-exposures { margin-top: 32px; }
 .vault-buyer-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-dim); }
+.vault-journey { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; padding: 24px 0; margin: 0 0 32px; border-block: 1px solid var(--border); }
+.vault-journey li { display: grid; align-content: start; gap: 8px; color: var(--text-dim); }
+.vault-journey li[aria-current="step"] strong { color: var(--accent); }
+.vault-journey span { font-family: var(--mono); font-size: 14px; }
+.vault-journey strong { font-size: 16px; color: var(--text); }
+.vault-journey small { font-size: 14px; }
+.vault-next-round { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.vault-results, .owned-vaults { margin: 32px 0; border-top: 1px solid var(--border); padding-top: 24px; }
+.vault-result-row { display: grid; grid-template-columns: 1.3fr repeat(4, 1fr); gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--border); }
+.vault-result-row span { color: var(--text-dim); font-size: 14px; }
+.vault-result-row strong { display: block; color: var(--text); font-family: var(--mono); margin-top: 8px; }
+.vault-result-row button { text-align: left; min-height: 44px; }
+.vault-position-row { display: grid; grid-template-columns: 1fr 1fr 1.5fr auto; gap: 24px; align-items: center; border-bottom: 1px solid var(--border); padding: 24px 0; }
+.vault-position-row h3 { margin: 0; font-size: 18px; }
+.vault-position-row p, .vault-position-row small { color: var(--text-dim); font-size: 14px; }
+.vault-position-row strong, .vault-position-row small { display: block; margin-top: 8px; }
+@media (max-width: 900px) {
+  .vault-result-row, .vault-position-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vault-result-row button { grid-column: 1 / -1; }
+}
 @media (max-width: 767px) {
+  .vault-journey { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vault-next-round { flex-direction: column; align-items: start; }
   .vaults-page { padding: 0 16px 32px; }
   .vault-workspace { grid-template-columns: 1fr; gap: 24px; }
   .vault-asset-option { padding: 16px; gap: 12px; align-items: flex-start; }

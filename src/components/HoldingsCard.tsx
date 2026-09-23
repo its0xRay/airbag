@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchHoldings, type Holdings } from "../data/marketData";
 import { useChain } from "../onchain/store";
@@ -20,29 +20,33 @@ export default function HoldingsCard({ onProtect }: { onProtect?: (assetId: numb
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imported, setImported] = useState<string | null>(null);
+  const generation = useRef(0);
 
   const valid = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address.trim());
 
   async function lookup(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) { setError("That doesn't look like a Solana address."); return; }
+    const request = ++generation.current;
+    const owner = address.trim();
     setLoading(true); setError(null); setRows(null); setImported(null);
     try {
       const out = await Promise.all(
         VERIFIED_ASSETS.map(async (a): Promise<Row> => {
           try {
-            return { key: a.key, symbol: a.symbol, holdings: await fetchHoldings(address.trim(), a.mint) };
+            return { key: a.key, symbol: a.symbol, holdings: await fetchHoldings(owner, a.mint) };
           } catch (err) {
             return { key: a.key, symbol: a.symbol, holdings: null, error: (err as Error).message };
           }
         }),
       );
+      if (request !== generation.current) return;
       setRows(out);
       if (out.every((r) => !r.holdings)) setError("Couldn't reach the holdings service. Is the quote service running?");
     } catch (err) {
-      setError((err as Error).message);
+      if (request === generation.current) setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (request === generation.current) setLoading(false);
     }
   }
 
@@ -69,7 +73,7 @@ export default function HoldingsCard({ onProtect }: { onProtect?: (assetId: numb
           <input
             className="input"
             value={address}
-            onChange={(e) => { setAddress(e.target.value); setError(null); }}
+            onChange={(e) => { ++generation.current; setAddress(e.target.value); setError(null); setRows(null); setImported(null); setLoading(false); }}
             placeholder="Paste a Solana wallet address"
             spellCheck={false}
             autoComplete="off"

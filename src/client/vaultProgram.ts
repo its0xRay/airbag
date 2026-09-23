@@ -146,6 +146,13 @@ export class VaultClient {
   rounds() { return this.scan("round", decodeVaultRound); }
   positions() { return this.scan("position", decodeVaultPosition); }
   requests() { return this.scan("request", decodeVaultRequest); }
+  async depositsForOwner(owner: PublicKey) {
+    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.deposit)) } },
+      { memcmp: { offset: 40, bytes: owner.toBase58() } },
+    ] });
+    return accounts.map(a => decodeVaultDeposit(a.pubkey, a.account.data));
+  }
   createIx(admin: PublicKey, mint: PublicKey, id: bigint, t: VaultTerms, policy: Uint8Array) {
     if (policy.length !== 32 || policy.every(v => v === 0)) throw new Error("A pricing policy commitment is required.");
     const round = vaultPdas.round(t.assetId, id);

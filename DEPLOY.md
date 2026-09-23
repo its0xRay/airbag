@@ -53,10 +53,24 @@ on both services, verify real-reference purchases and settlement for both assets
 then set `VITE_VAULTS_ENABLED=true` on Vercel and redeploy. Disabled clients continue
 to receive legacy offers; vault discovery is opt-in.
 
-Publish bounded rounds with `scripts/publish-vault-round.ts`; it previews terms
-unless `--send` is supplied. [Operator parameters](docs/vault-implementation.md#publishing-a-round)
-must be explicit. The keeper activates and settles rounds, but the operator
-publishes subsequent rounds. Deposits are never automatically reinvested.
+With vaults enabled, the quote service publishes empty rounds on a 30-minute
+cadence. Set `VAULT_ROUNDS_ENABLED=false` to stop publication without stopping
+settlement. No tokens are minted, deposited or recycled by this job. Funding ends
+at the next half-hour boundary; the active window lasts another 30 minutes.
+It skips windows with under two minutes left and stops after three unresolved
+rounds per asset, missing references/liquidity, a purchase pause, or an admin
+balance below one Devnet SOL. This is a stop threshold, not a reserved balance.
+Inspect `/health` → `vaultRotation` for operational errors.
+
+Run only one quote-signing service replica. Pending quote exposure is reserved
+in memory for 65 seconds, across both legacy and vault quotes; startup has a
+65-second issuance drain period. Multi-replica signing requires shared atomic
+reservations. The onchain asset exposure cap remains the hard execution limit.
+
+Manual publication and administrator deposits remain available via
+`scripts/publish-vault-round.ts` (preview by default; `--send` submits).
+[Operator parameters](docs/vault-implementation.md#publishing-a-round) must be
+explicit. No user deposit is automatically reinvested.
 
 ## Release verification
 

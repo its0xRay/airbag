@@ -18,7 +18,8 @@ export function vaultPolicyHash(assetId: number) {
 }
 export async function signedVaultQuote(client: VaultClient, signer: Keypair,
   reference: (asset: number, version: number) => Promise<{ available: boolean; spot?: bigint; reason?: string }>,
-  input: { buyer: string; round: string; quantity: string; strike: string }) {
+  input: { buyer: string; round: string; quantity: string; strike: string },
+  admit?: (assetId: number, liability: bigint) => Promise<void>) {
   const round = await client.getRound(new PublicKey(input.round));
   if (!round) throw new Error("Vault round not found.");
   if (!round.quoteAuthority.equals(signer.publicKey)) throw new Error("Vault quote authority unavailable.");
@@ -32,6 +33,7 @@ export async function signedVaultQuote(client: VaultClient, signer: Keypair,
   if (liability > round.principalAvailable || round.reserved + liability > round.exposureCap) throw new Error("Vault capacity is insufficient for this position.");
   const r = await reference(round.assetId, round.referenceVersion);
   if (!r.available || r.spot == null) throw new Error(r.reason || "A qualifying market reference is unavailable.");
+  await admit?.(round.assetId, liability);
   const premium = quotePremium(round.assetId, quantity, strike, r.spot, round.latestExpiry - now).premium;
   const quote = { buyer: new PublicKey(input.buyer).toBase58(), assetId: round.assetId, seriesId: 0,
     quantity, strike, expiryTs: round.latestExpiry, referenceVersion: round.referenceVersion, premium, fees: 0n,

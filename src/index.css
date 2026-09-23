@@ -901,6 +901,11 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 .protocol-options { position:absolute; right:0; top:calc(100% + 8px); min-width:180px; padding:8px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--bg-elev); }
 .protocol-options button { display:block; width:100%; min-height:44px; text-align:left; padding:12px; border:0; border-radius:var(--radius-sm); background:transparent; color:var(--text-dim); cursor:pointer; }
 .protocol-options button:hover, .protocol-options button[aria-current] { background:var(--bg-elev2); color:var(--text); }
+@media (max-width: 480px) {
+  .journey-tabs { gap:0; flex-wrap:wrap; }
+  .journey-tabs .tab { padding-inline:8px; min-height:44px; }
+  .protocol-menu summary { gap:6px; }
+}
 .position-filters { display:flex; gap:12px; margin:8px 0 16px; }
 .position-filters button[aria-pressed="true"] { border-color:var(--text-dim); background:var(--bg-elev2); }
 .position-card { scroll-margin-top:100px; }

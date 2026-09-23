@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { VaultClient, type VaultPositionAccount, type VaultRoundAccount } from "./vaultProgram";
+import { VaultClient, type VaultDepositAccount, type VaultPositionAccount, type VaultRoundAccount } from "./vaultProgram";
 import type { ContractAcct, ExerciseRequestAcct } from "./optketProgram";
 import { VERIFIED_ASSETS } from "../data/assets";
 
@@ -14,7 +14,7 @@ export function asPortfolioContract(p: VaultPositionAccount, r: VaultRoundAccoun
     vaultRound: r.address.toBase58(), recordedPayout: p.totalPayout, recordedRefund: p.refundedPremium };
 }
 export async function loadVaultPortfolio(client: VaultClient, buyer: PublicKey) {
-  const [rounds, positions, allRequests] = await Promise.all([client.rounds(), client.positions(), client.requests()]);
+  const [rounds, positions, allRequests, deposits] = await Promise.all([client.rounds(), client.positions(), client.requests(), client.depositsForOwner(buyer)]);
   const mine = positions.filter(p => p.buyer.equals(buyer));
   const contracts = mine.map(p => {
     const round = rounds.find(r => r.address.equals(p.round));
@@ -27,5 +27,17 @@ export async function loadVaultPortfolio(client: VaultClient, buyer: PublicKey) 
     status: (["Pending", "Settled", "Failed"] as const)[r.status], reservedLocked: null,
     settlementReference: r.reference, payout: r.payout,
   }));
-  return { contracts, requests };
+  const vaultDeposits: OwnedVaultDeposit[] = deposits.filter(d => d.shares > 0n).map(deposit => {
+    const round = rounds.find(r => r.address.equals(deposit.round));
+    if (!round) throw new Error("A deposit's round could not be loaded.");
+    return { round, deposit };
+  });
+  return { contracts, requests, vaultDeposits };
+}
+
+export interface OwnedVaultDeposit { round: VaultRoundAccount; deposit: VaultDepositAccount }
+export function redemptionValue(round: VaultRoundAccount, deposit: VaultDepositAccount): bigint | null {
+  if (deposit.redeemed) return deposit.redemptionAmount;
+  if (round.phase !== "redeemable" || round.totalShares === 0n) return null;
+  return deposit.shares * round.finalBalance / round.totalShares;
 }

@@ -10,7 +10,7 @@ import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 import { checkPurchaseLimit } from "../engine/quote";
 import bs58 from "bs58";
 import { VaultClient, vaultPdas, vaultQuoteMessage, decodeVaultInstruction, type VaultRoundAccount } from "../client/vaultProgram";
-import { loadVaultPortfolio } from "../client/vaultPortfolio";
+import { loadVaultPortfolio, type OwnedVaultDeposit } from "../client/vaultPortfolio";
 import { decodeExpiryEvents, type ExpiryEvent } from "../client/expiryEvent";
 import { loadTransaction, saveTransaction, reconcileTransaction, pendingTransaction, rpcScope, registerEndpointChain, matchesTransactionChain, type TrackedTransaction } from "./transactionRecovery";
 
@@ -251,6 +251,7 @@ interface ChainState {
   /** Every live purchasable series (weekly + short-dated), from the service. */
   seriesList: SeriesInfo[];
   contracts: ContractAcct[];
+  vaultDeposits: OwnedVaultDeposit[];
   requests: ExerciseRequestAcct[];
   requestTransactions: Record<string, RequestTransaction[]>;
   history: HistoryEntry[];
@@ -343,6 +344,7 @@ export const useChain = create<ChainState>((set, get) => ({
   series: {},
   seriesList: [],
   contracts: [],
+  vaultDeposits: [],
   requests: [],
   requestTransactions: {},
   history: [],
@@ -414,13 +416,13 @@ export const useChain = create<ChainState>((set, get) => ({
 
     const vaultPortfolio = import.meta.env.VITE_VAULTS_ENABLED === "true"
       ? await loadVaultPortfolio(new VaultClient(conn), burner.publicKey)
-      : { contracts: [], requests: [] };
+      : { contracts: [], requests: [], vaultDeposits: [] };
     const contracts = [...legacyContracts, ...vaultPortfolio.contracts];
     const legacyRequests = await client.getRequestsForContracts(legacyContracts.map((contract) => new PublicKey(contract.address)))
       .catch(() => current.requests.filter(r => legacyContracts.some(c => c.address === r.contract.toBase58())));
     const requests = [...legacyRequests, ...vaultPortfolio.requests];
     // Coverage is useful before slower history and balance reads finish.
-    set({ contracts, requests, pools: { 0: pool0, 1: pool1 }, seriesList });
+    set({ contracts, requests, vaultDeposits: vaultPortfolio.vaultDeposits, pools: { 0: pool0, 1: pool1 }, seriesList });
 
     // Real transaction history: every signature that touched a contract the
     // user owns (§13.7) — no local log, straight from the chain.

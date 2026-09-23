@@ -26,7 +26,10 @@ import { getOrCreateAssociatedTokenAccount, mintTo, getMint } from "@solana/spl-
 import nacl from "tweetnacl";
 import { serializeQuotePayload, QUOTE_VALIDITY_SECS } from "../src/engine/quote";
 import { quotePremium } from "../src/engine/pricing";
-import { fromFixed } from "../src/engine/fixed";
+import { fromFixed, maxLiability } from "../src/engine/fixed";
+import { OptketClient } from "../src/client/optketProgram";
+import { publishAvailableVaultRounds } from "./vaultRotation";
+import { referenceRiskLimit, QuoteExposureBudget } from "./referenceRisk";
 import { EQUITY_MAX_SAMPLE_AGE_SECS } from "../src/engine/references";
 import type { QuotePayload } from "../src/engine/types";
 import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
@@ -176,6 +179,40 @@ class ServiceError extends Error {
   ) { super(message); }
 }
 
+const quoteExposureBudget = new QuoteExposureBudget();
+let exposureAdmission: Promise<void> = Promise.resolve();
+async function admitExposure(assetId: number, liability: bigint) {
+  // Serialize snapshot reads and reservations so another admission cannot prune
+  // signatures that were still executable when this snapshot read began.
+  const admission = exposureAdmission.then(async () => {
+    const snapshotStartedAt = nowSec();
+    const [asset, market] = await Promise.all([new OptketClient(conn).getAsset(assetId), marketData(VERIFIED_ASSETS[assetId].mint)]);
+    if (!asset) throw new Error("Asset configuration unavailable.");
+    const observedAt = market.updatedAt ? Date.parse(market.updatedAt) / 1000 : null;
+    const limit = referenceRiskLimit(asset, market.liquidity, observedAt, nowSec());
+    quoteExposureBudget.admit(asset, liability, limit, nowSec(), snapshotStartedAt);
+  });
+  exposureAdmission = admission.catch(() => {});
+  return admission;
+}
+
+const vaultRotationStatus = { enabled: process.env.VAULTS_ENABLED === "true" && process.env.VAULT_ROUNDS_ENABLED !== "false",
+  lastCheckedAt: 0, error: null as string | null, fundingWindowSeconds: 1800, activeWindowSeconds: 1800, automaticDeposits: false };
+let publishingVaults = false;
+async function rotateVaults() {
+  if (!vaultRotationStatus.enabled || publishingVaults || !payer) return;
+  publishingVaults = true;
+  try {
+    await publishAvailableVaultRounds(new VaultClient(conn), payer, async assetId => {
+      const ref = await referenceStatus(assetId);
+      if (ref.available) await admitExposure(assetId, 0n);
+      return ref;
+    });
+    vaultRotationStatus.error = null;
+  } catch { vaultRotationStatus.error = "New rounds paused. Reference, exposure or publication checks need attention."; }
+  finally { vaultRotationStatus.lastCheckedAt = nowSec(); publishingVaults = false; }
+}
+
 /** Live spot for premium pricing (§8.3): equity uses the stock benchmark,
  *  PreStocks uses the token market. Quote issuance fails closed when the live
  *  reference is unavailable. */
@@ -253,6 +290,7 @@ async function buildSignedQuote(buyer: string, assetId: number, seriesId: number
     );
   }
   const { spot, source } = reference;
+  await admitExposure(assetId, maxLiability(quantity, s.strike));
   const { premium } = quotePremium(assetId, quantity, s.strike, spot, s.expiryTs - now);
 
   const quoteId = quoteCounter++;
@@ -579,7 +617,7 @@ const server = createServer(async (req, res) => {
         ok: chain !== "unreachable", network: "devnet", slot: chain, programId: PROGRAM_ID.toBase58(),
         referenceVersions: ACTIVE_REFERENCE_VERSION,
         quoteAuthority: quoteAuthority.publicKey.toBase58(), issued: usedQuoteIds.size,
-        seriesRotation: rotationStatus, rpcRelayEnabled: Boolean(rpcRelay),
+        seriesRotation: rotationStatus, vaultRotation: vaultRotationStatus, rpcRelayEnabled: Boolean(rpcRelay),
       });
     }
     if (req.method === "GET" && url.pathname === "/config") {
@@ -685,7 +723,7 @@ const server = createServer(async (req, res) => {
       for await (const chunk of req) { body += chunk; if (body.length > 4096) throw new Error("Request too large."); }
       const { buyer, round, quantity, strike } = JSON.parse(body || "{}");
       if (![buyer, round, quantity, strike].every(v => typeof v === "string" && v.length > 0 && v.length < 100)) throw new Error("buyer, round, quantity and strike are required.");
-      return json(res, 200, await signedVaultQuote(new VaultClient(conn), quoteAuthority, referenceStatus, { buyer, round, quantity, strike }));
+      return json(res, 200, await signedVaultQuote(new VaultClient(conn), quoteAuthority, referenceStatus, { buyer, round, quantity, strike }, admitExposure));
     }
     return json(res, 404, { error: "not found" });
   } catch (e) {
@@ -718,4 +756,6 @@ server.listen(PORT, async () => {
   // keep a short lifecycle series permanently available
   await rotateShortSeries();
   setInterval(rotateShortSeries, 120_000);
+  void rotateVaults();
+  setInterval(rotateVaults, 60_000);
 });

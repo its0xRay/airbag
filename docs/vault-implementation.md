@@ -30,8 +30,9 @@ Buyer demand and profitability are not Devnet release gates.
   followed the model. Hard limits must be enforced onchain.
 - Pauses can block funding/new sales, not valid settlement or redemption.
 
-Round publishing uses five minutes of funding followed by a thirty-minute active
-window. New positions stop five minutes before latest expiry. Delayed reference
+Automatic rounds fund until the next half-hour boundary, followed by a thirty-minute
+active window; windows shorter than two minutes are skipped. The manual publisher
+defaults to five minutes of funding. New positions stop five minutes before latest expiry. Delayed reference
 resolution can extend the lock; the duration is not a withdrawal guarantee.
 Both users and the disclosed administrator can deposit with identical ownership
 and redemption rules. No legacy capital or historical results are imported.
@@ -136,8 +137,9 @@ These are test-token results, not expected returns or a mainnet audit.
 Quote and keeper services use `VAULTS_ENABLED`; the frontend uses
 `VITE_VAULTS_ENABLED`. All default to false for coordinated releases. The keeper
 uses the existing private Devnet RPC for activation, settlement and finalization.
-New rounds and administrator seed deposits still require an explicit operator
-action. Automatic round publication and seed recycling are not implemented.
+New empty rounds are automatically published by the quote service within fixed
+limits and reference checks. Administrator seed deposits remain explicit;
+automatic seed recycling and user reinvestment are not implemented.
 
 ## Publishing a round
 
@@ -151,7 +153,7 @@ deposit is allowed. The command never mints funds or withdraws legacy capital.
 Run `npx tsx scripts/publish-vault-round.ts` to inspect terms. Add `--send` only
 after reviewing them. Creation and administrator deposit are atomic. If a send
 times out, inspect the same round ID before any retry; an existing round is
-rejected to prevent a duplicate deposit. Later rounds require a separate explicit
+rejected to prevent a duplicate deposit. Manual seeded rounds require an explicit
 operator action. Redeeming an administrator deposit follows ordinary owner rules.
 
 The internal Active phase includes the settling period after sales close. UI must
