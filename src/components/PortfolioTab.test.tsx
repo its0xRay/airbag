@@ -43,7 +43,7 @@ describe("Positions presentation", () => {
   it("places the position before optional context and collapses exercise and technical detail", () => {
     state.contracts = [account];
     const html = render();
-    expect(html.indexOf('class="position-list"')).toBeLessThan(html.indexOf("Renewals and reminders"));
+    expect(html.indexOf('class="position-list"')).toBeLessThan(html.indexOf("Expiry reminders"));
     expect(html).toContain('<details class="position-exercise">');
     expect(html).toContain('<details class="position-details">');
     expect(html).toContain("Protected quantity");
@@ -75,5 +75,13 @@ describe("Positions presentation", () => {
     expect(html).toContain("Your selected position");
     expect(html.indexOf("#1 · ANTHROPIC")).toBeLessThan(html.indexOf("#2 · ANTHROPIC"));
     expect(html).toContain("Hold to expiry or request early exercise.");
+  });
+  it("offers a fresh position and does not invent missing settlement amounts", () => {
+    state.contracts = [{ ...account, status: "Expired", remainingQuantity: 0n }];
+    const html = renderToStaticMarkup(<PortfolioTab target={{ assetId: 1, address: account.address }} onRenew={() => {}} onProtect={() => {}} />);
+    expect(html).toContain("Open a similar position");
+    expect(html).toContain("Position outcome");
+    expect(html).toContain("Not loaded");
+    expect(html).not.toContain("Net contract result");
   });
 });

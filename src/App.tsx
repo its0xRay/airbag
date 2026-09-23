@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useChain } from "./onchain/store";
 import Landing from "./components/Landing";
 import ProtectTab from "./components/ProtectTab";
+import type { RepeatPosition } from "./client/repeatPosition";
 import PortfolioTab from "./components/PortfolioTab";
 import CompareTab from "./components/CompareTab";
 import UnderwriterTab from "./components/UnderwriterTab";
@@ -72,7 +73,7 @@ export default function App() {
   const [protectDraft, setProtectDraft] = useState<ProtectDraft | null>(null);
   // A renewal jumps to Protect with the quantity prefilled — the quote itself
   // is always fresh, so no terms carry over from the old contract (§18).
-  const [renewal, setRenewal] = useState<{ assetId: number; quantity: number } | null>(null);
+  const [renewal, setRenewal] = useState<RepeatPosition | null>(null);
   const viewPosition = (assetId: number, address?: string) => {
     setPositionTarget({ assetId, address });
     setTab("portfolio");
@@ -184,7 +185,7 @@ export default function App() {
           onInitialDraftConsumed={() => setProtectDraft(null)}
         />
       )}
-      {tab === "portfolio" && <PortfolioTab key={positionTarget?.address ?? "positions"} target={positionTarget} onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} onProtect={(assetId, quantity) => { setProtectDraft({ assetId, quantity }); setTab("protect"); }} />}
+      {tab === "portfolio" && <PortfolioTab key={positionTarget?.address ?? "positions"} target={positionTarget} onRenew={(assetId, quantity, terms) => { setProtectDraft(null); setRenewal({ assetId, quantity, ...terms }); setTab("protect"); }} onProtect={(assetId, quantity) => { setProtectDraft({ assetId, quantity }); setTab("protect"); }} />}
       {tab === "compare" && <CompareTab />}
       {tab === "underwriter" && <UnderwriterTab />}
       {tab === "vaults" && <VaultsTab onOpenPosition={assetId => { setProtectDraft({ assetId }); setTab("protect"); }} />}

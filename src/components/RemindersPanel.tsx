@@ -3,6 +3,7 @@ import { useChain } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fmtDuration } from "../format";
 import { useNowSeconds } from "../useNowSeconds";
+import { repeatPosition, type SimilarTerms } from "../client/repeatPosition";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 const REMINDER_KEY = "optket.reminders";
@@ -17,7 +18,7 @@ function loadSet(): Set<string> {
  * a FRESH quote — it never
  * carries the old contract's terms over and never spends anything by itself.
  */
-export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number, quantity: number) => void }) {
+export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number, quantity: number, terms?: SimilarTerms) => void }) {
   const c = useChain();
   const [reminders, setReminders] = useState<Set<string>>(loadSet);
   const now = useNowSeconds();
@@ -46,7 +47,7 @@ export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number,
         </span>
       </div>
       <div className="row">
-        <button className="btn primary sm" onClick={() => onRenew(k.assetId, tok(k.remainingQuantity))}>Renew</button>
+        <button className="btn primary sm" disabled={c.busy} onClick={() => { const draft = repeatPosition(k); onRenew(draft.assetId, draft.quantity, { strike: k.strike, duration: draft.duration! }); }}>Open a similar position</button>
         <button className="btn ghost sm" onClick={() => toggle(k.contractId.toString())}>
           {tracking ? "Remove" : "Remind me"}
         </button>
@@ -56,7 +57,7 @@ export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number,
 
   return (
     <div className="card" style={{ marginBottom: 14 }}>
-      <div className="card-title" style={{ marginBottom: 8 }}>Renewal reminders</div>
+      <div className="card-title" style={{ marginBottom: 8 }}>Expiry reminders</div>
 
       {tracked.map((k) => <Row key={k.address} k={k} tracking />)}
       {soon.length > 0 && (
@@ -69,8 +70,8 @@ export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number,
       )}
 
       <div className="disclosure" style={{ marginTop: 10 }}>
-        Stored only in this browser. Renewal opens a <strong>fresh quote</strong> — no automatic
-        purchase, and old terms never carry over.
+        Stored only in this browser. Opening another position requires a <strong>fresh quote</strong>
+        and confirmation. No automatic purchase or continuous coverage.
       </div>
     </div>
   );

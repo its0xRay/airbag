@@ -6,12 +6,14 @@ import type { PositionTarget } from "../App";
 import { useChain, explorerUrl } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import type { ContractAcct } from "../client/optketProgram";
-import { fmtPrice, fmtDuration, fmtClock } from "../format";
+import { fmtPrice, fmtDuration, fmtClock, fmtOusd } from "../format";
+import { positionOutcome } from "../client/positionOutcome";
 import HoldingsCard from "./HoldingsCard";
 import { pendingTransaction } from "../onchain/transactionRecovery";
 import RemindersPanel from "./RemindersPanel";
 import { useNowSeconds } from "../useNowSeconds";
 import VaultDepositList from "./VaultDepositList";
+import { repeatPosition, type SimilarTerms } from "../client/repeatPosition";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 const qty = (v: bigint) => tok(v).toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -25,7 +27,7 @@ const STATUS_TONE: Record<string, string> = {
  * Positions read straight from the program (PRD §13.5) plus the coverage
  * tracker (§16). Every action here is a real transaction.
  */
-export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number) => void; onProtect: (assetId: number, quantity?: number) => void; target?: PositionTarget | null }) {
+export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number, terms?: SimilarTerms) => void; onProtect: (assetId: number, quantity?: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
   const [assetId, setAssetId] = useState(() => target?.assetId ?? -1);
   const [viewChoice, setView] = useState<"active" | "history" | null>(null);
@@ -86,11 +88,11 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       ) : visible.length === 0 ? (
         <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}positions yet.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set your floor</button></div>}</div>
       ) : (
-        [...visible].sort((a, b) => Number(b.address === target?.address) - Number(a.address === target?.address) || b.createdTs - a.createdTs).map((k) => <ContractCard key={k.address} contract={k} highlighted={k.address === target?.address} />)
+        [...visible].sort((a, b) => Number(b.address === target?.address) - Number(a.address === target?.address) || b.createdTs - a.createdTs).map((k) => <ContractCard key={k.address} contract={k} highlighted={k.address === target?.address} onSimilar={() => { const draft = repeatPosition(k); onRenew(draft.assetId, draft.quantity, { strike: k.strike, duration: draft.duration! }); }} />)
       )}
       </div>
 
-      {c.contracts.length > 0 && <details className="secondary-tool position-context"><summary>Renewals and reminders</summary><RemindersPanel onRenew={onRenew} /></details>}
+      {c.contracts.length > 0 && <details className="secondary-tool position-context"><summary>Expiry reminders</summary><RemindersPanel onRenew={onRenew} /></details>}
 
       {hasCoverageData && <details className="secondary-tool position-context"><summary>Coverage and holdings comparison</summary><div className="card">
         <div className="card-title">Coverage tracker — {asset.symbol}</div>
@@ -126,7 +128,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   );
 }
 
-function ContractCard({ contract: k, highlighted = false }: { contract: ContractAcct; highlighted?: boolean }) {
+function ContractCard({ contract: k, highlighted = false, onSimilar }: { contract: ContractAcct; highlighted?: boolean; onSimilar: () => void }) {
   const c = useChain();
   const asset = VERIFIED_ASSETS[k.assetId];
   const [exQty, setExQty] = useState("");
@@ -139,6 +141,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
   const amount = parseFloat(exQty);
   const valid = amount > 0 && amount <= tok(k.remainingQuantity);
   const requests = c.requests.filter((request) => request.contract.toBase58() === k.address);
+  const outcome = positionOutcome(k, requests, c.expiryReceipts[k.contractId.toString()]);
 
   async function requestExercise() {
     if (!valid || reviewQuantity !== amount || !beforeCutoff || !open) return;
@@ -175,6 +178,19 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
       </div>
       <ProtectionBoundary floor={k.strike} compact />
       <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)} · oUSD has no real value.</p>
+      <button className="btn ghost" disabled={c.busy} onClick={onSimilar}>Open a similar position</button>
+      <details className="position-details" open={!open}><summary>{open ? "Receipts so far" : "Position outcome"}</summary>
+        <div className="receipt-metrics">
+          <div><span>Premium paid</span><strong className="mono">{fmtOusd(tok(k.premiumPaid))}</strong></div>
+          <div><span>Payout received</span><strong className="mono">{outcome ? fmtOusd(tok(outcome.payout)) : "Not loaded"}</strong></div>
+          <div><span>Premium refunded</span><strong className="mono">{outcome ? fmtOusd(tok(outcome.refund)) : "Not loaded"}</strong></div>
+          {outcome?.closed && <div><span>Net contract result</span><strong className="mono">{fmtOusd(tok(outcome.payout + outcome.refund - k.premiumPaid - k.feesPaid))}</strong></div>}
+        </div>
+        <p className="disclosure">{outcome ? "Confirmed test-token amounts; excludes changes in holdings and network fees." : "Complete settlement records are not loaded. Refresh to reconcile the outcome."}</p>
+        {!outcome && <button className="btn ghost" disabled={c.refreshing || c.busy} onClick={() => void c.refresh()}>Refresh receipts</button>}
+        <a className="btn ghost" href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">View onchain record ↗</a>
+        <div className="lifecycle-transactions">{c.history.filter(entry => entry.contractId === k.contractId && !entry.err).map(entry => <a key={entry.signature} href={explorerUrl("tx", entry.signature)} target="_blank" rel="noreferrer">{entry.action} ↗</a>)}</div>
+      </details>
       {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry or request early exercise.</p>}
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
@@ -238,7 +254,6 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
 
       <p className="disclosure">Recorded on Devnet · oUSD has no real value.</p>
       {k.vaultRound && <div className="kv"><span>Backing vault</span><a href={explorerUrl("address", k.vaultRound)} target="_blank" rel="noreferrer">Inspect round ↗</a></div>}
-      {k.vaultRound && <div className="grid cols-2"><div><span>Total payout recorded</span><strong className="mono"> {tok(k.recordedPayout ?? 0n).toFixed(2)} oUSD</strong></div><div><span>Premium refunded</span><strong className="mono"> {tok(k.recordedRefund ?? 0n).toFixed(2)} oUSD</strong></div></div>}
       <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
         <div className="lifecycle-row">
           <span className="lifecycle-dot complete" aria-hidden="true" />

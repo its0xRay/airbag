@@ -15,6 +15,7 @@ import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock, fmtAge, fmtOusd } from
 import type { ProtectDraft } from "../App";
 import { useNowSeconds } from "../useNowSeconds";
 import { useAssetAvailability } from "../data/useAssetAvailability";
+import { closestTerms, premiumReferenceRatio, type RepeatPosition } from "../client/repeatPosition";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 
@@ -34,7 +35,7 @@ export default function ProtectTab({
   onConnected,
 }: {
   embedded?: boolean;
-  renewal?: { assetId: number; quantity: number } | null;
+  renewal?: RepeatPosition | null;
   onRenewalConsumed?: () => void;
   initialDraft?: ProtectDraft | null;
   onInitialDraftConsumed?: () => void;
@@ -77,6 +78,7 @@ export default function ProtectTab({
     if (done) { receiptRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); receiptRef.current?.focus({ preventScroll: true }); }
   }, [done]);
   const [isRenewal, setIsRenewal] = useState(false);
+  const [similarDraft, setSimilarDraft] = useState<RepeatPosition | null>(null);
   const [referenceRetry, setReferenceRetry] = useState(0);
   const choseInitialAsset = useRef(false);
   const userChoseAsset = useRef(false);
@@ -119,6 +121,8 @@ export default function ProtectTab({
     setTenor("short");
     setQtyStr(String(renewal.quantity));
     setIsRenewal(true);
+    setSimilarDraft(renewal);
+    setApproval(null);
     setDone(null);
     onRenewalConsumed?.();
   }, [renewal, onRenewalConsumed]);
@@ -149,6 +153,15 @@ export default function ProtectTab({
     () => publicSeries.filter((s) => s.assetId === assetId && s.referenceVersion === ACTIVE_REFERENCE_VERSION[assetId]),
     [publicSeries, assetId],
   );
+  useEffect(() => {
+    if (!similarDraft || seriesLoading || assetId !== similarDraft.assetId) return;
+    const match = closestTerms(options, similarDraft, Math.floor(Date.now() / 1000));
+    // A one-shot draft selects only an available series, never an old quote.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setSeriesId(match?.seriesId ?? null);
+    if (match) setTenor(match.shortDated ? "short" : "weekly");
+    setSimilarDraft(null);
+  }, [similarDraft, seriesLoading, assetId, options]);
   const effectiveTenor = options.some((s) => s.shortDated === (tenor === "short")) ? tenor : tenor === "short" ? "weekly" : "short";
   const tenorOptions = options.filter((s) => s.shortDated === (effectiveTenor === "short"));
   const selected: SeriesInfo | undefined =
@@ -167,6 +180,7 @@ export default function ProtectTab({
     : null;
   const notional = selected && qty > 0n ? maxLiability(qty, selected.strike) : 0n;
   const premiumPct = est && notional > 0n ? fromFixed(est.premium) / fromFixed(notional) : 0;
+  const referenceRatio = est && secsLeft > 0 ? premiumReferenceRatio(est.premium, qty, spot) : null;
   const premiumPerUnit = est && qty > 0n ? fromFixed(est.premium) / fromFixed(qty) : 0;
   const breakeven = selected ? Math.max(0, fromFixed(selected.strike) - premiumPerUnit) : 0;
   const maxNet = est ? fromFixed(notional) - fromFixed(est.premium) : 0;
@@ -229,7 +243,7 @@ export default function ProtectTab({
   return (
     <div className={"protect-workspace" + (embedded ? " protect-embedded" : "")}>
       {!embedded && <div className="app-page-head"><div><h1>Open position</h1><p>Choose your floor. Keep the upside.</p></div></div>}
-      {isRenewal && <div className="callout">Renew coverage with a new contract. Your previous position keeps its original terms.</div>}
+      {isRenewal && <div className="callout">Quantity copied. Review the available floor and expiry, then confirm a fresh quote. This opens a separate position—not continuous coverage. Your previous position is unchanged.</div>}
       <div className="protect-market-head">
         <div className="protect-assets" role="group" aria-label="Choose an asset">
           {VERIFIED_ASSETS.map((a, i) => <button key={a.key} className={"btn " + (assetId === i ? "primary" : "ghost")} aria-pressed={assetId === i} onClick={() => { userChoseAsset.current = true; setAssetId(i); setSeriesId(null); setTenor("short"); setScenario(null); setDone(null); }} disabled={c.busy}><AssetLogo asset={a} /><span className="asset-choice-copy"><strong>{i === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{i === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span><span className="asset-choice-check" aria-hidden="true">{assetId === i ? "✓" : ""}</span></button>)}
@@ -276,7 +290,7 @@ export default function ProtectTab({
         </section>
         <div className="protection-checkout">
           {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase"><h3>Review position</h3><p>{quantity} {asset.symbol} · {selected && fmtPrice(selected.strike)} floor · Expires {selected && fmtClock(selected.expiryTs)}</p><div className="kv"><span>Maximum premium</span><strong className="mono">{fmtOusd(tok(approved.maxPremium))}</strong></div><p>A fresh signed quote must cost no more than this amount. A higher quote stops the purchase. oUSD has no real value.</p>{selected?.vaultRound && <p>Funded by the {asset.symbol} vault. <a href={explorerUrl("address", selected.vaultRound)} target="_blank" rel="noreferrer">Inspect backing round ↗</a></p>}<button className="btn ghost sm" disabled={c.busy} onClick={() => setApproval(null)}>Cancel review</button></section>}
-          <div className="checkout-row"><div><div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div><div className="ticket-balance">oUSD · no real value{c.connected && <> · Balance {fmtOusd(c.tokenBalance, 0)}</>}</div></div>
+          <div className="checkout-row"><div><div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{referenceRatio != null && <p className="disclosure">≈ {fmtPct(referenceRatio)} of reference value · {secsLeft < 60 ? "Less than 1m" : fmtDuration(secsLeft)} remaining<br />Comparison assumes 1 oUSD = $1; oUSD has no real value.</p>}<div className="ticket-balance">oUSD · no real value{c.connected && <> · Balance {fmtOusd(c.tokenBalance, 0)}</>}</div></div>
           <div className="ticket-purchase"><button className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
           <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
