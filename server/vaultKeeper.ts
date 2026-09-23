@@ -30,6 +30,9 @@ export async function tickVaults(client: VaultClient, publisher: Keypair,
     } catch { errors.push(`Vault position ${p.address.toBase58()} requires retry`); }
   }
   for (const previous of rounds.filter(r => r.phase !== "redeemable")) {
+    // No transition is possible yet. Keep five-second discovery/settlement scans,
+    // but avoid an extra account read for every idle round on every tick.
+    if (now < previous.fundingClose || (previous.phase !== "funding" && now < previous.salesClose)) continue;
     try {
       // Re-fetch after settlements; never finalize using stale obligation totals.
       const r = await client.getRound(previous.address);

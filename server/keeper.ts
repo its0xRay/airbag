@@ -1,6 +1,7 @@
 import { ACTIVE_REFERENCE_VERSION, referenceKind } from "../src/data/referencePolicy";
 import { VaultClient } from "../src/client/vaultProgram";
 import { tickVaults } from "./vaultKeeper";
+import { createRpcTransport } from "./rpcTransport";
 import { loadObservations, saveObservations, pruneObservations, type ObservationScope } from "./observationStore";
 // Airbag keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
@@ -113,7 +114,8 @@ const pyth = new PythEquityAdapter(0);
 const jupiter = new JupiterPreStocksAdapter(1);
 const nvdaToken = createNvdaTokenReference();
 
-const conn = new Connection(RPC, "confirmed");
+const keeperRpc = createRpcTransport("keeper");
+const conn = new Connection(RPC, { commitment: "confirmed", fetch: keeperRpc.fetch, disableRetryOnRateLimit: true });
 const client = new OptketClient(conn);
 
 // env secret in production (Railway: PUBLISHER_SECRET), gitignored file locally
@@ -323,6 +325,7 @@ function startHealthServer() {
       samples: { nvdaToken: sampleBuffer[0].length, prestocks: sampleBuffer[1].length },
       referenceAgeSeconds: { nvdaToken: referenceAges[0], prestocks: referenceAges[1] },
       publisher: publisher.publicKey.toBase58(),
+      rpc: keeperRpc.stats(),
     }));
   }).listen(port, () => console.log(`  health:    :${port}/health`));
 }

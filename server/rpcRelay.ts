@@ -1,5 +1,6 @@
 import { PublicKey, Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
+import { createRpcTransport } from "./rpcTransport";
 
 type RpcRequest = { jsonrpc: "2.0"; id: string | number; method: string; params: unknown[] };
 function address(value: unknown): string {
@@ -62,15 +63,17 @@ export function validateRpcRequest(input: unknown, program: string): RpcRequest 
 export function createRpcRelay(endpoint: string, program: string) {
   let pending = 0;
   let nextStart = 0;
-  return async (input: unknown) => {
-    const request = validateRpcRequest(input, program);
+  const rpc = createRpcTransport("browser-relay");
+  const reads = new Map<string, Promise<Record<string, unknown>>>();
+  let sharedReads = 0;
+  const run = async (request: RpcRequest): Promise<Record<string, unknown>> => {
     if (pending >= 40) return { jsonrpc: "2.0", id: request.id, error: { code: -32005, message: "RPC busy. Retry shortly." } };
     pending++;
     const start = Math.max(Date.now(), nextStart);
-    nextStart = start + 250;
+    nextStart = start + 100;
     try {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, start - Date.now())));
-      const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" },
+      const response = await rpc.fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify(request), signal: AbortSignal.timeout(12000), redirect: "error" });
       if (!response.ok) throw new Error("Upstream unavailable");
       const result = await response.json() as Record<string, unknown>;
@@ -81,4 +84,16 @@ export function createRpcRelay(endpoint: string, program: string) {
       return { jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Devnet RPC unavailable. Check your transaction status before retrying." } };
     } finally { pending--; }
   };
+  return Object.assign(async (input: unknown) => {
+    const request = validateRpcRequest(input, program);
+    // Only identical concurrent reads share work. Writes and confirmation polls
+    // remain independent; completed results are never cached.
+    if (!["getAccountInfo", "getProgramAccounts", "getBalance", "getTokenAccountBalance", "getGenesisHash"].includes(request.method)) return run(request);
+    const key = JSON.stringify([request.method, request.params]);
+    let operation = reads.get(key);
+    if (!operation) { operation = run(request); reads.set(key, operation); }
+    else sharedReads++;
+    try { return { ...await operation, id: request.id }; }
+    finally { if (reads.get(key) === operation) reads.delete(key); }
+  }, { stats: () => ({ ...rpc.stats(), sharedReads, queuedRequests: pending }) });
 }

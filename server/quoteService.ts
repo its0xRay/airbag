@@ -36,6 +36,7 @@ import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
 import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
 import { createRpcRelay } from "./rpcRelay";
+import { createRpcTransport } from "./rpcTransport";
 import { tierAvailable } from "./seriesRotation";
 import { VaultClient } from "../src/client/vaultProgram";
 import { signedVaultQuote, vaultPolicyHash } from "./vaultQuotes";
@@ -50,7 +51,8 @@ const PORT = Number(process.env.PORT || 8787);
 const MAINNET_RPC = process.env.MAINNET_RPC || "https://api.mainnet-beta.solana.com";
 const JUP_API = process.env.JUP_PRICE_API || "https://lite-api.jup.ag/price/v3";
 
-const conn = new Connection(RPC_URL, "confirmed");
+const serviceRpc = createRpcTransport("quote-service");
+const conn = new Connection(RPC_URL, { commitment: "confirmed", fetch: serviceRpc.fetch, disableRetryOnRateLimit: true });
 const rpcRelay = process.env.RPC_PROXY_ENABLED === "true" ? createRpcRelay(RPC_URL, PROGRAM_ID.toBase58()) : null;
 let relayVerified = false;
 let relayVerification: Promise<boolean> | null = null;
@@ -625,7 +627,7 @@ const server = createServer(async (req, res) => {
         ok: chain !== "unreachable", network: "devnet", slot: chain, programId: PROGRAM_ID.toBase58(),
         referenceVersions: ACTIVE_REFERENCE_VERSION,
         quoteAuthority: quoteAuthority.publicKey.toBase58(), issued: usedQuoteIds.size,
-        seriesRotation: rotationStatus, vaultRotation: vaultRotationStatus, rpcRelayEnabled: Boolean(rpcRelay),
+        seriesRotation: rotationStatus, vaultRotation: vaultRotationStatus, rpcRelayEnabled: Boolean(rpcRelay), rpc: serviceRpc.stats(), relayRpc: rpcRelay?.stats(),
       });
     }
     if (req.method === "GET" && url.pathname === "/config") {

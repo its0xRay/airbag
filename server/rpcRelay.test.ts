@@ -5,6 +5,17 @@ const program = PublicKey.default.toBase58();
 const request = (method: string, params: unknown[]) => ({ jsonrpc: "2.0", id: 1, method, params });
 afterEach(() => vi.unstubAllGlobals());
 describe("public RPC boundary", () => {
+  it("shares concurrent reads without caching completed results or losing caller IDs", async () => {
+    const upstream = vi.fn(async () => new Response(JSON.stringify({ result: 123 })));
+    vi.stubGlobal("fetch", upstream);
+    const relay = createRpcRelay("https://provider.test/private", program);
+    const replies = await Promise.all([relay(request("getGenesisHash", [])), relay({ ...request("getGenesisHash", []), id: 2 })]);
+    expect(replies.map(r => r.id)).toEqual([1, 2]);
+    expect(upstream).toHaveBeenCalledTimes(1);
+    await relay(request("getGenesisHash", []));
+    expect(upstream).toHaveBeenCalledTimes(2);
+    expect(relay.stats().sharedReads).toBe(1);
+  });
   it("rejects batches and arbitrary RPC methods", () => {
     expect(() => validateRpcRequest([], program)).toThrow();
     expect(() => validateRpcRequest(request("requestAirdrop", [program, 100]), program)).toThrow();
