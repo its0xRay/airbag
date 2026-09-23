@@ -645,7 +645,8 @@ const server = createServer(async (req, res) => {
           maxContractSize: s.maxContractSize.toString(),
           shortDated: s.seriesId >= SHORT_ID_MIN && s.seriesId <= SHORT_ID_MAX,
         }));
-      if (process.env.VAULTS_ENABLED === "true") {
+      // Older/disabled frontends must not discover rounds whose positions they cannot display.
+      if (process.env.VAULTS_ENABLED === "true" && url.searchParams.get("includeVaults") === "true") {
         const rounds = (await new VaultClient(conn).rounds()).filter(r => r.phase === "active"
           && now < r.salesClose && r.latestExpiry - now >= 300 && r.principalAvailable > 0n
           && r.referenceVersion === ACTIVE_REFERENCE_VERSION[r.assetId] && r.quoteAuthority.equals(quoteAuthority.publicKey)

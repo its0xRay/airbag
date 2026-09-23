@@ -93,7 +93,8 @@ async function decodeTransactionActions(connection: Connection, signatures: stri
 }
 
 export async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
-  const raw = await fetchJson<Array<Record<string, unknown>>>(`${svcUrl}/series/all`);
+  const vaultQuery = import.meta.env.VITE_VAULTS_ENABLED === "true" ? "?includeVaults=true" : "";
+  const raw = await fetchJson<Array<Record<string, unknown>>>(`${svcUrl}/series/all${vaultQuery}`);
   return raw
     .map((s) => ({
       assetId: Number(s.assetId),
