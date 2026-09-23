@@ -15,6 +15,7 @@ Connect each host to [its0xRay/airbag](https://github.com/its0xRay/airbag). Use 
 ## Railway
 
 Both services need a Devnet `RPC_URL`. The configured `PROGRAM_ID` must match the deployed program.
+Use a provisioned RPC for both services; the public endpoint can rate-limit keeper account scans. On Railway, the keeper can reference the web service's existing endpoint with `${{web.RPC_URL}}`.
 
 | Service | Required configuration |
 |---|---|
@@ -44,6 +45,18 @@ VITE_USE_RPC_RELAY=true
 Verify the quote service's `/rpc` endpoint before enabling the frontend relay. Without the relay, use a public Devnet `VITE_RPC_URL`. All `VITE_*` values are public build output.
 
 Redeploy after changing build-time variables. Preserve the existing site address while introducing a new domain: browser demo-wallet storage does not transfer between domains.
+
+## Vault release
+
+Upgrade and verify the compatible Devnet program first. Set `VAULTS_ENABLED=true`
+on both services, verify real-reference purchases and settlement for both assets,
+then set `VITE_VAULTS_ENABLED=true` on Vercel and redeploy. Disabled clients continue
+to receive legacy offers; vault discovery is opt-in.
+
+Publish bounded rounds with `scripts/publish-vault-round.ts`; it previews terms
+unless `--send` is supplied. [Operator parameters](docs/vault-implementation.md#publishing-a-round)
+must be explicit. The keeper activates and settles rounds, but the operator
+publishes subsequent rounds. Deposits are never automatically reinvested.
 
 ## Release verification
 

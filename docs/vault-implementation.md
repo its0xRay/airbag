@@ -1,6 +1,6 @@
 # Vault implementation work record
 
-Status: local implementation and verification; not deployed or publicly enabled.
+Status: deployed and verified on Solana Devnet, September 23, 2026.
 Legacy administrator pools and buyer contract layouts remain unchanged.
 
 ## Release scope
@@ -86,7 +86,7 @@ Do not require a positive token transfer to mark the ownership record redeemed.
 
 ## Implementation boundaries
 
-Implemented locally:
+Implemented:
 
 - Isolated round custody, ownership, position, and exercise-request accounts.
 - Deposit, funding cancellation, activation, purchase, partial exercise,
@@ -117,29 +117,32 @@ After 8 oUSD partial exercise and 6 oUSD remaining-premium refund, administrator
 and user received 597.6/398.4 from their original 600/400 deposits. These are
 isolated fixtures, not public activity. Build, server typecheck and lint pass.
 
-Release preflight on 2026-09-23 found 3.343362097 Devnet SOL in the upgrade wallet
-against 4.12734252 required before fees for temporary buffer rent and program
-resize. RPC faucet attempts were rate-limited; the official free web faucet
-requires user CAPTCHA verification. The existing public deployment is unchanged.
+## Devnet verification
 
-Still required before public access:
+The [program upgrade](https://explorer.solana.com/tx/7yynuKzUvEx4kJEYJLUeujhZDGpAKqEqyqh2tEg8vaTt2U8NLVhppkzhQHQaHnsrBZJM5GtPMQTjrQi6Zqr3jw8?cluster=devnet)
+was finalized and the deployed bytes matched the tested binary. Both assets
+completed real browser deposits, signed purchases, partial exercise, expiry
+settlement, and proportional redemptions through the hosted services. Funding
+cancellation and redeposit also passed. Settlement used actual market observations;
+neither verification round needed a reference-failure refund.
 
-1. Complete browser deposit/withdrawal checks through the deployed sponsorship
-   relay. Instruction-level reference-failure/refund and pause-path tests passed.
-2. Upgrade the Devnet program, deploy the quote service and keeper, and verify
-   genuine reference-backed purchases, partial exercise, expiry and redemption
-   for both assets. Preserve legacy contract behavior.
-3. Publish initial rounds with explicit per-asset limits and administrator funding.
-   The operator command refuses overlapping unresolved rounds for an asset.
-   Automatic round publication/seed recycling is not implemented; keeper
-   activation, settlement and finalization are implemented.
-4. Enable VAULTS_ENABLED on the services and VITE_VAULTS_ENABLED on the frontend
-   only as part of the coordinated verified release. Both default to false.
+Each round received 6,000 administrator and 4,000 browser-depositor test oUSD.
+NVDAx collected 9.703376 and paid 7.651085; Anthropic collected 36.293062 and
+paid 10.321879. Browser redemptions were
+[4,000.820916 oUSD for NVDAx](https://explorer.solana.com/tx/4g66FN38Tvk3oAorhV1EDavQ3BBgaLrBhKmwD1UosdwRdUoFTZAdagfctstSLPVx2NJish4NkLFNt8QCyJWgSLHA?cluster=devnet)
+and [4,010.388473 oUSD for Anthropic](https://explorer.solana.com/tx/3gMFVqmYs1saiBmPBCC1nVRDG3fk4vrxiHeXJ6zrRXkZzkKAcdFmqUzu78covdXoisAzLiibHc8Fh4CVSvZmDKzp?cluster=devnet).
+These are test-token results, not expected returns or a mainnet audit.
+
+Quote and keeper services use `VAULTS_ENABLED`; the frontend uses
+`VITE_VAULTS_ENABLED`. All default to false for coordinated releases. The keeper
+uses the existing private Devnet RPC for activation, settlement and finalization.
+New rounds and administrator seed deposits still require an explicit operator
+action. Automatic round publication and seed recycling are not implemented.
 
 ## Publishing a round
 
 `scripts/publish-vault-round.ts` is Devnet-only and defaults to a read-only preview.
-Set RPC_URL and existing ADMIN_SECRET (or the local Solana key). Supply
+Use RPC_URL (or the local Solana CLI RPC) and existing ADMIN_SECRET (or the local Solana key). Supply
 VAULT_ASSET_ID (0 or 1), VAULT_ROUND_ID, VAULT_ADMIN_DEPOSIT, VAULT_DEPOSIT_CAP,
 VAULT_EXPOSURE_CAP, VAULT_MIN_STRIKE, VAULT_MAX_STRIKE, and VAULT_MAX_QUANTITY.
 Amounts are decimal UI units, at most six decimal places. Zero administrator

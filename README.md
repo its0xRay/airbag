@@ -1,6 +1,6 @@
 # Airbag
 
-Risk management for tokenized equities on Solana. Choose a price floor, pay one premium and keep your tokens.
+Risk management for tokenized equities on Solana. Set your downside—or fund it and share in the premiums.
 
 [Try Airbag](https://www.airbag.fyi/) · [Deployed program](https://explorer.solana.com/address/Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky?cluster=devnet) · [Architecture](docs/architecture.md) · [Deployment](DEPLOY.md)
 
@@ -8,6 +8,7 @@ Risk management for tokenized equities on Solana. Choose a price floor, pay one 
 
 - **Markets:** NVDAx and Anthropic PreStocks.
 - **Positions:** signed-quote purchases, fully reserved maximum payouts, partial or full early exercise, and expiry settlement.
+- **Vaults:** separate NVDAx and Anthropic rounds. Deposit during funding, back buyer payouts, then redeem your proportional share after settlement. Capital can lose value.
 - **Transparency:** inspect references, pool reserves, contract accounts and confirmed transactions.
 
 Payout = quantity × max(price floor − settlement reference, 0).
@@ -17,6 +18,8 @@ New positions follow token-market references, not guaranteed portfolio values. T
 ## Try the Devnet app
 
 Choose an asset, quantity, floor and expiry. Start with a browser demo wallet, review the maximum premium, then open a position. Follow it in Positions.
+
+To fund positions, open Vaults and choose an asset. Deposits can be cancelled during funding; after activation they lock until every obligation settles. Administrator deposits have the same proportional rights. New funding rounds are published by the operator; deposits are not automatically reinvested.
 
 Purchases and settlements execute on Solana Devnet. Premiums and payouts use **oUSD, a test token with no monetary value**; transaction fees are sponsored. Payout previews are illustrative, not executable quotes.
 
@@ -37,6 +40,7 @@ Create `.env.local`:
 ```dotenv
 VITE_QUOTE_SVC=https://web-production-44d1a.up.railway.app
 VITE_USE_RPC_RELAY=true
+VITE_VAULTS_ENABLED=true
 ```
 
 ```bash

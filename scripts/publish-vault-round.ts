@@ -1,14 +1,18 @@
 /** Explicit operator action. Dry-run by default; never mints or imports legacy capital. */
-import { Connection, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { Connection, Transaction } from "@solana/web3.js";
 import { getAccount, getMint } from "@solana/spl-token";
 import { OptketClient, associatedTokenAddress } from "../src/client/optketProgram";
 import { VaultClient, vaultPdas, type VaultTerms } from "../src/client/vaultProgram";
 import { ACTIVE_REFERENCE_VERSION } from "../src/data/referencePolicy";
 import { loadAdmin } from "../server/keys";
 import { vaultPolicyHash } from "../server/vaultQuotes";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 
-const rpc = process.env.RPC_URL || "https://api.devnet.solana.com";
+const cliConfig = `${homedir()}/.config/solana/cli/config.yml`;
+const rpc = process.env.RPC_URL || (existsSync(cliConfig) ? readFileSync(cliConfig, "utf8").match(/^json_rpc_url: (.+)$/m)?.[1] : undefined) || "https://api.devnet.solana.com";
 const conn = new Connection(rpc, "confirmed");
+try {
 if (await conn.getGenesisHash() !== "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG") throw new Error("This operator command supports Solana Devnet only.");
 const admin = loadAdmin();
 if (!admin) throw new Error("Administrator key unavailable.");
@@ -52,5 +56,24 @@ if (process.argv.includes("--send")) {
   // Creation and optional seed deposit are atomic, with a PDA-backed retry guard.
   const tx = new Transaction().add(client.createIx(admin.publicKey, config.demoMint, id, terms, policy));
   if (seed > 0n) tx.add(client.depositIx({ address, custody: vaultPdas.custody(address), mint: config.demoMint }, admin.publicKey, admin.publicKey, seed));
-  console.log("Confirmed transaction:", await sendAndConfirmTransaction(conn, tx, [admin], { commitment: "confirmed" }));
+  tx.feePayer = admin.publicKey;
+  tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+  tx.sign(admin);
+  const signature = await conn.sendRawTransaction(tx.serialize());
+  console.log("Submitted transaction:", signature);
+  let confirmed = false;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const state = (await conn.getSignatureStatuses([signature])).value[0];
+    if (state?.err) throw new Error(`Publication failed: ${JSON.stringify(state.err)}`);
+    if (state?.confirmationStatus === "confirmed" || state?.confirmationStatus === "finalized") {
+      confirmed = true; break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+  if (!confirmed) throw new Error("Confirmation uncertain. Inspect the submitted signature and same round ID before retrying.");
+  console.log("Confirmed transaction:", signature);
+}
+} catch (error) {
+  console.error(String(error instanceof Error ? error.message : error).replaceAll(rpc, "[RPC]"));
+  process.exitCode = 1;
 }

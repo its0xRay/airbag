@@ -35,6 +35,17 @@ Prices and quantities use six-decimal fixed-point integers. Reserves round up; p
 
 See [program arithmetic](../programs/optket/src/math.rs) and [frontend arithmetic](../src/engine/fixed.ts).
 
+## Underwriting vaults
+
+NVDAx and Anthropic use separate fixed rounds and PDA-controlled custody accounts.
+Deposits mint non-transferable accounting shares during funding. Ownership freezes
+at activation; after every obligation settles, each owner redeems their proportion
+of the final balance. Administrator deposits follow the same rules. Fees are zero;
+premiums are not reused as underwriting principal. Legacy pools remain separate.
+
+Round terms freeze asset, reference version, authorities, pricing-policy commitment,
+floor/quantity limits, exposure cap and deadlines. See [vault accounting](../programs/optket/src/vault_accounting.rs).
+
 ## Trust and access
 
 The authorized publisher's signature establishes identity, not independent proof that an upstream API returned a price. Medians do not eliminate thin-market manipulation risk. Airbag does not execute an external hedge.
@@ -45,9 +56,12 @@ The authorized publisher's signature establishes identity, not independent proof
 | Sign quotes | Quote authority |
 | Submit reference-based settlement or invalid-expiry refund | Authorized publisher |
 | Fail an elapsed exercise request | Permissionless, subject to program timing checks |
+| Deposit, cancel funding deposit, redeem vault share | Deposit owner |
+| Activate or finalize an eligible vault round | Permissionless |
+| Publish a new vault round | Admin |
 | Configure assets/series, fund pools, pause purchases | Admin |
 
-The public deployment uses demo-token settlement only. oUSD has no monetary value, real-USDC purchases are rejected and public underwriting is disabled.
+The deployment uses Devnet settlement only. oUSD has no monetary value; real-USDC purchases and deposits are not supported. Vault returns can be negative.
 
 ## Recovery and testing
 
