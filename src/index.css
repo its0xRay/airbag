@@ -811,6 +811,27 @@ table.log tr:hover td { background: var(--bg-elev2); }
 .lp-product-hero .lp-hero-copy { display:block; max-width:1060px; margin-bottom:56px; }
 .lp-product-hero .lp-title { font-size:clamp(40px,5.5vw,72px); margin:0 0 28px; line-height:1.08; max-width:none; text-wrap:balance; }
 .lp-hero-tagline { font-size:clamp(20px,2vw,24px); font-weight:500; color:var(--text); margin:0 0 16px; line-height:1.4; }
+.lp-market-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:24px; }
+.lp-market-actions .btn { min-height:44px; gap:12px; }
+.lp-capital-market { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:64px; }
+.lp-market-intro .lp-eyebrow { font-size:14px; margin-bottom:16px; }
+.lp-market-intro .lp-lede { font-size:16px; max-width:38ch; }
+.lp-market-sides { display:grid; grid-template-columns:1fr 1fr; gap:32px; padding-bottom:32px; }
+.lp-market-sides h3 { margin:0 0 12px; font-size:22px; font-weight:500; letter-spacing:-0.02em; }
+.lp-market-sides p, .lp-capital-flow p { color:var(--text-dim); font-size:16px; line-height:1.6; margin:0; }
+.lp-capital-flow { list-style:none; padding:0; margin:0; border-top:1px solid var(--border); }
+.lp-capital-flow li { display:grid; grid-template-columns:32px minmax(0, 1fr); column-gap:16px; padding:20px 0; border-bottom:1px solid var(--border); }
+.lp-flow-number { grid-row:1 / 3; padding-top:2px; font:14px var(--mono); color:var(--text-faint); }
+.lp-capital-flow strong { font-size:16px; font-weight:500; margin-bottom:4px; }
+.lp-market-risk { font-size:14px; line-height:1.6; color:var(--text-dim); margin:20px 0 0; }
+@media (max-width: 900px) {
+  .lp-capital-market { grid-template-columns:1fr; gap:32px; }
+  .lp-market-intro .lp-lede { max-width:60ch; }
+}
+@media (max-width: 480px) {
+  .lp-market-sides { grid-template-columns:1fr; gap:24px; }
+  .lp-market-actions .btn { flex:1; justify-content:center; }
+}
 .lp-asset-intro { color:var(--text-dim); font-size:13px; margin:12px 0 0; line-height:1.6; }
 #protection { scroll-margin-top:88px; }
 .protect-embedded .protect-layout { grid-template-columns:350px minmax(0,1fr); }

@@ -138,6 +138,9 @@ export interface ContractAcct { address: string; contractId: bigint; buyer: Publ
 
 const CONTRACT_STATUS = ["Active", "PartiallySettled", "Exercised", "Expired", "Refunded", "Cancelled"];
 
+// Optional metadata on the unified portfolio view, never part of legacy decoding.
+export interface ContractAcct { vaultRound?: string; recordedPayout?: bigint; recordedRefund?: bigint; }
+
 function decodeConfig(b: Uint8Array): ConfigAcct {
   const r = new Reader(b);
   return { admin: r.pubkey(), quoteAuthority: r.pubkey(), publisherAuthority: r.pubkey(), demoMint: r.pubkey(), pausedPurchases: r.bool(), nextContractId: r.u64(), trialCap: r.u64(), trialSpent: r.u64() };
@@ -159,7 +162,7 @@ function decodeContract(address: string, b: Uint8Array): ContractAcct {
   return { address, contractId: r.u64(), buyer: r.pubkey(), assetId: r.u8(), seriesId: r.u16(), mint: r.pubkey(), conversionVersion: r.u32(), referenceVersion: r.u32(), originalQuantity: r.u64(), strike: r.u64(), expiryTs: r.i64(), exerciseCutoffTs: r.i64(), premiumPaid: r.u64(), feesPaid: r.u64(), remainingQuantity: r.u64(), pendingQuantity: r.u64(), reservedCollateral: r.u64(), status: CONTRACT_STATUS[r.u8()] || "Unknown", createdTs: r.i64(), nextRequestNonce: r.u32() };
 }
 
-export interface ExerciseRequestAcct { address: string; contract: PublicKey; nonce: number; quantity: bigint; requestTs: number; windowStart: number; windowEnd: number; kind: "Equity" | "PreStocks"; status: "Pending" | "Settled" | "Failed"; reservedLocked: bigint; settlementReference: bigint; payout: bigint; }
+export interface ExerciseRequestAcct { address: string; contract: PublicKey; nonce: number; quantity: bigint; requestTs: number; windowStart: number; windowEnd: number; kind: "Equity" | "PreStocks"; status: "Pending" | "Settled" | "Failed"; reservedLocked: bigint | null; settlementReference: bigint; payout: bigint; }
 const REQUEST_STATUS = ["Pending", "Settled", "Failed"];
 const REQUEST_KIND = ["Equity", "PreStocks"] as const;
 function decodeRequest(address: string, b: Uint8Array): ExerciseRequestAcct {
@@ -226,7 +229,7 @@ export class OptketClient {
   /** All contracts owned by `buyer` (memcmp on the buyer field at offset 16). */
   async getContractsForBuyer(buyer: PublicKey): Promise<ContractAcct[]> {
     const accts = await this.conn.getProgramAccounts(this.programId, {
-      filters: [{ memcmp: { offset: 16, bytes: buyer.toBase58() } }],
+      filters: [{ memcmp: { offset: 0, bytes: discB58(ACCT_DISC.Contract) } }, { memcmp: { offset: 16, bytes: buyer.toBase58() } }],
     });
     // buyer at offset 16 also matches other account types by luck? Filter by
     // size: Contract is a distinct discriminator; check the first byte range is

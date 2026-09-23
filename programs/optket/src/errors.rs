@@ -95,4 +95,16 @@ pub enum OptketError {
     // ---- Trial budget ----
     #[msg("Trial spending cap would be exceeded")]
     TrialCapExceeded,
+
+    // Append only: existing instruction error numbers must remain stable.
+    #[msg("Invalid vault asset, timing, or underwriting terms")]
+    InvalidVaultTerms,
+    #[msg("The vault funding window is closed")]
+    VaultFundingClosed,
+    #[msg("This action is unavailable in the current vault round phase")]
+    InvalidVaultPhase,
+    #[msg("The vault deposit or exposure cap would be exceeded")]
+    VaultCapacityExceeded,
+    #[msg("Vault contracts or reservations remain outstanding")]
+    VaultObligationsOutstanding,
 }

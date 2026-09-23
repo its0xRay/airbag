@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import {
-  Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
+  Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction, Ed25519Program,
 } from "@solana/web3.js";
 import {
   OptketClient, OPTKET_PROGRAM_ID, associatedTokenAddress, decodeOptketInstruction, pdas,
@@ -9,6 +9,8 @@ import {
 import { fetchJson, normalizeServiceUrl } from "../serviceUrl";
 import { checkPurchaseLimit } from "../engine/quote";
 import bs58 from "bs58";
+import { VaultClient, vaultPdas, vaultQuoteMessage, decodeVaultInstruction, type VaultRoundAccount } from "../client/vaultProgram";
+import { loadVaultPortfolio } from "../client/vaultPortfolio";
 import { decodeExpiryEvents, type ExpiryEvent } from "../client/expiryEvent";
 import { loadTransaction, saveTransaction, reconcileTransaction, pendingTransaction, rpcScope, registerEndpointChain, matchesTransactionChain, type TrackedTransaction } from "./transactionRecovery";
 
@@ -31,6 +33,7 @@ export interface SeriesInfo {
   maxContractSize: bigint;
   referenceVersion: number;
   shortDated: boolean;
+  vaultRound?: string;
 }
 
 /** One confirmed transaction touching a contract the user owns (§13.7). */
@@ -79,7 +82,7 @@ async function decodeTransactionActions(connection: Connection, signatures: stri
         }
         const labels = transaction.transaction.message.instructions.flatMap((instruction) => {
           if (!("programId" in instruction) || !instruction.programId.equals(OPTKET_PROGRAM_ID) || !("data" in instruction)) return [];
-          const label = decodeOptketInstruction(instruction.data);
+          const label = decodeOptketInstruction(instruction.data) ?? decodeVaultInstruction(instruction.data);
           return label ? [label] : [];
         });
         if (labels.length > 0) actions.set(batch[index], [...new Set(labels)].join(" + "));
@@ -102,6 +105,7 @@ export async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
       maxContractSize: BigInt(String(s.maxContractSize)),
       referenceVersion: Number(s.referenceVersion),
       shortDated: !!s.shortDated,
+      vaultRound: typeof s.vaultRound === "string" ? s.vaultRound : undefined,
     }))
     .sort((a, b) => a.assetId - b.assetId || a.expiryTs - b.expiryTs || Number(b.strike - a.strike));
 }
@@ -148,6 +152,7 @@ async function sendSponsoredUnlocked(
   burner: Keypair,
   sponsor: PublicKey | null,
   rentLamports = 0,
+  destination: "portfolio" | "vaults" = "portfolio",
 ): Promise<string> {
   const prior = useChain.getState().transaction;
   if (pendingTransaction(prior, conn.rpcEndpoint, burner.publicKey.toBase58())) throw new Error("Check the pending transaction before submitting another.");
@@ -180,7 +185,7 @@ async function sendSponsoredUnlocked(
   const bytes = signed.serialize();
   if (!signed.signature) throw new Error("Transaction signature is missing.");
   const signature = bs58.encode(signed.signature);
-  const tracked: TrackedTransaction = { ...lifetime, genesisHash, signature, buyer: burner.publicKey.toBase58(), rpc: rpcScope(conn.rpcEndpoint), state: "checking" };
+  const tracked: TrackedTransaction = { ...lifetime, destination, genesisHash, signature, buyer: burner.publicKey.toBase58(), rpc: rpcScope(conn.rpcEndpoint), state: "checking" };
   saveTransaction(tracked);
   useChain.setState({ transaction: tracked, status: "Submitting transaction…" });
   try {
@@ -269,7 +274,8 @@ interface ChainState {
   publicLoading: boolean;
   publicError: string | null;
   refreshPublic: () => Promise<void>;
-  buy: (assetId: number, seriesId: number, quantityUnits: number, maxPremium: bigint) => Promise<void>;
+  buy: (assetId: number, seriesId: number, quantityUnits: number, maxPremium: bigint, selected?: SeriesInfo) => Promise<void>;
+  vaultAction: (round: VaultRoundAccount, action: "deposit" | "cancel" | "redeem", amount: bigint) => Promise<string>;
   requestExercise: (contractAddr: string, assetId: number, nonce: number, quantityUnits: number) => Promise<void>;
 }
 
@@ -399,13 +405,19 @@ export const useChain = create<ChainState>((set, get) => ({
     set({ refreshing: true });
     try {
     const current = get();
-    const [pool0, pool1, contracts, seriesList] = await Promise.all([
+    const [pool0, pool1, legacyContracts, seriesList] = await Promise.all([
       client.getPool(0).catch(() => current.pools[0] ?? null), client.getPool(1).catch(() => current.pools[1] ?? null),
-      client.getContractsForBuyer(burner.publicKey).catch(() => current.contracts),
+      client.getContractsForBuyer(burner.publicKey).catch(() => current.contracts.filter(c => !c.vaultRound)),
       loadSeries(svcUrl).catch(() => current.seriesList),
     ]);
 
-    const requests = await client.getRequestsForContracts(contracts.map((contract) => new PublicKey(contract.address))).catch(() => current.requests);
+    const vaultPortfolio = import.meta.env.VITE_VAULTS_ENABLED === "true"
+      ? await loadVaultPortfolio(new VaultClient(conn), burner.publicKey)
+      : { contracts: [], requests: [] };
+    const contracts = [...legacyContracts, ...vaultPortfolio.contracts];
+    const legacyRequests = await client.getRequestsForContracts(legacyContracts.map((contract) => new PublicKey(contract.address)))
+      .catch(() => current.requests.filter(r => legacyContracts.some(c => c.address === r.contract.toBase58())));
+    const requests = [...legacyRequests, ...vaultPortfolio.requests];
     // Coverage is useful before slower history and balance reads finish.
     set({ contracts, requests, pools: { 0: pool0, 1: pool1 }, seriesList });
 
@@ -488,13 +500,56 @@ export const useChain = create<ChainState>((set, get) => ({
     } finally { set({ refreshing: false }); }
   },
 
-  buy: async (assetId, seriesId, quantityUnits, maxPremium) => {
+  vaultAction: async (round, action, amount) => {
+    const { conn, burner, svcUrl, sponsor } = get();
+    if (!burner) throw new Error("Connect the demo wallet first.");
+    if (get().busy || pendingTransaction(get().transaction, conn.rpcEndpoint, get().address)) throw new Error("Resolve the pending transaction first.");
+    set({ busy: true, error: null, status: action === "deposit" ? "Submitting deposit…" : "Submitting withdrawal…" });
+    try {
+      const client = new VaultClient(conn);
+      const signature = await sendSponsored(conn, svcUrl, (prefix, payer) => new Transaction().add(...prefix,
+        action === "deposit" ? client.depositIx(round, burner.publicKey, payer, amount)
+          : client.withdrawIx(round, burner.publicKey, action, amount)), burner, sponsor, 0, "vaults");
+      set({ lastTx: signature, status: "" });
+      void get().refresh().catch(() => {});
+      return signature;
+    } catch (e) { set({ error: friendly(e), status: "" }); throw e; }
+    finally { set({ busy: false }); }
+  },
+
+  buy: async (assetId, seriesId, quantityUnits, maxPremium, selected) => {
     if (get().busy || pendingTransaction(get().transaction, get().conn.rpcEndpoint, get().address)) throw new Error("Resolve the pending operation before buying protection.");
     const { client, conn, burner, demoMint, svcUrl, sponsor } = get();
     if (!burner || !demoMint) throw new Error("not connected");
     set({ busy: true, error: null, status: "requesting signed quote…" });
     try {
       const quantity = BigInt(Math.round(quantityUnits * 1e6));
+      if (selected?.vaultRound) {
+        const vault = new VaultClient(conn);
+        const round = await vault.getRound(new PublicKey(selected.vaultRound));
+        if (!round || round.assetId !== assetId) throw new Error("The selected vault round is unavailable.");
+        const resp = await fetchJson<{ payload: string; signature: string; quoteAuthority: string; quoteId: string }>(`${svcUrl}/vault/quote`, {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ buyer: burner.publicKey.toBase58(),
+            round: selected.vaultRound, quantity: quantity.toString(), strike: selected.strike.toString() }),
+        });
+        const payload = b64ToBytes(resp.payload);
+        const approvedPremium = checkPurchaseLimit(payload, maxPremium);
+        const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+        if (!new PublicKey(payload.slice(0, 32)).equals(burner.publicKey) || payload[32] !== assetId
+          || view.getBigUint64(35, true) !== quantity || view.getBigUint64(43, true) !== selected.strike
+          || view.getBigInt64(51, true) !== BigInt(selected.expiryTs) || view.getUint32(59, true) !== selected.referenceVersion
+          || !new PublicKey(resp.quoteAuthority).equals(round.quoteAuthority)) throw new Error("Quote does not match the reviewed position.");
+        const quoteId = view.getBigUint64(79, true);
+        const sig = await sendSponsored(conn, svcUrl, (prefix, payer) => new Transaction().add(...prefix,
+          Ed25519Program.createInstructionWithPublicKey({ publicKey: round.quoteAuthority.toBytes(),
+            message: vaultQuoteMessage(round.address, payload), signature: b64ToBytes(resp.signature) }),
+          vault.purchaseIx(round, burner.publicKey, payer, payload, quoteId, prefix.length, maxPremium)), burner, sponsor);
+        set({ status: "", lastTx: sig, lastPurchasePremium: Number(approvedPremium) / 1e6,
+          lastPurchaseAddress: vaultPdas.position(round.address, quoteId).toBase58() });
+        void get().refresh().catch(() => {});
+        return;
+      }
+      if (seriesId < 0) throw new Error("Refresh the selected vault position before submitting.");
       const resp = await fetchJson<{
         premiumTokens: number;
         message: string;
@@ -540,6 +595,16 @@ export const useChain = create<ChainState>((set, get) => ({
     set({ busy: true, error: null, status: "submitting exercise request…" });
     try {
       const quantity = BigInt(Math.round(quantityUnits * 1e6));
+      if (get().contracts.find(c => c.address === contractAddr)?.vaultRound) {
+        const vault = new VaultClient(conn);
+        const position = (await vault.positions()).find(p => p.address.toBase58() === contractAddr && p.buyer.equals(burner.publicKey));
+        if (!position) throw new Error("Vault position is unavailable.");
+        const sig = await sendSponsored(conn, svcUrl, (prefix, payer) => new Transaction().add(...prefix,
+          vault.requestIx(position, payer, quantity)), burner, sponsor);
+        set({ status: "", lastTx: sig });
+        void get().refresh().catch(() => {});
+        return;
+      }
       // the program takes a separate rent payer here, so the sponsor pays directly
       const sig = await sendSponsored(
         conn, svcUrl,

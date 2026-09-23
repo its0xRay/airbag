@@ -179,7 +179,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
         </div>
       )}
 
-      {open && beforeCutoff && k.remainingQuantity > 0n && (
+      {open && beforeCutoff && k.remainingQuantity > 0n && (!k.vaultRound || k.pendingQuantity === 0n) && (
         <details className="position-exercise">
           <summary>Request early exercise <span className="faint">{fmtDuration(k.exerciseCutoffTs - now)} left</span></summary>
           <div className="row" style={{ flexWrap: "wrap" }}>
@@ -233,6 +233,8 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
       </div>
 
       <p className="disclosure">Recorded on Devnet · oUSD has no real value.</p>
+      {k.vaultRound && <div className="kv"><span>Backing vault</span><a href={explorerUrl("address", k.vaultRound)} target="_blank" rel="noreferrer">Inspect round ↗</a></div>}
+      {k.vaultRound && <div className="grid cols-2"><div><span>Total payout recorded</span><strong className="mono"> {tok(k.recordedPayout ?? 0n).toFixed(2)} oUSD</strong></div><div><span>Premium refunded</span><strong className="mono"> {tok(k.recordedRefund ?? 0n).toFixed(2)} oUSD</strong></div></div>}
       <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
         <div className="lifecycle-row">
           <span className="lifecycle-dot complete" aria-hidden="true" />
@@ -271,6 +273,7 @@ function ContractCard({ contract: k, highlighted = false }: { contract: Contract
         })}
       </div>
       {(() => {
+        if (k.vaultRound) return null;
         const receipt = c.expiryReceipts[k.contractId.toString()];
         if (!receipt) return k.status === "Expired" || k.status === "Refunded" ? <p className="disclosure">Expiry details are not loaded. The confirmed settlement transaction remains the source of record.</p> : null;
         return <div className="lifecycle-request">

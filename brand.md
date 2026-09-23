@@ -73,6 +73,13 @@ available alongside active coverage.
 
 Lead with the category headline: "Risk management for tokenized equities."
 "Keep the upside. Define your downside." is the single supporting line.
+For the vault release, the supporting line becomes "Define your downside—or fund
+it and share in the premiums." One primary "Set your floor" anchor leads to the
+existing workspace; secondary "Fund a vault" opens the real vault view without
+requiring a wallet just to inspect it. Replace the buyer-only Why Airbag panel
+with a compact two-sided capital-flow explanation, not another dashboard. State
+that depositor capital can lose value and premiums are not guaranteed profit.
+Gate this positioning with the vault feature itself until the coordinated release.
 Keep the hero free of environment labels; Devnet and oUSD disclosures remain
 in the product, checkout and transaction screens. Keep token-market contract scope in contract
 details and holdings calculations, not a repeated hero caveat. The earlier onchain thesis

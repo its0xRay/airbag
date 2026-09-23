@@ -1,4 +1,6 @@
 import { ACTIVE_REFERENCE_VERSION, referenceKind } from "../src/data/referencePolicy";
+import { VaultClient } from "../src/client/vaultProgram";
+import { tickVaults } from "./vaultKeeper";
 import { loadObservations, saveObservations, pruneObservations, type ObservationScope } from "./observationStore";
 // Airbag keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
@@ -285,6 +287,11 @@ async function tick() {
     await collectSamples();   // keep the expiry window populated with real data
     await settleRequests();
     await settleExpiries();
+    if (process.env.VAULTS_ENABLED === "true") {
+      const errors = await tickVaults(new VaultClient(conn), publisher, windowSamples);
+      keeperStatus.settlementErrors += errors.length;
+      errors.forEach(error => console.warn(error));
+    }
     keeperStatus.lastSuccessfulTickAt = nowSec();
     keeperStatus.lastError = keeperStatus.settlementErrors ? "Some settlements failed; retrying" : null;
   } catch (error) {

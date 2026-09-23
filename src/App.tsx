@@ -6,12 +6,14 @@ import PortfolioTab from "./components/PortfolioTab";
 import CompareTab from "./components/CompareTab";
 import UnderwriterTab from "./components/UnderwriterTab";
 import HistoryTab from "./components/HistoryTab";
+import VaultsTab from "./components/VaultsTab";
 import WalletBar, { NETWORK } from "./components/WalletBar";
 import TransactionProgress from "./components/TransactionProgress";
 import { loadTransaction } from "./onchain/transactionRecovery";
 
-type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history";
-const ROUTES: Record<string, Tab> = { protect: "protect", positions: "portfolio", markets: "compare", pools: "underwriter", onchain: "history" };
+type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
+const VAULTS_ENABLED = import.meta.env.VITE_VAULTS_ENABLED === "true";
+const ROUTES: Record<string, Tab> = { protect: "protect", positions: "portfolio", markets: "compare", pools: "underwriter", onchain: "history", ...(VAULTS_ENABLED ? { vaults: "vaults" as const } : {}) };
 const tabFromUrl = (): Tab => ROUTES[new URLSearchParams(window.location.search).get("view") ?? ""] ?? "home";
 
 export interface ProtectDraft {
@@ -132,15 +134,16 @@ export default function App() {
               <a href="#how-it-works">How it works</a>
               <a href="#onchain-proof">Onchain proof</a>
               <a href="#assets">Assets</a>
+              {VAULTS_ENABLED && <button className="text-action" onClick={() => goTo("vaults")}>Vaults</button>}
             </nav>
-            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Airbag</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a></nav></details>
+            <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a,button")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Airbag</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a>{VAULTS_ENABLED && <button className="text-action" onClick={() => goTo("vaults")}>Vaults</button>}</nav></details>
             {connected ? <button className="btn ghost" onClick={() => goTo(useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app ↗</button> : <a className="btn ghost" href="#protection">Get started ↗</a>}
           </>
         ) : (
           <WalletBar />
         )}
       </header>
-      <TransactionProgress showConfirmed={tab !== "home"} onViewPositions={() => void launch("portfolio")} />
+      <TransactionProgress showConfirmed={tab !== "home"} onViewPositions={() => void launch("portfolio")} onViewVaults={VAULTS_ENABLED ? () => void launch("vaults") : undefined} />
 
       {tab !== "home" && (
         <nav className="tabs journey-tabs" aria-label="Application sections">
@@ -154,6 +157,7 @@ export default function App() {
               {label}
             </button>
           ))}
+          {VAULTS_ENABLED && <button className={"tab" + (tab === "vaults" ? " active" : "")} aria-current={tab === "vaults" ? "page" : undefined} onClick={() => goTo("vaults")}>Vaults</button>}
           <details className="protocol-menu" ref={protocolMenu} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }} onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
             <summary className={"tab" + (TABS.slice(2).some(([t]) => t === tab) ? " active" : "")}>Protocol <span aria-hidden="true">⌄</span></summary>
             <div className="protocol-options">{TABS.slice(2).map(([t, label]) => <button key={t} onClick={() => goTo(t)} aria-current={tab === t ? "page" : undefined}>{label}</button>)}</div>
@@ -170,7 +174,7 @@ export default function App() {
         </div>
       )}
 
-      {tab === "home" && <Landing onLaunch={(t, draft) => launch(t as Exclude<Tab, "home">, draft)} onViewPosition={viewPosition} onConnected={draft => { setProtectDraft(draft); setTab("protect"); }} launching={busy} launchStatus={status} />}
+      {tab === "home" && <Landing vaultsEnabled={VAULTS_ENABLED} onLaunch={(t, draft) => launch(t, draft)} onViewPosition={viewPosition} onConnected={draft => { setProtectDraft(draft); setTab("protect"); }} launching={busy} launchStatus={status} />}
       {tab === "protect" && (
         <ProtectTab
           onViewPositions={viewPosition}
@@ -183,6 +187,7 @@ export default function App() {
       {tab === "portfolio" && <PortfolioTab key={positionTarget?.address ?? "positions"} target={positionTarget} onRenew={(assetId, quantity) => { setRenewal({ assetId, quantity }); setTab("protect"); }} onProtect={(assetId, quantity) => { setProtectDraft({ assetId, quantity }); setTab("protect"); }} />}
       {tab === "compare" && <CompareTab />}
       {tab === "underwriter" && <UnderwriterTab />}
+      {tab === "vaults" && <VaultsTab onOpenPosition={assetId => { setProtectDraft({ assetId }); setTab("protect"); }} />}
       {tab === "history" && <HistoryTab onProtect={() => { setProtectDraft({ assetId: 1 }); setTab("protect"); }} />}
     </div>
   );

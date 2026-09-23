@@ -1,0 +1,37 @@
+.vaults-page { max-width: 1120px; margin: 0 auto; padding: 0 24px 48px; }
+.vault-asset-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 32px; }
+.vault-asset-option { display: flex; gap: 16px; align-items: center; text-align: left; min-height: 88px; padding: 20px 24px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); cursor: pointer; }
+.vault-asset-option[aria-pressed="true"] { border-color: var(--border-strong); background: var(--bg-elev2); }
+.vault-asset-option strong { display: block; font-size: 20px; font-weight: 500; }
+.vault-asset-option small { display: block; color: var(--text-dim); font-size: 14px; margin-top: 4px; }
+.vault-round-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.vault-round-header h2 { font-size: 24px; font-weight: 500; }
+.vault-round-header .field { max-width: 320px; }
+.vault-workspace { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.vault-capital { min-width: 0; padding-top: 16px; }
+.vault-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-bottom: 24px; }
+.vault-metrics span { display: block; font-size: 15px; color: var(--text-dim); }
+.vault-metrics strong { display: block; font-size: clamp(20px, 2.2vw, 28px); margin-top: 8px; }
+.vault-ledger { margin: 24px 0 16px; }
+.vault-ledger > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.vault-ledger dt { font-size: 15px; color: var(--text-dim); }
+.vault-ledger dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.vault-deposit-panel { padding: 28px; }
+.vault-deposit-panel h2 { font-size: 24px; font-weight: 500; margin: 0 0 20px; }
+.vault-deposit-panel p { color: var(--text-dim); font-size: 15px; line-height: 1.6; }
+.vault-deposit-panel form { display: grid; gap: 16px; margin-top: 24px; }
+.vault-deposit-panel form p { margin: 0; }
+.vault-deposit-panel .input { width: 100%; }
+.vault-owned { font-size: 28px; }
+.vault-exposures { margin-top: 32px; }
+.vault-buyer-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-dim); }
+@media (max-width: 767px) {
+  .vaults-page { padding: 0 16px 32px; }
+  .vault-workspace { grid-template-columns: 1fr; gap: 24px; }
+  .vault-asset-option { padding: 16px; gap: 12px; align-items: flex-start; }
+  .vault-asset-option strong { font-size: 18px; }
+  .vault-round-header { flex-direction: column; align-items: stretch; gap: 12px; }
+  .vault-round-header .field { max-width: none; }
+  .vault-deposit-panel { padding: 20px; }
+  .vault-buyer-link { flex-wrap: wrap; }
+}

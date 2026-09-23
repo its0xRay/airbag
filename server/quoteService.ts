@@ -34,6 +34,9 @@ import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
 import { createRpcRelay } from "./rpcRelay";
 import { tierAvailable } from "./seriesRotation";
+import { VaultClient } from "../src/client/vaultProgram";
+import { signedVaultQuote, vaultPolicyHash } from "./vaultQuotes";
+import { SPONSOR_FEE_ALLOWANCE, validateSponsoredComputeBudget, validateSponsoredFee } from "./sponsorFeePolicy";
 import { JupiterPreStocksAdapter, PythEquityAdapter, createNvdaTokenReference } from "./references";
 
 // See the note in keeper.ts: devnet is the default so an unset RPC_URL in a
@@ -469,10 +472,8 @@ async function rotateSeries() {
 // against an allowlist and the only sponsor-debiting instruction permitted is a
 // capped System transfer to the buyer itself.
 const ED25519_PROGRAM = "Ed25519SigVerify111111111111111111111111111";
-const COMPUTE_BUDGET = "ComputeBudget111111111111111111111111111111";
 const SYSTEM_PROGRAM = SystemProgram.programId.toBase58();
 const MAX_SPONSOR_RENT_LAMPORTS = Number(process.env.MAX_SPONSOR_RENT_LAMPORTS || 12_000_000); // 0.012 SOL
-const SPONSOR_FEE_ALLOWANCE = 20_000; // generous per-tx fee headroom, for accounting
 // Conservative rent estimate charged against the budget when the sponsor is the
 // rent payer inside an Airbag instruction (contract + quote-marker ≈ 0.0037 SOL).
 const ACCOUNT_RENT_ESTIMATE_LAMPORTS = 5_000_000;
@@ -484,6 +485,7 @@ function sponsorReject(reason: string): never {
 async function sponsor(txBase64: string, buyer: string) {
   const buyerKey = new PublicKey(buyer);
   const tx = Transaction.from(Buffer.from(txBase64, "base64"));
+  validateSponsoredComputeBudget(tx);
 
   // 1) we must be the fee payer, and nothing else
   if (!tx.feePayer?.equals(trialBudget.address)) sponsorReject("fee payer is not the sponsor");
@@ -506,7 +508,7 @@ async function sponsor(txBase64: string, buyer: string) {
       }
       continue;
     }
-    if (pid === ED25519_PROGRAM || pid === COMPUTE_BUDGET) continue;
+    if (pid === ED25519_PROGRAM) continue;
     if (pid === SYSTEM_PROGRAM) {
       // only a transfer from the sponsor to the buyer, to cover account rent
       const isTransfer = ix.data.length === 12 && ix.data.readUInt32LE(0) === 2;
@@ -521,6 +523,8 @@ async function sponsor(txBase64: string, buyer: string) {
   }
   if (!touchesOptket) sponsorReject("transaction does not call the Airbag program");
   if (subsidy > MAX_SPONSOR_RENT_LAMPORTS) sponsorReject("rent subsidy above the per-request cap");
+  const fee = (await conn.getFeeForMessage(tx.compileMessage(), "confirmed")).value;
+  validateSponsoredFee(fee);
 
   // 4) budget controls (hard cap, per-wallet ceiling, rate limit)
   const auth = trialBudget.authorizeSponsorship(buyer, subsidy + SPONSOR_FEE_ALLOWANCE);
@@ -641,6 +645,21 @@ const server = createServer(async (req, res) => {
           maxContractSize: s.maxContractSize.toString(),
           shortDated: s.seriesId >= SHORT_ID_MIN && s.seriesId <= SHORT_ID_MAX,
         }));
+      if (process.env.VAULTS_ENABLED === "true") {
+        const rounds = (await new VaultClient(conn).rounds()).filter(r => r.phase === "active"
+          && now < r.salesClose && r.latestExpiry - now >= 300 && r.principalAvailable > 0n
+          && r.referenceVersion === ACTIVE_REFERENCE_VERSION[r.assetId] && r.quoteAuthority.equals(quoteAuthority.publicKey)
+          && Buffer.from(r.pricingPolicy).equals(vaultPolicyHash(r.assetId)));
+        const current = [0, 1].flatMap(asset => rounds.filter(r => r.assetId === asset)
+          .sort((a, b) => b.fundingClose - a.fundingClose).slice(0, 1));
+        const vaultSeries = current.flatMap(r => [...new Set([r.minStrike, r.maxStrike])].map((strike, tier) => ({
+          assetId: r.assetId, seriesId: -1 - tier, strike: strike.toString(), expiryTs: r.latestExpiry,
+          purchaseCutoffTs: r.salesClose - 1, exerciseCutoffTs: r.latestExpiry - 300,
+          maxContractSize: r.maxQuantity.toString(), referenceVersion: r.referenceVersion,
+          active: true, shortDated: true, vaultRound: r.address.toBase58(),
+        })));
+        return json(res, 200, [...out.filter(s => !s.shortDated || !current.some(r => r.assetId === s.assetId)), ...vaultSeries]);
+      }
       return json(res, 200, out);
     }
     if (req.method === "POST" && url.pathname === "/faucet") {
@@ -658,6 +677,14 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: "buyer, assetId, seriesId, quantity required" });
       }
       return json(res, 200, await buildSignedQuote(String(buyer), Number(assetId), Number(seriesId), BigInt(quantity)));
+    }
+    if (req.method === "POST" && url.pathname === "/vault/quote") {
+      if (process.env.VAULTS_ENABLED !== "true") return json(res, 503, { error: "Vault issuance is not enabled." });
+      let body = "";
+      for await (const chunk of req) { body += chunk; if (body.length > 4096) throw new Error("Request too large."); }
+      const { buyer, round, quantity, strike } = JSON.parse(body || "{}");
+      if (![buyer, round, quantity, strike].every(v => typeof v === "string" && v.length > 0 && v.length < 100)) throw new Error("buyer, round, quantity and strike are required.");
+      return json(res, 200, await signedVaultQuote(new VaultClient(conn), quoteAuthority, referenceStatus, { buyer, round, quantity, strike }));
     }
     return json(res, 404, { error: "not found" });
   } catch (e) {

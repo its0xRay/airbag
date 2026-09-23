@@ -1,6 +1,7 @@
 import type { Connection } from "@solana/web3.js";
 
 export interface TrackedTransaction {
+  destination?: "portfolio" | "vaults";
   signature: string;
   buyer: string;
   rpc: string;

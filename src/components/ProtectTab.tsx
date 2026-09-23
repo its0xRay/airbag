@@ -185,14 +185,14 @@ export default function ProtectTab({
   const closed = !!selected && now > selected.purchaseCutoffTs;
   const affordable = !est || c.tokenBalance >= fromFixed(est.premium);
   const canBuy = !!selected && referenceReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && !pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address) && c.connected;
-  const approvalKey = `${assetId}:${selected?.seriesId}:${qtyStr}`;
+  const approvalKey = `${assetId}:${selected?.seriesId}:${selected?.vaultRound ?? "legacy"}:${selected?.expiryTs}:${selected?.strike}:${qtyStr}`;
   const approved = approval?.key === approvalKey ? approval : null;
 
   async function buy() {
     if (!selected || !approved || !canBuy) return;
     setDone(null);
     try {
-      await c.buy(assetId, selected.seriesId, parseFloat(qtyStr), approved.maxPremium);
+      await c.buy(assetId, selected.seriesId, parseFloat(qtyStr), approved.maxPremium, selected);
       setReceipt({ assetId, address: useChain.getState().lastPurchaseAddress, symbol: asset.symbol, quantity, strike: selected.strike, expiry: selected.expiryTs, premium: useChain.getState().lastPurchasePremium });
       setDone(useChain.getState().lastTx);
     } catch { /* surfaced via c.error */ }
@@ -270,7 +270,7 @@ export default function ProtectTab({
           </div>
         </section>
         <div className="protection-checkout">
-          {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase"><h3>Review position</h3><p>{quantity} {asset.symbol} · {selected && fmtPrice(selected.strike)} floor · Expires {selected && fmtClock(selected.expiryTs)}</p><div className="kv"><span>Maximum premium</span><strong className="mono">{fmtOusd(tok(approved.maxPremium))}</strong></div><p>A fresh signed quote must cost no more than this amount. A higher quote stops the purchase. oUSD has no real value.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setApproval(null)}>Cancel review</button></section>}
+          {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase"><h3>Review position</h3><p>{quantity} {asset.symbol} · {selected && fmtPrice(selected.strike)} floor · Expires {selected && fmtClock(selected.expiryTs)}</p><div className="kv"><span>Maximum premium</span><strong className="mono">{fmtOusd(tok(approved.maxPremium))}</strong></div><p>A fresh signed quote must cost no more than this amount. A higher quote stops the purchase. oUSD has no real value.</p>{selected?.vaultRound && <p>Funded by the {asset.symbol} vault. <a href={explorerUrl("address", selected.vaultRound)} target="_blank" rel="noreferrer">Inspect backing round ↗</a></p>}<button className="btn ghost sm" disabled={c.busy} onClick={() => setApproval(null)}>Cancel review</button></section>}
           <div className="checkout-row"><div><div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div><div className="ticket-balance">oUSD · no real value{c.connected && <> · Balance {fmtOusd(c.tokenBalance, 0)}</>}</div></div>
           <div className="ticket-purchase"><button className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
           <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>

@@ -17,6 +17,8 @@ pub mod math;
 pub mod quote;
 pub mod references;
 pub mod state;
+pub mod vault_accounting;
+pub mod vault_state;
 
 pub mod instructions;
 use instructions::*;
@@ -24,6 +26,7 @@ use instructions::*;
 pub use constants::{AssetKind, ReferenceKind};
 pub use quote::QuotePayload;
 pub use references::Observation;
+pub use vault_accounting::RoundTerms;
 
 // Placeholder program id. After `anchor build`, run `anchor keys sync`.
 declare_id!("Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky");
@@ -31,6 +34,45 @@ declare_id!("Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky");
 #[program]
 pub mod optket {
     use super::*;
+
+    pub fn create_vault_round(ctx: Context<CreateVaultRound>, round_id: u64,
+        terms: RoundTerms, pricing_policy: [u8; 32]) -> Result<()> {
+        instructions::vaults::create_vault_round(ctx, round_id, terms, pricing_policy)
+    }
+    pub fn deposit_vault(ctx: Context<DepositVault>, amount: u64) -> Result<()> {
+        instructions::vaults::deposit_vault(ctx, amount)
+    }
+    pub fn cancel_vault_deposit(ctx: Context<WithdrawVault>, amount: u64) -> Result<()> {
+        instructions::vaults::cancel_vault_deposit(ctx, amount)
+    }
+    pub fn redeem_vault(ctx: Context<WithdrawVault>) -> Result<()> {
+        instructions::vaults::redeem_vault(ctx)
+    }
+    pub fn activate_vault(ctx: Context<AdvanceVault>) -> Result<()> {
+        instructions::vaults::activate_vault(ctx)
+    }
+    pub fn finalize_vault(ctx: Context<AdvanceVault>) -> Result<()> {
+        instructions::vaults::finalize_vault(ctx)
+    }
+    pub fn purchase_vault(ctx: Context<PurchaseVault>, quote: QuotePayload,
+        ed25519_ix_index: u8, max_premium: u64) -> Result<()> {
+        instructions::vaults::purchase_vault(ctx, quote, ed25519_ix_index, max_premium)
+    }
+    pub fn request_vault_exercise(ctx: Context<RequestVaultExercise>, quantity: u64) -> Result<()> {
+        instructions::vaults::request_vault_exercise(ctx, quantity)
+    }
+    pub fn settle_vault_expiry(ctx: Context<SettleVault>, observations: Vec<Observation>) -> Result<()> {
+        instructions::vaults::settle_vault_expiry(ctx, observations)
+    }
+    pub fn refund_vault_expiry(ctx: Context<SettleVault>) -> Result<()> {
+        instructions::vaults::refund_vault_expiry(ctx)
+    }
+    pub fn settle_vault_exercise(ctx: Context<SettleVaultExercise>, observations: Vec<Observation>) -> Result<()> {
+        instructions::vaults::settle_vault_exercise(ctx, observations)
+    }
+    pub fn fail_vault_exercise(ctx: Context<FailVaultExercise>) -> Result<()> {
+        instructions::vaults::fail_vault_exercise(ctx)
+    }
 
     // ---- config / roles (PRD §20) ----
     pub fn initialize_config(
