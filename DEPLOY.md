@@ -58,7 +58,7 @@ cadence. Set `VAULT_ROUNDS_ENABLED=false` to stop publication without stopping
 settlement. No tokens are minted, deposited or recycled by this job. Funding ends
 at the next half-hour boundary; the active window lasts another 30 minutes.
 It skips windows with under two minutes left and stops after three unresolved
-rounds per asset, missing references/liquidity, a purchase pause, or an admin
+rounds per asset, missing qualifying references, exhausted exposure capacity, a purchase pause, or an admin
 balance below one Devnet SOL. This is a stop threshold, not a reserved balance.
 Inspect `/health` → `vaultRotation` for operational errors.
 
@@ -66,6 +66,16 @@ Run only one quote-signing service replica. Pending quote exposure is reserved
 in memory for 65 seconds, across both legacy and vault quotes; startup has a
 65-second issuance drain period. Multi-replica signing requires shared atomic
 reservations. The onchain asset exposure cap remains the hard execution limit.
+
+The genesis-verified Devnet signing policy defaults to aggregate caps of 20,000
+oUSD for NVDAx and 15,000 oUSD for Anthropic, including legacy liabilities and
+pending quotes. Override with `DEVNET_NVDA_EXPOSURE_CAP_OUSD` and
+`DEVNET_ANTHROPIC_EXPOSURE_CAP_OUSD` (whole oUSD, 1–50,000); invalid values fail
+startup. These are test budgets, not production risk calibration. Jupiter
+liquidity remains diagnostic; qualifying references and collateral checks remain
+mandatory. `/availability?assetId=0` (or `1`) exposes timestamped admission
+headroom, not an executable quote or funded vault balance. Round publication
+results are separate per asset in `/health` → `vaultRotation.assets`.
 
 Manual publication and administrator deposits remain available via
 `scripts/publish-vault-round.ts` (preview by default; `--send` submits).

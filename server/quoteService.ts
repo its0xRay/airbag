@@ -29,7 +29,7 @@ import { quotePremium } from "../src/engine/pricing";
 import { fromFixed, maxLiability } from "../src/engine/fixed";
 import { OptketClient } from "../src/client/optketProgram";
 import { publishAvailableVaultRounds } from "./vaultRotation";
-import { referenceRiskLimit, QuoteExposureBudget } from "./referenceRisk";
+import { referenceRiskLimit, QuoteExposureBudget, devnetExposureCaps } from "./referenceRisk";
 import { EQUITY_MAX_SAMPLE_AGE_SECS } from "../src/engine/references";
 import type { QuotePayload } from "../src/engine/types";
 import { TrialBudget, trialConfigFromEnv } from "./trialBudget";
@@ -180,16 +180,24 @@ class ServiceError extends Error {
 }
 
 const quoteExposureBudget = new QuoteExposureBudget();
+const exposureCaps = devnetExposureCaps();
+let devnetVerified = false;
+async function requireDevnetPolicy() {
+  if (!devnetVerified) devnetVerified = await conn.getGenesisHash() === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+  if (!devnetVerified) throw new Error("This exposure policy is Devnet-only.");
+}
 let exposureAdmission: Promise<void> = Promise.resolve();
 async function admitExposure(assetId: number, liability: bigint) {
   // Serialize snapshot reads and reservations so another admission cannot prune
   // signatures that were still executable when this snapshot read began.
   const admission = exposureAdmission.then(async () => {
+    await requireDevnetPolicy();
     const snapshotStartedAt = nowSec();
-    const [asset, market] = await Promise.all([new OptketClient(conn).getAsset(assetId), marketData(VERIFIED_ASSETS[assetId].mint)]);
+    const protocol = new OptketClient(conn);
+    const [asset, config] = await Promise.all([protocol.getAsset(assetId), protocol.getConfig()]);
+    if (!config || config.pausedPurchases) throw new Error("New positions paused.");
     if (!asset) throw new Error("Asset configuration unavailable.");
-    const observedAt = market.updatedAt ? Date.parse(market.updatedAt) / 1000 : null;
-    const limit = referenceRiskLimit(asset, market.liquidity, observedAt, nowSec());
+    const limit = referenceRiskLimit(asset, exposureCaps);
     quoteExposureBudget.admit(asset, liability, limit, nowSec(), snapshotStartedAt);
   });
   exposureAdmission = admission.catch(() => {});
@@ -197,13 +205,13 @@ async function admitExposure(assetId: number, liability: bigint) {
 }
 
 const vaultRotationStatus = { enabled: process.env.VAULTS_ENABLED === "true" && process.env.VAULT_ROUNDS_ENABLED !== "false",
-  lastCheckedAt: 0, error: null as string | null, fundingWindowSeconds: 1800, activeWindowSeconds: 1800, automaticDeposits: false };
+  lastCheckedAt: 0, error: null as string | null, assets: {} as Record<number, string>, fundingWindowSeconds: 1800, activeWindowSeconds: 1800, automaticDeposits: false };
 let publishingVaults = false;
 async function rotateVaults() {
   if (!vaultRotationStatus.enabled || publishingVaults || !payer) return;
   publishingVaults = true;
   try {
-    await publishAvailableVaultRounds(new VaultClient(conn), payer, async assetId => {
+    vaultRotationStatus.assets = await publishAvailableVaultRounds(new VaultClient(conn), payer, async assetId => {
       const ref = await referenceStatus(assetId);
       if (ref.available) await admitExposure(assetId, 0n);
       return ref;
@@ -629,6 +637,22 @@ const server = createServer(async (req, res) => {
       const mint = url.searchParams.get("mint");
       if (!mint) return json(res, 400, { error: "mint required" });
       return json(res, 200, await marketData(mint));
+    }
+    if (req.method === "GET" && url.pathname === "/availability") {
+      const assetId = Number(url.searchParams.get("assetId"));
+      if (![0, 1].includes(assetId)) throw new ServiceError("Unknown asset", 400);
+      await requireDevnetPolicy();
+      const snapshotStartedAt = nowSec();
+      const protocol = new OptketClient(conn);
+      const [asset, config, reference] = await Promise.all([protocol.getAsset(assetId), protocol.getConfig(), referenceStatus(assetId)]);
+      if (!asset || !config) throw new ServiceError("Availability could not be checked. Retry shortly.", 503);
+      const limit = referenceRiskLimit(asset, exposureCaps);
+      const budget = quoteExposureBudget.remaining(asset, limit, nowSec(), snapshotStartedAt);
+      const reason = config.pausedPurchases ? "New positions paused" : !reference.available ? "Reference temporarily unavailable"
+        : budget.reconciling ? "Checking outstanding quotes" : budget.remaining === 0n ? "Capacity reached" : null;
+      return json(res, 200, { assetId, checkedAt: snapshotStartedAt, canQuote: reason === null, reason,
+        exposureLimit: limit.toString(), outstandingExposure: asset.outstandingExposure.toString(),
+        availableExposure: budget.remaining.toString(), depositsPaused: config.pausedPurchases });
     }
     if (req.method === "GET" && url.pathname === "/reference") {
       const assetId = Number(url.searchParams.get("assetId"));

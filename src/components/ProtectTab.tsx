@@ -14,6 +14,7 @@ import { quotePremium, payout as intrinsic, toFixed, fromFixed, maxLiability } f
 import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock, fmtAge, fmtOusd } from "../format";
 import type { ProtectDraft } from "../App";
 import { useNowSeconds } from "../useNowSeconds";
+import { useAssetAvailability } from "../data/useAssetAvailability";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 
@@ -181,10 +182,13 @@ export default function ProtectTab({
     : [];
   const payoffScale = Math.max(1, ...payoffPoints.map((point) => Math.abs(point.net)));
 
+  const availability = useAssetAvailability(assetId, c.svcUrl);
+  const capacityReached = !!selected && !!availability.data && maxLiability(qty, selected.strike) > BigInt(availability.data.availableExposure);
+  const admissionReady = availability.data?.canQuote === true && !capacityReached;
   const tooBig = !!selected && qty > selected.maxContractSize;
   const closed = !!selected && now > selected.purchaseCutoffTs;
   const affordable = !est || c.tokenBalance >= fromFixed(est.premium);
-  const canBuy = !!selected && referenceReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && !pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address) && c.connected;
+  const canBuy = !!selected && referenceReady && admissionReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && !pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address) && c.connected;
   const approvalKey = `${assetId}:${selected?.seriesId}:${selected?.vaultRound ?? "legacy"}:${selected?.expiryTs}:${selected?.strike}:${qtyStr}`;
   const approved = approval?.key === approvalKey ? approval : null;
 
@@ -208,7 +212,7 @@ export default function ProtectTab({
   const outcome = selected && est && holdingsValid ? combinedOutcome(toFixed(holdingsQuantity), qty, selected.strike, toFixed(scenarioPrice), est.premium) : null;
   const referenceStatus = referenceReady ? "Reference available" : reference?.status === "session_closed" ? "Equity session closed" : reference?.status === "stale" ? "Waiting for a fresh reference" : marketError ? "Reference unavailable" : reference ? "Reference unavailable" : "Checking reference…";
 
-  const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : approved ? "Open position" : "Review position";
+  const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : !admissionReady ? capacityReached ? "Above available capacity" : availability.label ?? "Capacity reached" : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : approved ? "Open position" : "Review position";
 
   const primaryAction = async () => {
     if (c.connected) {
@@ -233,6 +237,7 @@ export default function ProtectTab({
         <div className="reference-inline"><span>Reference price</span><strong className="mono">{spotReal != null ? fmtUsd(spotReal) : "—"}</strong><span>{reference?.available ? reference.observedAt != null ? <span title={fmtClock(reference.observedAt)}>{fmtAge(reference.observedAt, now).replace(/^updated/, "Updated")}</span> : "Timestamp unavailable" : referenceStatus}</span><button className="text-action" onClick={() => setReferenceRetry((n) => n + 1)}>{marketError ? "Retry" : "Refresh"}</button></div>
       </div>
       <p className="coverage-scope">Token-market reference · 5-minute median</p>
+      {(!admissionReady && referenceReady) && <p className="disclosure" role="status">{capacityReached ? "This quantity exceeds the asset’s remaining Devnet capacity. Reduce the quantity or wait for positions to settle." : availability.label} <button className="text-action" onClick={availability.refresh}>Refresh availability</button></p>}
       {reference && !reference.available && <p className="reference-explanation"><span aria-hidden="true">⚠ </span>{reference.reason}</p>}
       {marketError && <p className="field-error" role="alert">{marketError}</p>}
       {done && receipt ? <section ref={receiptRef} tabIndex={-1} className="card protection-receipt" aria-label="Purchase confirmation">

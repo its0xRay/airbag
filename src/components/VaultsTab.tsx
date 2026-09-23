@@ -8,6 +8,7 @@ import { useNowSeconds } from "../useNowSeconds";
 import { pendingTransaction } from "../onchain/transactionRecovery";
 import AssetLogo from "./AssetLogo";
 import { redemptionValue } from "../client/vaultPortfolio";
+import { useAssetAvailability } from "../data/useAssetAvailability";
 import "./VaultsTab.css";
 
 const token = (n: bigint) => fmtOusd(Number(n) / 1e6);
@@ -77,6 +78,7 @@ export default function VaultsTab({ onOpenPosition }: { onOpenPosition: (asset: 
   const linked = rounds.find(r => r.address.toBase58() === roundChoice);
   const asset = linked?.assetId ?? assetChoice;
   const displayedAsset = asset;
+  const availability = useAssetAvailability(asset, chain.svcUrl);
   const choices = rounds.filter(r => r.assetId === displayedAsset).sort((a, b) => b.fundingClose - a.fundingClose);
   const selected = choices.find(r => r.address.toBase58() === roundChoice) ?? choices[0];
   const address = selected?.address.toBase58();
@@ -86,7 +88,13 @@ export default function VaultsTab({ onOpenPosition }: { onOpenPosition: (asset: 
   const frozen = chain.busy || loadedScope !== scope || !loadedAt || !!error || now - loadedAt > 30 || !!pendingTransaction(chain.transaction, chain.conn.rpcEndpoint, chain.address);
   const amount = parseVaultAmount(amountText);
   const currentReview = review && review.round === address && review.scope === scope ? review : null;
-  const canDeposit = stage === "Funding";
+  const freshRound = loadedScope === scope && loadedAt > 0 && now - loadedAt <= 30 && !error;
+  const canDeposit = freshRound && stage === "Funding" && availability.data != null && !availability.data.depositsPaused && !!selected && selected.totalShares < selected.depositCap;
+  const buyerCapacity = selected && availability.data ? [selected.principalAvailable, selected.exposureCap - selected.reserved, BigInt(availability.data.availableExposure)].reduce((a, b) => a < b ? a : b) : 0n;
+  const buyerStatus = !freshRound ? "Checking round availability" : !availability.data ? availability.label : !availability.data.canQuote ? availability.label
+    : stage === "Funding" ? "Buyer positions open after funding closes" : stage !== "Active" ? "Round closed to new positions"
+    : !selected || now >= selected.salesClose || selected.latestExpiry - now < 300 ? "Round closed to new positions"
+    : buyerCapacity <= 0n ? "Capacity reached · no uncommitted capital" : "Available to back new positions";
   const exposures = positions.filter(p => p.round.toBase58() === address);
   const funding = choices.find(r => roundStage(r, now) === "Funding");
   const settled = choices.filter(r => r.phase === "redeemable" && r.totalShares > 0n);
@@ -99,6 +107,7 @@ export default function VaultsTab({ onOpenPosition }: { onOpenPosition: (asset: 
 
   function begin(action: "deposit" | "cancel" | "redeem") {
     if (!selected) return;
+    if (action === "deposit" && !canDeposit) { setFieldError("Deposits are not currently available. Refresh availability."); return; }
     const value = action === "deposit" ? amount : owned?.shares ?? 0n;
     if (value == null || value <= 0n) { setFieldError("Enter a positive amount with up to six decimal places."); return; }
     if (action === "deposit" && value > selected.depositCap - selected.totalShares) { setFieldError("This amount exceeds the round’s remaining capacity."); return; }
@@ -107,6 +116,7 @@ export default function VaultsTab({ onOpenPosition }: { onOpenPosition: (asset: 
   }
   async function confirm() {
     if (!currentReview || !selected || frozen) return;
+    if (currentReview.action === "deposit" && !canDeposit) { setReview(null); setFieldError("Deposit availability changed. Review again."); return; }
     if (currentReview.action !== "redeem" && stage !== "Funding") { setReview(null); setFieldError("The funding window has closed."); return; }
     try {
       const signature = await chain.vaultAction(selected, currentReview.action, currentReview.amount);
@@ -127,6 +137,7 @@ export default function VaultsTab({ onOpenPosition }: { onOpenPosition: (asset: 
     {!selected ? <section className="card empty" aria-busy={loading} role="status"><h2>{loading ? "Reading vault accounts…" : "No round published yet"}</h2><p>{loading ? "Checking confirmed capital and ownership." : "This vault has no published round. Deposits open when a funding window is available."}</p><button className="btn ghost" disabled={loading} onClick={() => void refresh()}>Refresh</button></section> : <>
       <div className="vault-round-header"><h2>{VERIFIED_ASSETS[displayedAsset].symbol} vault <span className="pill gray">{stage}</span></h2>
         <label className="field"><span className="lbl">Round</span><select className="input" value={address} onChange={e => chooseRound(e.target.value)}>{choices.map(r => <option key={r.address.toBase58()} value={r.address.toBase58()}>{fmtClock(r.fundingClose)} · {roundStage(r, now)}</option>)}</select></label></div>
+      <p className="disclosure" role="status">{!freshRound ? "Checking deposit availability" : canDeposit ? "Accepting deposits" : stage === "Funding" ? !availability.data ? "Checking deposit availability" : availability.data.depositsPaused ? "Deposits paused" : "Deposit capacity reached" : "Deposits closed for this round"} · {buyerStatus} <button className="text-action" onClick={() => { availability.refresh(); void refresh(); }}>Refresh availability</button></p>
       <ol className="vault-journey" aria-label="Deposit lifecycle">
         {["Deposit", "Capital locked", "Settlement", "Withdraw"].map((label, i) => <li key={label} aria-current={i === (stage === "Funding" ? 0 : stage === "Redeemable" ? 3 : stage === "Settling" ? 2 : 1) ? "step" : undefined}><span>0{i + 1}</span><strong>{label}</strong><small>{i === 0 ? `Until ${fmtClock(selected.fundingClose)}` : i === 1 ? "Funds back buyer payouts" : i === 2 ? `Latest expiry ${fmtClock(selected.latestExpiry)}` : "After every obligation resolves"}</small></li>)}
       </ol>
@@ -143,16 +154,16 @@ export default function VaultsTab({ onOpenPosition }: { onOpenPosition: (asset: 
       </section><section className="card vault-deposit-panel"><h2>Your deposit</h2>
         {ownedValue != null && owned && <p>Final net result: <strong className="mono">{token(ownedValue - owned.shares)}</strong> · test activity</p>}
         {owned && owned.shares > 0n ? <><strong className="vault-owned mono">{token(owned.shares)}</strong><p>{selected.totalShares > 0n ? (Number(owned.shares * 10000n / selected.totalShares) / 100).toFixed(2) : "0"}% of this round{stage === "Funding" ? " · changes as deposits arrive" : " · ownership fixed"}</p>
-          {owned.redeemed ? <p className="callout">Redeemed {token(owned.redemptionAmount)}</p> : stage === "Redeemable" ? <><p>Available to redeem: <strong>{token(owned.shares * selected.finalBalance / selected.totalShares)}</strong></p><button className="btn primary" disabled={frozen} onClick={() => begin("redeem")}>Review redemption</button></> : !canDeposit ? <p>Capital is locked. Redemption is expected after {fmtClock(selected.latestExpiry)}, once all obligations settle.</p> : null}</> : <p>Deposit test oUSD to back this asset’s positions.</p>}
-        {!chain.connected ? <button className="btn primary" disabled={chain.busy} onClick={() => void chain.connect()}>Connect demo wallet</button> : canDeposit && <form onSubmit={e => { e.preventDefault(); begin("deposit"); }}>
+          {owned.redeemed ? <p className="callout">Redeemed {token(owned.redemptionAmount)}</p> : stage !== "Funding" && stage !== "Redeemable" ? <p>Capital is locked. Redemption is expected after {fmtClock(selected.latestExpiry)}, once all obligations settle.</p> : stage === "Redeemable" ? <><p>Available to redeem: <strong>{token(owned.shares * selected.finalBalance / selected.totalShares)}</strong></p><button className="btn primary" disabled={frozen} onClick={() => begin("redeem")}>Review redemption</button></> : null}</> : <p>Deposit test oUSD to back this asset’s positions.</p>}
+        {!chain.connected ? <button className="btn primary" disabled={chain.busy} onClick={() => void chain.connect()}>Connect demo wallet</button> : stage === "Funding" && <form onSubmit={e => { e.preventDefault(); begin("deposit"); }}>
           <label className="field" htmlFor="vault-amount"><span className="lbl">Deposit amount · oUSD</span><input id="vault-amount" className="input mono" type="text" inputMode="decimal" autoComplete="off" value={amountText}
             aria-invalid={!!fieldError} aria-describedby="vault-amount-help" onChange={e => { setAmountText(e.target.value); setReview(null); setFieldError(null); }} /></label>
           <p id="vault-amount-help" className="disclosure">Balance {fmtOusd(chain.tokenBalance)} · No real monetary value</p>
           <p>Cancel before {fmtClock(selected.fundingClose)}. Then your capital locks until the round settles.</p>
-          <button className="btn primary" type="submit" disabled={frozen}>Review deposit</button>
+          <button className="btn primary" type="submit" disabled={frozen || !canDeposit}>Review deposit</button>
           {!!owned?.shares && !owned.redeemed && <button className="btn ghost" type="button" disabled={frozen} onClick={() => begin("cancel")}>Withdraw funding deposit</button>}
         </form>}
-        {!canDeposit && !owned?.shares && <p className="disclosure">This round is closed to deposits. New deposits reopen with the next published funding round.</p>}
+        {stage !== "Funding" && !owned?.shares && <p className="disclosure">This round is closed to deposits. New deposits reopen with the next published funding round.</p>}
         {currentReview && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review vault transaction"><h3>{currentReview.action === "deposit" ? "Confirm deposit" : currentReview.action === "cancel" ? "Return your deposit" : "Redeem your share"}</h3><p>{currentReview.action === "redeem" && selected.totalShares > 0n ? token(currentReview.amount * selected.finalBalance / selected.totalShares) : token(currentReview.amount)} · {VERIFIED_ASSETS[asset].symbol} vault</p><p>{currentReview.action === "deposit" ? "Your capital backs buyer payouts. Returns are not guaranteed; principal can be lost." : "Funds return to your connected demo wallet."} Test oUSD has no real value. Network fees are sponsored when available.</p><div className="row"><button className="btn primary" disabled={frozen} aria-busy={chain.busy} onClick={() => void confirm()}>{chain.busy ? chain.status : "Confirm onchain"}</button><button className="btn ghost" disabled={chain.busy} onClick={() => setReview(null)}>Back</button></div></section>}
         {fieldError && <p className="field-error" role="alert">{fieldError}</p>}
         {receipt?.round === address && <p className="callout" role="status">{receipt.action} · <a href={explorerUrl("tx", receipt.signature)} target="_blank" rel="noreferrer">View transaction ↗</a></p>}

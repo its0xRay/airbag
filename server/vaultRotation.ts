@@ -36,22 +36,23 @@ export async function publishAvailableVaultRounds(client: VaultClient, admin: Ke
   const rounds = await client.rounds();
   const now = await client.conn.getBlockTime(await client.conn.getSlot("confirmed"));
   if (now == null) throw new Error("Confirmed chain time unavailable.");
-  const errors: string[] = [];
+  const results: Record<number, string> = {};
   for (const assetId of [0, 1]) {
     try {
       const asset = await protocol.getAsset(assetId);
-      if (!asset?.active || asset.referenceVersion !== ACTIVE_REFERENCE_VERSION[assetId]) continue;
+      if (!asset?.active || asset.referenceVersion !== ACTIVE_REFERENCE_VERSION[assetId]) { results[assetId] = "Asset unavailable"; continue; }
       const ref = await reference(assetId);
-      if (!ref.available || !ref.spot) continue;
+      if (!ref.available || !ref.spot) { results[assetId] = "Reference temporarily unavailable"; continue; }
       const next = nextVaultTerms(rounds, assetId, now, ref.spot);
-      if (!next) continue;
+      if (!next) { results[assetId] = "No new round due"; continue; }
       if (await client.conn.getBalance(admin.publicKey) < 1_000_000_000) throw new Error("Devnet publication balance below stop threshold.");
       const tx = new Transaction().add(client.createIx(admin.publicKey, config.demoMint, next.id, next.terms, vaultPolicyHash(assetId)));
       tx.feePayer = admin.publicKey; tx.recentBlockhash = (await client.conn.getLatestBlockhash()).blockhash; tx.sign(admin);
       const signature = await client.conn.sendRawTransaction(tx.serialize());
+      results[assetId] = "Publication submitted; awaiting onchain confirmation";
       // The next tick reconciles the deterministic PDA after any uncertain send.
       console.log(`[vault rounds] submitted asset ${assetId}: ${signature}; round ${vaultPdas.round(assetId, next.id).toBase58()}`);
-    } catch { errors.push(`Asset ${assetId} round publication requires retry.`); }
+    } catch { results[assetId] = "Publication paused; capacity or network check requires retry"; }
   }
-  if (errors.length) throw new Error(errors.join(" "));
+  return results;
 }

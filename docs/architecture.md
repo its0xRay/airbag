@@ -51,11 +51,13 @@ cadence; it never moves depositor funds or automatically seeds a round. The keep
 activates funded rounds and settles/finalizes obligations independently.
 
 New quotes also pass a service-side admission check: aggregate outstanding
-liability plus pending signed quotes must fit within 0.5% of reported Jupiter
-liquidity, 50,000 test oUSD, and the onchain asset cap (whichever is smallest).
-Liquidity and source timestamps must be present and fresh. This heuristic is not
-a manipulation-cost estimate: reported liquidity is not executable depth and
-does not establish source independence. Limits do not change existing settlement.
+liability plus pending signed quotes must fit within the explicit Devnet budget
+(20,000 oUSD for NVDAx, 15,000 oUSD for Anthropic) and the onchain asset cap,
+whichever is smaller. These are testing budgets, not mainnet-safe risk limits.
+Qualifying reference checks and full collateral reservation are unchanged.
+Reported Jupiter liquidity remains a diagnostic, not a cap multiplier or a
+manipulation-cost estimate. Missing data is never replaced by invented values.
+Existing liabilities continue to count; limits do not change existing settlement.
 The quote budget assumes one signer-service replica and drains old quotes on
 restart; the onchain cap remains the hard limit at transaction execution.
 

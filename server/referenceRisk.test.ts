@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { referenceRiskLimit, checkReferenceExposure, QuoteExposureBudget } from "./referenceRisk";
+import { referenceRiskLimit, checkReferenceExposure, QuoteExposureBudget, devnetExposureCaps } from "./referenceRisk";
 import type { AssetAcct } from "../src/client/optketProgram";
-const asset = { active: true, maxAggregateExposure: 1_000_000_000_000n, outstandingExposure: 400_000_000n } as AssetAcct;
+const asset = { assetId: 0, active: true, maxAggregateExposure: 1_000_000_000_000n, outstandingExposure: 400_000_000n } as AssetAcct;
 describe("market exposure admission", () => {
   it("reserves simultaneous quotes and drains old signatures on restart", () => {
     const budget = new QuoteExposureBudget(0);
@@ -10,23 +10,29 @@ describe("market exposure admission", () => {
     expect(() => budget.admit(asset, 60_000_000n, 500_000_000n, 100)).toThrow("limit");
     expect(() => budget.admit(asset, 60_000_000n, 500_000_000n, 166)).not.toThrow();
   });
-  it("bounds all legacy and vault exposure by liquidity and the onchain ceiling", () => {
-    const cap = referenceRiskLimit(asset, 100_000, 995, 1000);
-    expect(cap).toBe(500_000_000n);
-    expect(() => checkReferenceExposure(asset, 100_000_000n, cap)).not.toThrow();
-    expect(() => checkReferenceExposure(asset, 100_000_001n, cap)).toThrow("limit");
-    expect(referenceRiskLimit({ ...asset, maxAggregateExposure: 10n }, 1e12, 995, 1000)).toBe(10n);
-    expect(referenceRiskLimit(asset, 1e12, 995, 1000)).toBe(50_000_000_000n);
+  it("counts existing liabilities under explicit Devnet and onchain caps", () => {
+    const a = { ...asset, assetId: 1, outstandingExposure: 9_000_000_000n };
+    const cap = referenceRiskLimit(a, devnetExposureCaps({}));
+    expect(cap).toBe(15_000_000_000n);
+    expect(() => checkReferenceExposure(a, 6_000_000_000n, cap)).not.toThrow();
+    expect(() => checkReferenceExposure(a, 6_000_000_001n, cap)).toThrow("limit");
+    expect(referenceRiskLimit({ ...asset, maxAggregateExposure: 10n }, devnetExposureCaps({}))).toBe(10n);
+    expect(referenceRiskLimit(asset, devnetExposureCaps({}))).toBe(20_000_000_000n);
   });
   it("retains a quote that expires while a serialized snapshot read is pending", () => {
     const budget = new QuoteExposureBudget(0);
     budget.admit(asset, 60_000_000n, 500_000_000n, 100);
     expect(() => budget.admit(asset, 60_000_000n, 500_000_000n, 170, 160)).toThrow("limit");
   });
-  it.each([null, undefined, NaN, Infinity, -1, 0, "10000"])("fails closed on invalid liquidity %s", value => {
-    expect(() => referenceRiskLimit(asset, value, 995, 1000)).toThrow("liquidity");
+  it.each(["", "-1", "0", "50001", "NaN", "1.5"])("rejects invalid configured caps %s", value => {
+    expect(() => devnetExposureCaps({ DEVNET_NVDA_EXPOSURE_CAP_OUSD: value })).toThrow("Invalid");
   });
-  it.each([null, 939, 1001, NaN])("fails closed on invalid observation time %s", time => {
-    expect(() => referenceRiskLimit(asset, 10000, time, 1000)).toThrow("liquidity");
+  it("rejects unknown/inactive assets and includes pending quotes in displayed headroom", () => {
+    expect(() => referenceRiskLimit({ ...asset, assetId: 2 }, devnetExposureCaps({}))).toThrow("Unsupported");
+    expect(() => referenceRiskLimit({ ...asset, active: false }, devnetExposureCaps({}))).toThrow("not accepting");
+    const budget = new QuoteExposureBudget(0);
+    budget.admit(asset, 60_000_000n, 500_000_000n, 100);
+    expect(budget.remaining(asset, 500_000_000n, 100).remaining).toBe(40_000_000n);
+    expect(budget.remaining(asset, 1n, 100).remaining).toBe(0n);
   });
 });
