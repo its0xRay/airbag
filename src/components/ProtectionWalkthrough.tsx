@@ -82,7 +82,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
   const visibleActive = Math.min(active, steps.length - 1);
 
   return <section className="lp-section lp-light" id="how-it-works">
-    <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">How Airbag works</h2></div>
+    <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">{side === "vault" ? "From deposit to withdrawal." : "From choosing a floor to receiving a payout."}</h2></div>
     {vaultsEnabled && <div className="walkthrough-sides" role="group" aria-label="Choose a walkthrough"><button className="btn ghost" aria-pressed={side === "buyer"} onClick={() => onSideChange?.("buyer")}>For holders</button><button className="btn ghost" aria-pressed={side === "vault"} onClick={() => onSideChange?.("vault")}>For depositors</button></div>}
     <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /><p>{side === "vault" ? "Cancel before funding closes. Afterward, funds stay locked until settlement completes." : "Early exercise must be requested before the cutoff. Settlement uses qualifying observations; unavailable references follow the contract’s recovery or refund rules."}</p></details></div>
     <div className="walkthrough">

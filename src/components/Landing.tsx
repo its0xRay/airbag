@@ -69,7 +69,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
       {vaultsEnabled ? <section className="lp-capital-market lp-section lp-light" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-market-intro">
           <span className="lp-eyebrow">Why Airbag</span>
-          <h2 className="lp-h2" id="why-protect-title">Why set a floor?</h2>
+          <h2 className="lp-h2" id="why-protect-title">A price drop shouldn’t force your exit.</h2>
         </div>
         <div className="lp-market-mechanism">
           <CapitalFlow>
