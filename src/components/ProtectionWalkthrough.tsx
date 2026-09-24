@@ -33,7 +33,6 @@ function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "v
     <div className="mechanism-reserve"><span className="mechanism-label">{step === 0 ? "Before funding closes" : step === 1 ? "Round balance" : "Withdrawal value"}</span><strong>{step === 0 ? "Add or cancel your deposit" : step === 1 ? "Deposits + premiums − payouts − refunds" : "Ownership share × remaining balance"}</strong></div>
   </div>;
   return <div className="mechanism">
-    <p className="walkthrough-example-label">Illustrative example · not an available quote</p>
     {step === 0 && <>
       <div className="mechanism-assets"><span><AssetLogo asset={VERIFIED_ASSETS[0]} />NVDAx</span></div>
       <div className="mechanism-contract"><span className="mechanism-label">Your contract terms</span><div className="mechanism-terms"><span>Asset<strong>NVDAx</strong></span><span>Quantity<strong>1 token</strong></span><span>Price floor<strong>$200</strong></span><span>Expiry<strong>7 days</strong></span></div></div>

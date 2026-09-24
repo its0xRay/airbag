@@ -26,7 +26,7 @@ describe("responsive two-sided walkthrough", () => {
   });
   it("labels the same numerical buyer example through the walkthrough", () => {
     const html = renderToStaticMarkup(<ProtectionWalkthrough />);
-    expect(html).toContain("Illustrative example · not an available quote");
+    expect(html).not.toContain("Illustrative example · not an available quote");
     expect(html).toContain("200 oUSD maximum payout reserved");
     expect(html).toContain("1 × max($200 − $180, 0) = 20 oUSD");
     expect(html).toContain("Payout minus 5 oUSD premium: 15 oUSD");
