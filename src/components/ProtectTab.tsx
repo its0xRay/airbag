@@ -72,6 +72,8 @@ export default function ProtectTab({
   const [scenarioPreset, setScenarioPreset] = useState<string | null>("Current");
   const [scenarioText, setScenarioText] = useState<string | null>(null);
   const [approval, setApproval] = useState<{ key: string; maxPremium: bigint } | null>(null);
+  const purchaseButton = useRef<HTMLButtonElement>(null);
+  const cancelReview = () => { setApproval(null); purchaseButton.current?.focus(); };
   const reviewRef = useRef<HTMLElement>(null);
   useEffect(() => { if (approval) { reviewRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); reviewRef.current?.focus({ preventScroll: true }); } }, [approval]);
   const [receipt, setReceipt] = useState<{ assetId: number; address: string | null; symbol: string; quantity: number; strike: bigint; expiry: number; premium: number | null } | null>(null);
@@ -154,7 +156,7 @@ export default function ProtectTab({
         setMarketError(null);
       })
       .catch(() => {
-        if (alive) { setReference(null); setMarketError("The reference service could not be reached."); }
+        if (alive) { setReference(null); setMarketError("Couldn’t load the market reference. Retry to check current pricing. Your terms are unchanged."); }
       });
     const stop = visiblePolling(load, 15000);
     return () => { alive = false; stop(); };
@@ -280,7 +282,7 @@ export default function ProtectTab({
           <div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{option ? new Date(option.expiryTs * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : kind === "short" ? "Near expiry" : "Later expiry"}<span>{option ? fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
           <div className="ticket-label">Price floor</div>
           <div className="floor-list">{tenorOptions.map((s) => { const distance = spotReal ? (tok(s.strike) - spotReal) / spotReal : null; return <button key={s.seriesId} className={"strike-option" + (selected?.seriesId === s.seriesId ? " active" : "")} aria-pressed={selected?.seriesId === s.seriesId} onClick={() => setSeriesId(s.seriesId)}><strong className="mono">{fmtPrice(s.strike)}</strong><span className="floor-distance">{distance == null ? "Reference unavailable" : Math.abs(distance * 100).toFixed(1) + "% " + (distance >= 0 ? "above" : "below") + " reference"}</span></button>; })}</div>
-          {!selected && <div className="empty" role="status">{seriesLoading ? "Loading contract terms…" : seriesError ? "Contract terms could not be loaded." : "No purchasable series."}{!seriesLoading && <button className="text-action" onClick={() => setSeriesRetry((n) => n + 1)}>Try again</button>}</div>}
+          {!selected && <div className="empty terms-loading" role="status" aria-busy={seriesLoading}>{seriesLoading ? <><span className="loading-shape" aria-hidden="true" /><span className="loading-shape" aria-hidden="true" />Loading contract terms…</> : seriesError ? "Couldn’t load contract terms. Try again." : "No expiry is open for purchase. Check again shortly."}{!seriesLoading && <button className="text-action" onClick={() => { setSeriesLoading(true); setSeriesRetry((n) => n + 1); }}>Try again</button>}</div>}
           {selected && seriesError && <p className="field-error">Terms could not refresh. Buying checks availability again.</p>}
           {selected && <div className="ticket-expiry"><div><span>Expires in {fmtDuration(selected.expiryTs - now)}</span><strong>{fmtClock(selected.expiryTs)}</strong></div><div><span>Early exercise closes</span><strong>{fmtClock(selected.exerciseCutoffTs)}</strong></div></div>}
           </fieldset>
@@ -298,9 +300,9 @@ export default function ProtectTab({
           </div>
         </section>
         <div className="protection-checkout">
-          {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase"><h3>Review position</h3><p>{quantity} {asset.symbol} · {selected && fmtPrice(selected.strike)} floor · Expires {selected && fmtClock(selected.expiryTs)}</p><div className="kv"><span>Maximum premium</span><strong className="mono">{fmtOusd(tok(approved.maxPremium))}</strong></div><p>A fresh signed quote must cost no more than this amount. A higher quote stops the purchase. oUSD has no real value.</p>{selected?.vaultRound && <p>Funded by the {asset.symbol} vault. <a href={explorerUrl("address", selected.vaultRound)} target="_blank" rel="noreferrer">Inspect backing round ↗</a></p>}<button className="btn ghost sm" disabled={c.busy} onClick={() => setApproval(null)}>Cancel review</button></section>}
+          {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase" onKeyDown={e => { if (e.key === "Escape" && !c.busy) cancelReview(); }}><h3>Review position</h3><dl className="review-terms"><div><dt>Quantity</dt><dd>{quantity} {asset.symbol}</dd></div><div><dt>Price floor</dt><dd className="mono">{selected && fmtPrice(selected.strike)}</dd></div><div><dt>Expires</dt><dd>{selected && fmtClock(selected.expiryTs)}</dd></div><div><dt>Maximum premium</dt><dd className="mono">{fmtOusd(tok(approved.maxPremium))}</dd></div></dl><p>A fresh signed quote must stay within this premium limit. A higher quote stops the purchase. oUSD has no real value.</p>{selected?.vaultRound && <p>Funded by the {asset.symbol} vault. <a href={explorerUrl("address", selected.vaultRound)} target="_blank" rel="noreferrer">Inspect backing round ↗</a></p>}<button className="btn ghost sm" disabled={c.busy} onClick={cancelReview}>Cancel review</button></section>}
           <div className="checkout-row"><div><div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{referenceRatio != null && <p className="disclosure">≈ {fmtPct(referenceRatio)} of reference value · {secsLeft < 60 ? "Less than 1m" : fmtDuration(secsLeft)} remaining<span className="sr-only">. Comparison assumes one oUSD equals one USD, for illustration only.</span></p>}{c.connected && <div className="ticket-balance">Balance {fmtOusd(c.tokenBalance, 0)}</div>}<p className="disclosure">oUSD is a test token with no real value.</p></div>
-          <div className="ticket-purchase"><button className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
+          <div className="ticket-purchase"><button ref={purchaseButton} className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
           <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </div>

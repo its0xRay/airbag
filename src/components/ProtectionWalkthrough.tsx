@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AssetLogo from "./AssetLogo";
 import { VERIFIED_ASSETS } from "../data/assets";
 import "./ProtectionWalkthrough.css";
+import { walkthroughStep } from "../client/walkthroughStep";
 
 const buyerSteps = [
   { title: "Choose", heading: "Set your floor.", body: "Choose an asset, quantity, floor and expiry. Explore payouts before connecting." },
@@ -67,12 +68,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
       if (window.innerWidth <= 800) return;
       // Derive from current positions, including reverse scroll and anchor jumps.
       // Only the diagram changes; reading content stays in the normal document flow.
-      const readingLine = window.innerHeight * 0.42;
-      let next = 0;
-      articles.current.forEach((article, index) => {
-        if (article && article.getBoundingClientRect().top <= readingLine) next = index;
-      });
-      setActive(next);
+      setActive(walkthroughStep(articles.current.slice(0, steps.length).map(article => article?.getBoundingClientRect().top ?? Infinity), window.innerHeight));
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     update();
@@ -83,7 +79,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
       window.removeEventListener("resize", schedule);
       cancelAnimationFrame(frame);
     };
-  }, [side]);
+  }, [side, steps.length]);
   const visibleActive = Math.min(active, steps.length - 1);
 
   return <section className="lp-section lp-light" id="how-it-works">

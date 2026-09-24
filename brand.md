@@ -183,3 +183,7 @@ not as a duplicate hero row. Preserve headline size and the gap above the worksp
   “Open position” for the final action. Use protection selectively to explain the
   mechanism, not as the label for every action. Early exercise remains an explicit
   request, never “cash out” or an immediate, known payout.
+- Keep the header opaque across contrasting sections. Group premium and review
+  actions together; show transaction terms as labelled values, not a dense sentence.
+- Reviews restore focus when cancelled. Mobile controls remain touch-sized and
+  long amounts wrap without hiding units or transaction conditions.

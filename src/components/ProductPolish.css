@@ -1,4 +1,65 @@
 /* Shared controls across the holder and depositor journeys. */
+.header { background:var(--bg); backdrop-filter:none; }
+@media (min-width:801px) and (max-height:850px) {
+  .lp-product-hero { padding-top:48px; }
+  .lp-product-hero .lp-hero-copy { margin-bottom:40px; }
+}
+.input { scroll-margin-block:120px; }
+.input[aria-invalid="true"] { border-color:var(--red); }
+.input, .btn, .text-action { touch-action:manipulation; }
+.text-action { min-height:44px; }
+.btn:disabled { opacity:.6; }
+.btn:active:not(:disabled), .asset-option:active:not(:disabled) { background:var(--bg-elev2); }
+.btn.primary:active:not(:disabled) { background:var(--accent); filter:brightness(.94); }
+.terms-loading { min-height:176px; display:grid; align-content:center; gap:12px; }
+.loading-shape { display:block; min-height:48px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-elev2); }
+.review-terms { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 24px; margin:20px 0; }
+.review-terms > div { min-width:0; }
+.review-terms dt { color:var(--text-dim); font-size:14px; margin-bottom:6px; }
+.review-terms dd { margin:0; font-size:16px; overflow-wrap:anywhere; }
+.purchase-review { scroll-margin-block:100px; }
+.purchase-review p { max-width:65ch; }
+.purchase-review > .row { flex-wrap:wrap; gap:12px; }
+.ticket-fields .ticket-label { margin-top:24px; }
+.strike-option { min-height:56px; gap:12px; }
+.strike-option.active { border-color:var(--text-dim); }
+.checkout-row { align-items:center; gap:24px; }
+.ticket-premium strong { font-size:24px; }
+.ticket-purchase .btn { min-height:48px; min-width:220px; }
+.vault-amount-entry .input { min-height:56px; font-size:24px; }
+.vault-lock-summary { padding-block:16px; border-block:1px solid var(--border); }
+.vault-position-outcome { min-width:0; }
+.vault-position-row strong { overflow-wrap:anywhere; }
+.position-card .between .row { flex-wrap:wrap; }
+.position-card > .between strong { white-space:normal; overflow-wrap:anywhere; }
+.position-overview > div, .receipt-metrics > div { min-width:0; }
+.position-overview strong, .receipt-metrics strong { overflow-wrap:anywhere; }
+.position-next-step { padding:16px 0; border-top:1px solid var(--border); }
+.position-overview strong { font-size:18px; }
+.position-card .position-reference { margin:0; }
+.risk-party-icon { margin-bottom:24px; }
+.risk-relationship { align-items:start; }
+.risk-exchange { align-self:center; }
+.lp-light + .lp-light { border-top:0; }
+.scenario-price-row .input { min-height:44px; }
+.reference-inline > strong { min-width:9ch; text-align:right; }
+.scenario-card > .empty { min-height:300px; }
+.position-exercise > summary { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; min-height:48px; align-items:center; }
+@media (hover:hover) {
+  .asset-option:hover:not(:disabled) { border-color:var(--text-dim); }
+}
+@media (max-width:640px) {
+  .input { font-size:16px; }
+  .review-terms { grid-template-columns:1fr; gap:16px; }
+  .review-terms > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; }
+  .review-terms dd { text-align:right; }
+  .purchase-review { padding:20px; }
+  .purchase-review > .row .btn { flex:1; min-height:48px; }
+  .ticket-purchase, .ticket-purchase .btn { width:100%; min-width:0; }
+  .vault-lock-summary dd { text-align:right; }
+  .position-exercise .row .field { flex:1 1 100% !important; }
+  .position-exercise .row > .btn:last-child { flex:1; }
+}
 .asset-selector { display:flex; flex-wrap:wrap; gap:8px; }
 .asset-option { display:flex; align-items:center; gap:12px; min-height:64px; padding:12px; text-align:left; border:1px solid var(--border); border-radius:var(--radius-sm); background:transparent; color:var(--text); cursor:pointer; }
 .asset-option[aria-pressed="true"] { background:var(--bg-elev2); border-color:var(--border-strong); }
@@ -30,7 +91,7 @@
 .wallet-controls { gap:8px; }
 .wallet-controls > a { min-height:40px; display:inline-flex; align-items:center; }
 .position-card > .between > .row { min-width:0; align-items:center; }
-.position-card > .between strong { white-space:nowrap; }
+.position-card > .between strong { white-space:normal; }
 @media (max-width:800px) {
   .protection-secondary { grid-template-columns:1fr; }
   .mechanism-outcomes { gap:16px; }

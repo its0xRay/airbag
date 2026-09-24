@@ -165,8 +165,8 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
   const open = k.status === "Active" || k.status === "PartiallySettled";
   const beforeCutoff = now <= k.exerciseCutoffTs;
   const expired = now >= k.expiryTs;
-  const amount = parseFloat(exQty);
-  const valid = amount > 0 && amount <= tok(k.remainingQuantity);
+  const amount = Number(exQty);
+  const valid = /^\d+(?:\.\d{1,6})?$/.test(exQty) && amount > 0 && amount <= tok(k.remainingQuantity);
   const requests = c.requests.filter((request) => request.contract.toBase58() === k.address);
   const outcome = positionOutcome(k, requests, c.expiryReceipts[k.contractId.toString()]);
 
@@ -217,8 +217,8 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
       {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry or request early exercise.</p>}
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
-          {qty(k.pendingQuantity)} pending. The keeper settles it against the next qualifying
-          reference and pays intrinsic value automatically.
+          {qty(k.pendingQuantity)} awaiting settlement. Payout is calculated automatically
+          from the next qualifying reference.
         </div>
       )}
 
@@ -228,9 +228,9 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
           <div className="row" style={{ flexWrap: "wrap" }}>
             <label className="field" style={{ flex: "0 1 180px" }}>
               <span className="lbl">Quantity to exercise</span>
-              <input className="input" value={exQty} onChange={(e) => { setExQty(e.target.value); setReviewQuantity(null); }} inputMode="decimal" placeholder="0.0" disabled={c.busy} />
+              <input className="input mono" value={exQty} onChange={(e) => { setExQty(e.target.value); setReviewQuantity(null); }} inputMode="decimal" autoComplete="off" aria-invalid={exQty !== "" && !valid} aria-describedby={exQty !== "" && !valid ? `exercise-help-${k.address}` : undefined} placeholder="0.0" disabled={c.busy} />
             </label>
-            <button className="btn ghost sm" style={{ alignSelf: "flex-end" }} onClick={() => setExQty(String(tok(k.remainingQuantity)))}>Max</button>
+            <button className="btn ghost sm" disabled={c.busy} style={{ alignSelf: "flex-end" }} onClick={() => { setExQty(String(tok(k.remainingQuantity))); setReviewQuantity(null); }}>Max</button>
             <button
               className="btn"
               style={{ alignSelf: "flex-end" }}
@@ -241,6 +241,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
               {c.busy ? "Submitting…" : reviewQuantity === amount ? "Confirm exercise" : "Review exercise"}
             </button>
           </div>
+          {exQty !== "" && !valid && <p id={`exercise-help-${k.address}`} className="field-error">Enter up to {qty(k.remainingQuantity)} tokens, with at most six decimal places.</p>}
           {reviewQuantity === amount && valid && <div className="purchase-review" role="status"><strong>Exercise {amount} {asset.symbol}</strong><p>{qty(k.remainingQuantity - BigInt(Math.round(amount * 1e6)))} units remain protected. The requested quantity settles against a future qualifying reference, not the currently displayed price. The payout is not fixed now.</p><p>This request cannot be cancelled after submission. Remaining time value on the exercised quantity is forfeited.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setReviewQuantity(null)}>Cancel review</button></div>}
           {!(reviewQuantity === amount && valid) && <div className="disclosure" style={{ marginTop: 8 }}>
             Early exercise is irreversible and forfeits remaining time value. Payout uses a future qualifying reference.

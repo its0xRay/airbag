@@ -43,6 +43,9 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
   const generation = useRef(0);
   const refreshing = useRef(false);
   const reviewRef = useRef<HTMLElement>(null);
+  const reviewTrigger = useRef<HTMLElement | null>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  function cancelReview() { setReview(null); reviewTrigger.current?.focus(); }
   useEffect(() => {
     if (review) { reviewRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); reviewRef.current?.focus({ preventScroll: true }); }
   }, [review]);
@@ -107,12 +110,13 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
   }
 
   function begin(action: "deposit" | "cancel" | "redeem") {
+    reviewTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!selected) return;
     if (action === "deposit" && !canDeposit) { setFieldError("Deposits are not currently available. Refresh availability."); return; }
     const value = action === "deposit" ? amount : owned?.shares ?? 0n;
-    if (value == null || value <= 0n) { setFieldError("Enter a positive amount with up to six decimal places."); return; }
-    if (action === "deposit" && value > selected.depositCap - selected.totalShares) { setFieldError("This amount exceeds the round’s remaining capacity."); return; }
-    if (action === "deposit" && Number(value) / 1e6 > chain.tokenBalance) { setFieldError("Your test-oUSD balance is too low for this deposit."); return; }
+    if (value == null || value <= 0n) { setFieldError("Enter an amount above zero, with up to six decimal places."); amountRef.current?.focus(); return; }
+    if (action === "deposit" && value > selected.depositCap - selected.totalShares) { setFieldError("This amount exceeds the round’s remaining capacity. Enter a smaller amount."); amountRef.current?.focus(); return; }
+    if (action === "deposit" && Number(value) / 1e6 > chain.tokenBalance) { setFieldError("This amount exceeds your test-oUSD balance. Enter a smaller amount."); amountRef.current?.focus(); return; }
     setFieldError(null); setReceipt(null); setReview({ round: selected.address.toBase58(), scope, amount: value, action });
   }
   async function confirm() {
@@ -140,8 +144,8 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
       </ol>}
       {funding && funding.address.toBase58() !== address && <div className="vault-next-round"><span>A new round is accepting deposits. Your existing deposit stays in this round.</span><button className="btn ghost" onClick={() => chooseRound(funding.address.toBase58())}>View funding round</button></div>}
       <div className="vault-workspace"><section className="card vault-deposit-panel"><h2>{owned?.shares ? "Your deposit" : stage === "Funding" ? "Deposit" : "Deposits are closed"}</h2>
-        {stage === "Funding" && <div className="vault-amount-entry">          <label className="field" htmlFor="vault-amount"><span className="lbl">Deposit amount · oUSD</span><input id="vault-amount" form="vault-deposit-form" className="input mono" type="text" inputMode="decimal" autoComplete="off" value={amountText} disabled={chain.busy}
-            aria-invalid={!!fieldError} aria-describedby="vault-amount-help" onChange={e => { setAmountText(e.target.value); setReview(null); setFieldError(null); }} /></label>
+        {stage === "Funding" && <div className="vault-amount-entry">          <label className="field" htmlFor="vault-amount"><span className="lbl">Deposit amount · oUSD</span><input ref={amountRef} id="vault-amount" form="vault-deposit-form" className="input mono" type="text" inputMode="decimal" autoComplete="off" value={amountText} disabled={chain.busy}
+            aria-invalid={!!fieldError} aria-describedby={fieldError ? "vault-amount-help vault-field-error" : "vault-amount-help"} onChange={e => { setAmountText(e.target.value); setReview(null); setFieldError(null); }} /></label>
           <p id="vault-amount-help" className="disclosure">{chain.connected ? <>Balance {fmtOusd(chain.tokenBalance)}</> : "Demo wallet saved in this browser. Clearing site data removes access."}</p>
 </div>}
         <dl className="vault-lock-summary">
@@ -160,8 +164,8 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
         </form>}
         {!chain.connected && stage !== "Funding" && <button className="btn primary" disabled={chain.busy} onClick={() => void chain.connect()}>{chain.busy ? "Connecting…" : "Connect to view your deposit"}</button>}
         {stage !== "Funding" && !owned?.shares && <p className="disclosure">Choose another published funding round when available. No next opening time is confirmed.</p>}
-        {currentReview && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review vault transaction"><h3>{currentReview.action === "deposit" ? "Review deposit" : "Review withdrawal"}</h3><p>{currentReview.action === "redeem" && selected.totalShares > 0n ? token(currentReview.amount * selected.finalBalance / selected.totalShares) : token(currentReview.amount)} · {VERIFIED_ASSETS[asset].symbol} vault</p><p>{currentReview.action === "deposit" ? "Your capital backs buyer payouts. Returns are not guaranteed; principal can be lost." : "Funds return to your connected demo wallet."} Test oUSD has no real value. Network fees are sponsored when available.</p><div className="row"><button className="btn primary" disabled={frozen} aria-busy={chain.busy} onClick={() => void confirm()}>{chain.busy ? chain.status : currentReview.action === "deposit" ? "Deposit" : "Withdraw"}</button><button className="btn ghost" disabled={chain.busy} onClick={() => setReview(null)}>Back</button></div></section>}
-        {fieldError && <p className="field-error" role="alert">{fieldError}</p>}
+        {currentReview && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review vault transaction" onKeyDown={e => { if (e.key === "Escape" && !chain.busy) cancelReview(); }}><h3>{currentReview.action === "deposit" ? "Review deposit" : "Review withdrawal"}</h3><dl className="review-terms"><div><dt>Vault</dt><dd>{VERIFIED_ASSETS[asset].symbol}</dd></div><div><dt>{currentReview.action === "deposit" ? "Deposit amount" : "Return to wallet"}</dt><dd className="mono">{currentReview.action === "redeem" && selected.totalShares > 0n ? token(currentReview.amount * selected.finalBalance / selected.totalShares) : token(currentReview.amount)}</dd></div></dl><p>{currentReview.action === "deposit" ? "Your capital funds payouts and locks when funding closes. It can lose value; premiums are not guaranteed profit." : "Funds return to your connected demo wallet."} Test oUSD has no real value. Network fees are sponsored when available.</p><div className="row"><button className="btn primary" disabled={frozen} aria-busy={chain.busy} onClick={() => void confirm()}>{chain.busy ? chain.status : currentReview.action === "deposit" ? "Deposit" : "Withdraw"}</button><button className="btn ghost" disabled={chain.busy} onClick={cancelReview}>Back</button></div></section>}
+        {fieldError && <p id="vault-field-error" className="field-error" role="alert">{fieldError}</p>}
         {embedded && chain.error && <p className="field-error" role="alert">{chain.error}</p>}
         {receipt?.round === address && <div className="callout" role="status"><p>{receipt.action} · <a href={explorerUrl("tx", receipt.signature)} target="_blank" rel="noreferrer">View transaction ↗</a></p>{receipt.action === "Deposit confirmed" && <p>Funding closes {fmtClock(selected.fundingClose)}. Your deposit then stays locked until this round’s obligations resolve.</p>}<a className="btn ghost" href={`?view=positions&positions=vaults&deposit=${address}`}>View your deposits</a></div>}
       </section><section className="vault-capital" aria-label="Round capital">
