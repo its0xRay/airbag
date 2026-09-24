@@ -73,9 +73,8 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
   }, [client, chain.address, scope]);
   useEffect(() => {
     const cancel = () => { ++generation.current; };
-    const first = setTimeout(() => void refresh(), 0);
-    const timer = setInterval(refresh, 15000);
-    return () => { cancel(); clearTimeout(first); clearInterval(timer); };
+    const stop = visiblePolling(refresh, 15000);
+    return () => { cancel(); stop(); };
   }, [refresh]);
   const linked = rounds.find(r => r.address.toBase58() === roundChoice);
   const asset = linked?.assetId ?? assetChoice;
@@ -186,3 +185,4 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
     </>}
   </section>;
 }
+import { visiblePolling } from "../visiblePolling";

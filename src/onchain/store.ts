@@ -272,7 +272,7 @@ interface ChainState {
   clearError: () => void;
 
   connect: (restoreOnly?: boolean) => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (options?: { history?: boolean }) => Promise<void>;
   publicLoading: boolean;
   publicError: string | null;
   refreshPublic: () => Promise<void>;
@@ -402,7 +402,7 @@ export const useChain = create<ChainState>((set, get) => ({
     }
   },
 
-  refresh: async () => {
+  refresh: async (options = {}) => {
     const { client, conn, burner, demoMint, svcUrl } = get();
     if (!burner || !demoMint || get().refreshing) return;
     set({ refreshing: true });
@@ -433,7 +433,7 @@ export const useChain = create<ChainState>((set, get) => ({
       ...Object.values(get().requestTransactions).flat().map((entry) => [entry.signature, entry.action] as const),
     ]);
     const requestTransactions: Record<string, RequestTransaction[]> = { ...get().requestTransactions };
-    await Promise.all([
+    if (options.history !== false) await Promise.all([
       ...contracts.slice(0, 12).map(async (c) => {
         try {
           const sigs = await conn.getSignaturesForAddress(new PublicKey(c.address), { limit: 12 });
@@ -461,7 +461,7 @@ export const useChain = create<ChainState>((set, get) => ({
         } catch { /* account remains valid proof if history lookup is unavailable */ }
       }),
     ]);
-    const allSignatures = [
+    const allSignatures = options.history === false ? [] : [
       ...history.filter((entry) => entry.action === "Contract instruction").map((entry) => entry.signature),
       ...Object.values(requestTransactions).flat().filter((entry) => entry.action === "Exercise instruction").map((entry) => entry.signature),
     ];

@@ -1,6 +1,7 @@
 import { PublicKey, Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { createRpcTransport } from "./rpcTransport";
+import { createRpcQueue } from "./rpcQueue";
 
 type RpcRequest = { jsonrpc: "2.0"; id: string | number; method: string; params: unknown[] };
 function address(value: unknown): string {
@@ -61,18 +62,12 @@ export function validateRpcRequest(input: unknown, program: string): RpcRequest 
 
 /** Global bounded pacing; public visitors cannot create an unbounded queue. */
 export function createRpcRelay(endpoint: string, program: string) {
-  let pending = 0;
-  let nextStart = 0;
+  const queue = createRpcQueue();
   const rpc = createRpcTransport("browser-relay");
   const reads = new Map<string, Promise<Record<string, unknown>>>();
   let sharedReads = 0;
-  const run = async (request: RpcRequest): Promise<Record<string, unknown>> => {
-    if (pending >= 40) return { jsonrpc: "2.0", id: request.id, error: { code: -32005, message: "RPC busy. Retry shortly." } };
-    pending++;
-    const start = Math.max(Date.now(), nextStart);
-    nextStart = start + 100;
+  const execute = async (request: RpcRequest): Promise<Record<string, unknown>> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, start - Date.now())));
       const response = await rpc.fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify(request), signal: AbortSignal.timeout(12000), redirect: "error" });
       if (!response.ok) throw new Error("Upstream unavailable");
@@ -82,8 +77,11 @@ export function createRpcRelay(endpoint: string, program: string) {
       return { jsonrpc: "2.0", id: request.id, result: result.result };
     } catch {
       return { jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Devnet RPC unavailable. Check your transaction status before retrying." } };
-    } finally { pending--; }
+    }
   };
+  const run = (request: RpcRequest): Promise<Record<string, unknown>> =>
+    queue.run(["sendTransaction", "getSignatureStatuses", "getLatestBlockhash", "getBlockHeight"].includes(request.method), () => execute(request))
+      ?? Promise.resolve({ jsonrpc: "2.0", id: request.id, error: { code: -32005, message: "RPC busy. Retry shortly." } });
   return Object.assign(async (input: unknown) => {
     const request = validateRpcRequest(input, program);
     // Only identical concurrent reads share work. Writes and confirmation polls
@@ -95,5 +93,5 @@ export function createRpcRelay(endpoint: string, program: string) {
     else sharedReads++;
     try { return { ...await operation, id: request.id }; }
     finally { if (reads.get(key) === operation) reads.delete(key); }
-  }, { stats: () => ({ ...rpc.stats(), sharedReads, queuedRequests: pending }) });
+  }, { stats: () => ({ ...rpc.stats(), sharedReads, queuedRequests: queue.size() }) });
 }

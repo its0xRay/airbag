@@ -146,6 +146,20 @@ export class VaultClient {
   rounds() { return this.scan("round", decodeVaultRound); }
   positions() { return this.scan("position", decodeVaultPosition); }
   requests() { return this.scan("request", decodeVaultRequest); }
+  async positionsForBuyer(buyer: PublicKey) {
+    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.position)) } },
+      { memcmp: { offset: 40, bytes: buyer.toBase58() } },
+    ] });
+    return accounts.map(a => decodeVaultPosition(a.pubkey, a.account.data));
+  }
+  async requestsForPosition(position: PublicKey) {
+    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.request)) } },
+      { memcmp: { offset: 8, bytes: position.toBase58() } },
+    ] });
+    return accounts.map(a => decodeVaultRequest(a.pubkey, a.account.data));
+  }
   async depositsForOwner(owner: PublicKey) {
     const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
       { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.deposit)) } },

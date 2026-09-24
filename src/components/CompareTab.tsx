@@ -27,9 +27,8 @@ export default function CompareTab() {
     const load = () => fetchMarket(asset.mint)
       .then((m) => { if (alive) { setMarket(m); setErr(null); setLoading(false); } })
       .catch((e) => { if (alive) { setErr(String(e.message || e)); setLoading(false); } });
-    load();
-    const t = setInterval(load, 15000);
-    return () => { alive = false; clearInterval(t); };
+    const stop = visiblePolling(load, 15000);
+    return () => { alive = false; stop(); };
   }, [assetKey, asset.mint, refreshKey]);
 
   const equity = asset.kind === "EquityToken";
@@ -103,3 +102,4 @@ export default function CompareTab() {
     </>
   );
 }
+import { visiblePolling } from "../visiblePolling";

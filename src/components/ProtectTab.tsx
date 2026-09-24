@@ -7,6 +7,7 @@ import { combinedOutcome } from "../engine/combinedOutcome";
 import { pendingTransaction } from "../onchain/transactionRecovery";
 import { ACTIVE_REFERENCE_VERSION } from "../data/referencePolicy";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { visiblePolling } from "../visiblePolling";
 import { useChain, explorerUrl, loadSeries, type SeriesInfo } from "../onchain/store";
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchQuoteReference, referenceSourceLabel, type QuoteReference } from "../data/marketData";
@@ -56,9 +57,8 @@ export default function ProtectTab({
     }).catch(() => {
       if (alive) { setSeriesError(true); setSeriesLoading(false); }
     });
-    void load();
-    const timer = window.setInterval(load, 30000);
-    return () => { alive = false; window.clearInterval(timer); };
+    const stop = visiblePolling(load, 30000);
+    return () => { alive = false; stop(); };
   }, [c.svcUrl, seriesRetry]);
   const [assetId, setAssetId] = useState(1);
   const [seriesId, setSeriesId] = useState<number | null>(null);
@@ -156,9 +156,8 @@ export default function ProtectTab({
       .catch(() => {
         if (alive) { setReference(null); setMarketError("The reference service could not be reached."); }
       });
-    void load();
-    const timer = window.setInterval(load, 15000);
-    return () => { alive = false; window.clearInterval(timer); };
+    const stop = visiblePolling(load, 15000);
+    return () => { alive = false; stop(); };
   }, [assetId, referenceRetry]);
 
   const options = useMemo(

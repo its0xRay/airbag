@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { visiblePolling } from "../visiblePolling";
 import { fetchJson } from "../serviceUrl";
 import { useNowSeconds } from "../useNowSeconds";
 
@@ -29,9 +30,8 @@ export function useAssetAvailability(assetId: number, serviceUrl: string) {
       } catch { if (alive) setFailed(scope); }
       finally { busy = false; }
     }
-    void read();
-    const timer = setInterval(read, 15000);
-    return () => { alive = false; clearInterval(timer); };
+    const stop = visiblePolling(read, 15000);
+    return () => { alive = false; stop(); };
   }, [assetId, serviceUrl, scope, retry]);
   const data = result?.scope === scope && failed !== scope && now - result.data.checkedAt <= 30 && result.data.checkedAt <= now + 5 ? result.data : null;
   return { data, label: data ? data.reason : failed === scope ? "Availability unavailable" : "Checking availability…", refresh: () => setRetry(n => n + 1) };

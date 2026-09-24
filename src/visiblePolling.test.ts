@@ -1,0 +1,23 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { visiblePolling } from "./visiblePolling";
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+it("pauses hidden reads, resumes immediately, and cleans up listeners", async () => {
+  vi.useFakeTimers();
+  const document = Object.assign(new EventTarget(), { visibilityState: "visible" });
+  vi.stubGlobal("document", document);
+  const read = vi.fn();
+  const stop = visiblePolling(read, 12000);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(read).toHaveBeenCalledTimes(1);
+  document.visibilityState = "hidden";
+  document.dispatchEvent(new Event("visibilitychange"));
+  await vi.advanceTimersByTimeAsync(36000);
+  expect(read).toHaveBeenCalledTimes(1);
+  document.visibilityState = "visible";
+  document.dispatchEvent(new Event("visibilitychange"));
+  expect(read).toHaveBeenCalledTimes(2);
+  stop();
+  document.dispatchEvent(new Event("visibilitychange"));
+  await vi.advanceTimersByTimeAsync(24000);
+  expect(read).toHaveBeenCalledTimes(2);
+});

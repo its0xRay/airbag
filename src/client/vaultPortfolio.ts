@@ -14,8 +14,19 @@ export function asPortfolioContract(p: VaultPositionAccount, r: VaultRoundAccoun
     vaultRound: r.address.toBase58(), recordedPayout: p.totalPayout, recordedRefund: p.refundedPremium };
 }
 export async function loadVaultPortfolio(client: VaultClient, buyer: PublicKey) {
-  const [rounds, positions, allRequests, deposits] = await Promise.all([client.rounds(), client.positions(), client.requests(), client.depositsForOwner(buyer)]);
-  const mine = positions.filter(p => p.buyer.equals(buyer));
+  const [mine, deposits] = await Promise.all([client.positionsForBuyer(buyer), client.depositsForOwner(buyer)]);
+  const addresses = [...new Set([...mine, ...deposits].map(p => p.round.toBase58()))];
+  // Bound fan-out for older wallets without scanning other users' positions.
+  const rounds: VaultRoundAccount[] = [];
+  for (let i = 0; i < addresses.length; i += 4) {
+    const batch = await Promise.all(addresses.slice(i, i + 4).map(a => client.getRound(new PublicKey(a))));
+    rounds.push(...batch.filter((r): r is VaultRoundAccount => r !== null));
+  }
+  const allRequests = [];
+  const requested = mine.filter(p => p.nextNonce > 0);
+  for (let i = 0; i < requested.length; i += 4) {
+    allRequests.push(...(await Promise.all(requested.slice(i, i + 4).map(p => client.requestsForPosition(p.address)))).flat());
+  }
   const contracts = mine.map(p => {
     const round = rounds.find(r => r.address.equals(p.round));
     if (!round) throw new Error("A position's backing round could not be loaded.");
