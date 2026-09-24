@@ -103,10 +103,10 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
       </section>}
 
-      <ProtectionWalkthrough side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} onStart={() => chooseSide(explanationSide, true)} />
+      <ProtectionWalkthrough side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Supported<br /><span className="soft">token markets.</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Two assets.<br /><span className="soft">Two ways to participate.</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];

@@ -48,7 +48,7 @@ function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "v
   </div>;
 }
 
-export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = false, onSideChange, onStart }: { side?: "buyer" | "vault"; vaultsEnabled?: boolean; onSideChange?: (side: "buyer" | "vault") => void; onStart?: () => void }) {
+export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = false, onSideChange }: { side?: "buyer" | "vault"; vaultsEnabled?: boolean; onSideChange?: (side: "buyer" | "vault") => void }) {
   const steps = side === "vault" ? vaultSteps : buyerSteps;
   const mobileSteps = side === "vault" ? vaultSteps : mobileBuyerSteps;
   const [active, setActive] = useState(0);
@@ -92,12 +92,11 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
         </article>)}
       </div>
       <aside className="walkthrough-visual" aria-label="Protection mechanism diagrams">
-        <div className="walkthrough-visual-head"><span className="mechanism-label">Mechanism diagram</span><span className="mono">0{visibleActive + 1} / 0{steps.length}</span></div>
+        <div className="walkthrough-visual-head"><span className="mono">0{visibleActive + 1} / 0{steps.length}</span></div>
         <div className="walkthrough-progress" aria-hidden="true"><span style={{ transform: `scaleX(${(visibleActive + 1) / steps.length})` }} /></div>
         <div className="walkthrough-stage">{steps.map((step, i) => <div className="walkthrough-scene" data-active={visibleActive === i} aria-hidden={visibleActive !== i} key={step.title}><Mechanism step={i} side={side} /></div>)}</div>
         <nav className="walkthrough-nav" aria-label="Jump to an explanation">{steps.map((step, i) => <a key={step.title} href={`#protection-step-${i + 1}`} aria-label={`${i + 1}. ${step.title}`} aria-current={visibleActive === i ? "step" : undefined}>0{i + 1}</a>)}</nav>
       </aside>
     </div>
-    <a className="lp-text-link" href="#protection" onClick={onStart}>{side === "vault" ? "Fund a vault" : "Set your floor"}</a>
   </section>;
 }

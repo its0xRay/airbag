@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PublicKey } from "@solana/web3.js";
 import type { ContractAcct } from "../client/optketProgram";
@@ -21,6 +21,23 @@ const account: ContractAcct = {
 const render = () => renderToStaticMarkup(<PortfolioTab onRenew={() => {}} onProtect={() => {}} />);
 
 describe("Positions presentation", () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+  it("keeps vault deposits out of the buyer view", () => {
+    vi.stubEnv("VITE_VAULTS_ENABLED", "true");
+    const html = render();
+    expect(html).toContain("Price floors");
+    expect(html).toContain("Vault deposits");
+    expect(html).not.toContain('aria-label="Your vault deposits"');
+    expect(html).toContain('/?side=vault#protection');
+  });
+  it("opens vault links in the deposit view without buyer filters or empty cards leaking in", () => {
+    vi.stubEnv("VITE_VAULTS_ENABLED", "true");
+    vi.stubGlobal("window", { location: { search: "?view=positions&positions=vaults" } });
+    const html = render();
+    expect(html).toContain('aria-label="Your vault deposits"');
+    expect(html).toContain("No active vault deposits.");
+    expect(html).not.toContain('class="position-list"');
+  });
   beforeEach(() => { state.contracts = []; });
   it("has one purchase CTA in the active empty state", () => {
     const html = render();

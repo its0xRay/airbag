@@ -67,9 +67,13 @@ Landing hierarchy: category-led hero, the real Protect workspace, an asymmetric
 benefit panel, the walkthrough, asset profiles, FAQ with a quiet linked evidence
 strip beneath it, and a quiet footer. Avoid repeated feature lists or a second
 closing sales pitch.
-Connected navigation prioritizes Open position and Positions; Markets, Pools and
-Onchain are secondary destinations under Protocol. Position history remains
-available alongside active coverage.
+Creation lives in the landing workspace. Your positions is the management destination,
+with Price floors and Vault deposits modes and a shared Active/History filter.
+Do not restore an Open position / Positions / Vaults navigation row.
+Markets, Pools and Onchain remain secondary destinations under Protocol in the header.
+The public menu contains Why Airbag, How it works and Assets, not Vaults or Onchain proof.
+The walkthrough has no repeated creation CTA or visible Mechanism diagram caption.
+Asset selection uses a border and background, without a check mark.
 
 Lead with the category headline: "Risk management for tokenized equities."
 "Keep the upside. Define your downside." is the single supporting line.

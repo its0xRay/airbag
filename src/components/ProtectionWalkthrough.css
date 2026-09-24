@@ -7,7 +7,7 @@
 .walkthrough-step h3 { font-size:28px; font-weight:500; letter-spacing:-0.025em; margin:24px 0 16px; }
 .walkthrough-step > p { max-width:43ch; color:var(--text-dim); font-size:15px; line-height:1.7; margin:0; }
 .walkthrough-visual { position:sticky; top:112px; padding:28px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-elev); }
-.walkthrough-visual-head { display:flex; justify-content:space-between; align-items:center; gap:16px; color:var(--text-faint); font-size:14px; }
+.walkthrough-visual-head { display:flex; justify-content:flex-end; align-items:center; gap:16px; color:var(--text-faint); font-size:14px; }
 .mechanism-label { display:block; font-size:14px; font-weight:400; color:var(--text-dim); }
 .walkthrough-progress { height:2px; background:var(--border); margin:20px 0 0; }
 .walkthrough-progress > span { display:block; height:100%; background:var(--accent); transform-origin:left; }

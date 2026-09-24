@@ -29,10 +29,21 @@ const STATUS_TONE: Record<string, string> = {
  */
 export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number, terms?: SimilarTerms) => void; onProtect: (assetId: number, quantity?: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
+  const vaultsEnabled = import.meta.env.VITE_VAULTS_ENABLED === "true";
+  const [kind, setKind] = useState<"floors" | "vaults">(() => !target && vaultsEnabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("positions") === "vaults" ? "vaults" : "floors");
+  const depositTarget = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("deposit") : null;
+  const deposits = c.vaultDeposits ?? [];
+  function chooseKind(next: "floors" | "vaults") {
+    setKind(next); setView(null); setAssetId(-1);
+    const url = new URL(window.location.href);
+    url.searchParams.set("positions", next); url.searchParams.delete("deposit");
+    window.history.replaceState(null, "", url);
+  }
   const [assetId, setAssetId] = useState(() => target?.assetId ?? -1);
   const [viewChoice, setView] = useState<"active" | "history" | null>(null);
   const targetedPosition = c.contracts.find(k => k.address === target?.address);
-  const view = viewChoice ?? (targetedPosition && targetedPosition.status !== "Active" && targetedPosition.status !== "PartiallySettled" ? "history" : "active");
+  const targetedDeposit = deposits.find(d => d.round.address.toBase58() === depositTarget);
+  const view = viewChoice ?? (kind === "vaults" ? targetedDeposit?.deposit.redeemed ? "history" : "active" : targetedPosition && targetedPosition.status !== "Active" && targetedPosition.status !== "PartiallySettled" ? "history" : "active");
   const focused = useRef(false);
   useEffect(() => {
     if (!target?.address || focused.current) return;
@@ -48,6 +59,9 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   const mine = c.contracts.filter((k) => assetId < 0 || k.assetId === assetId);
   const open = mine.filter((k) => k.status === "Active" || k.status === "PartiallySettled");
   const history = mine.filter(k => k.status !== "Active" && k.status !== "PartiallySettled");
+  const filteredDeposits = deposits.filter(d => assetId < 0 || d.round.assetId === assetId);
+  const activeCount = kind === "floors" ? open.length : filteredDeposits.filter(d => !d.deposit.redeemed).length;
+  const historyCount = kind === "floors" ? history.length : filteredDeposits.filter(d => d.deposit.redeemed).length;
   const visible = view === "active" ? open : history;
   const awaitingTarget = !!target?.address && !c.contracts.some(k => k.address === target.address);
   const activeProtected = open.reduce((a, k) => a + k.remainingQuantity, 0n);
@@ -62,15 +76,14 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   return (
     <div className="positions-page">
       <div className="app-page-head">
-        <div><h1>Your positions</h1><p>Your buyer contracts and vault deposits.</p></div>
-        {visible.length > 0 && <button className="btn primary" onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Open another</button>}
+        <div><h1>Your positions</h1><p>Track your floors, deposits and settled results.</p></div>
+        <div className="position-create-actions"><a className="btn primary" href="/?side=buyer#protection">Set your floor</a>{vaultsEnabled && <a className="btn ghost" href="/?side=vault#protection">Fund a vault</a>}</div>
       </div>
 
-      {import.meta.env.VITE_VAULTS_ENABLED === "true" && <VaultDepositList deposits={c.vaultDeposits ?? []} />}
-      <h2>Buyer contracts</h2>
+      {vaultsEnabled && <div className="position-kind-switch" role="group" aria-label="Position type"><button aria-pressed={kind === "floors"} onClick={() => chooseKind("floors")}>Price floors <span>{c.contracts.length}</span></button><button aria-pressed={kind === "vaults"} onClick={() => chooseKind("vaults")}>Vault deposits <span>{deposits.length}</span></button></div>}
 
       <div className="position-toolbar">
-        <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({open.length})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({history.length})</button></div>
+        <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({activeCount})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({historyCount})</button></div>
         <div className="position-assets" role="group" aria-label="Filter positions by asset">
         <button className="btn ghost sm" aria-pressed={assetId < 0} onClick={() => setAssetId(-1)}>All assets</button>
         {VERIFIED_ASSETS.map((a, i) => (
@@ -82,11 +95,12 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       </div>
 
 
+      {kind === "vaults" ? <VaultDepositList deposits={filteredDeposits} view={view} target={assetId < 0 ? depositTarget : null} refreshing={c.refreshing} onRefresh={() => void c.refresh()} /> : <>
       <div className="position-list">
       {awaitingTarget || (c.refreshing && c.contracts.length === 0) ? (
         <div className="card empty" role="status" aria-busy={c.refreshing}><strong>{c.refreshing ? "Loading your position…" : "Position data hasn’t loaded yet."}</strong><p>Your transaction receipt remains available while we read the contract account.</p><button className="btn ghost" disabled={c.refreshing || c.busy} onClick={() => void c.refresh()}>{c.refreshing ? "Reading onchain data…" : "Refresh positions"}</button></div>
       ) : visible.length === 0 ? (
-        <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}positions yet.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><br />{view === "active" ? "Choose a floor to start a new position." : "Settled, expired and refunded positions appear here."}{view === "active" && <div><button className="btn primary sm" style={{ marginTop: 14 }} onClick={() => onProtect(assetId < 0 ? 1 : assetId)}>Set your floor</button></div>}</div>
+        <div className="card empty"><strong>{view === "active" ? `No active ${assetId < 0 ? "" : asset.symbol + " "}positions yet.` : `No completed ${assetId < 0 ? "" : asset.symbol + " "}positions yet.`}</strong><p>{view === "active" ? "Use Set your floor to open a position." : "Settled, expired and refunded positions appear here."}</p></div>
       ) : (
         [...visible].sort((a, b) => Number(b.address === target?.address) - Number(a.address === target?.address) || b.createdTs - a.createdTs).map((k) => <ContractCard key={k.address} contract={k} highlighted={k.address === target?.address} onSimilar={() => { const draft = repeatPosition(k); onRenew(draft.assetId, draft.quantity, { strike: k.strike, duration: draft.duration! }); }} />)
       )}
@@ -124,6 +138,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
         <p>This optional read-only tool can inspect any Solana address. It is separate from the connected Devnet wallet and does not modify a position.</p>
         <HoldingsCard onProtect={onProtect} />
       </details>
+      </>}
     </div>
   );
 }
@@ -171,14 +186,13 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
         <a className="pill blue" href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">account ↗</a>
       </div>
 
-      <div className="position-overview">
+      {open && <><div className="position-overview">
         <div><span>Protected quantity</span><strong className="mono">{qty(k.remainingQuantity)} {asset.symbol}</strong></div>
-        <div><span>Reserved now</span><strong className="mono">{tok(k.reservedCollateral).toFixed(2)} oUSD</strong></div>
+        <div><span>Price floor</span><strong className="mono">{fmtPrice(k.strike)}</strong></div>
         <div><span>Expiry</span><strong>{fmtClock(k.expiryTs)}</strong></div>
       </div>
       <ProtectionBoundary floor={k.strike} compact />
-      <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)} · oUSD has no real value.</p>
-      <button className="btn ghost" disabled={c.busy} onClick={onSimilar}>Open a similar position</button>
+      <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)} · oUSD has no real value.</p></>}
       <details className="position-details" open={!open}><summary>{open ? "Receipts so far" : "Position outcome"}</summary>
         <div className="receipt-metrics">
           <div><span>Premium paid</span><strong className="mono">{fmtOusd(tok(k.premiumPaid))}</strong></div>
@@ -188,8 +202,6 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
         </div>
         <p className="disclosure">{outcome ? "Confirmed test-token amounts; excludes changes in holdings and network fees." : "Complete settlement records are not loaded. Refresh to reconcile the outcome."}</p>
         {!outcome && <button className="btn ghost" disabled={c.refreshing || c.busy} onClick={() => void c.refresh()}>Refresh receipts</button>}
-        <a className="btn ghost" href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">View onchain record ↗</a>
-        <div className="lifecycle-transactions">{c.history.filter(entry => entry.contractId === k.contractId && !entry.err).map(entry => <a key={entry.signature} href={explorerUrl("tx", entry.signature)} target="_blank" rel="noreferrer">{entry.action} ↗</a>)}</div>
       </details>
       {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry or request early exercise.</p>}
       {k.pendingQuantity > 0n && (
@@ -248,7 +260,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
         <div><div className="stat-label">Premium paid</div><div className="stat-value sm mono">{tok(k.premiumPaid).toFixed(2)} oUSD</div></div>
       </div>
       <div className="grid cols-2" style={{ marginTop: 12 }}>
-        <div><div className="stat-label">Reserved collateral</div><div className="stat-value sm mono">{tok(k.reservedCollateral).toFixed(2)} oUSD</div></div>
+        <div><div className="stat-label">Reserved now</div><div className="stat-value sm mono">{tok(k.reservedCollateral).toFixed(2)} oUSD</div></div>
         <div><div className="stat-label">Original quantity</div><div className="stat-value sm mono">{qty(k.originalQuantity)}</div></div>
       </div>
 
@@ -308,6 +320,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
       <div className="lifecycle-transactions">{c.history.filter(entry => entry.contractId === k.contractId && !requests.some(request => c.requestTransactions[request.address]?.some(transaction => transaction.signature === entry.signature))).map(entry => <a key={entry.signature} href={explorerUrl("tx", entry.signature)} target="_blank" rel="noreferrer">{entry.err ? "Failed transaction" : entry.action} · <span className="mono">{entry.signature.slice(0, 10)}…</span> ↗</a>)}</div>
       <a href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">Verify contract account ↗</a>
       </details>
+      <div className="position-repeat"><button className="btn ghost" disabled={c.busy} onClick={onSimilar}>Open a similar position</button></div>
     </div>
   );
 }
