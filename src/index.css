@@ -1151,7 +1151,7 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
   .protection-boundary svg { height:68px; }
   .scenario-price-row { margin-top:12px; }
   .scenario-presets { margin-top:0; }
-  .scenario-adjustment { display:flex; align-items:center; gap:16px; }
+.scenario-adjustment { display:block; }
   .scenario-adjustment .scenario-slider { flex:1; min-width:100px; }
   .scenario-adjustment .scenario-presets { flex-shrink:0; }
   .scenario-card .field-help { margin-bottom:0; }

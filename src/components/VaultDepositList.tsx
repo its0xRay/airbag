@@ -20,11 +20,12 @@ export default function VaultDepositList({ deposits, view, target, refreshing = 
     const value = redemptionValue(round, deposit);
     const stage = roundStage(round, now);
     return <article className={"vault-position-row" + (target === round.address.toBase58() ? " position-highlighted" : "")} id={`deposit-${round.address.toBase58()}`} tabIndex={-1} key={deposit.address.toBase58()}>
-      <div><h3>{VERIFIED_ASSETS[round.assetId].symbol} vault</h3><p>{deposit.redeemed ? "Withdrawn" : stage} · {fmtClock(round.fundingClose)}</p></div>
-      <div><span className="disclosure">Deposited</span><strong className="mono">{fmtOusd(Number(deposit.shares) / 1e6)}</strong></div>
-      <div><span className="disclosure">{value == null ? "Next step" : deposit.redeemed ? "Received" : "Available to withdraw"}</span>
+      <div className="vault-position-title"><h3>{VERIFIED_ASSETS[round.assetId].symbol} vault</h3><p>{deposit.redeemed ? "Withdrawn" : stage === "Redeemable" ? "Ready to withdraw" : stage === "Funding" ? "Funding open" : "Capital locked"}</p></div>
+      <div className="vault-position-principal"><span className="disclosure">Deposited</span><strong className="mono">{fmtOusd(Number(deposit.shares) / 1e6)}</strong></div>
+      <div className="vault-position-outcome"><span className="disclosure">{value == null ? "Next step" : deposit.redeemed ? "Received" : "Available to withdraw"}</span>
         <strong className={value == null ? "" : "mono"}>{value == null ? stage === "Funding" ? "Add or cancel before cutoff" : "Wait for obligations to settle" : fmtOusd(Number(value) / 1e6)}</strong>
         {value != null && <small>Net result {fmtOusd(Number(value - deposit.shares) / 1e6)} · test activity</small>}</div>
+      <details className="vault-position-date"><summary>Round timing</summary><p>Funding {now < round.fundingClose ? "closes" : "closed"} {fmtClock(round.fundingClose)}</p></details>
       <a className="btn ghost" href={`?view=vaults&round=${round.address.toBase58()}`}>{!deposit.redeemed && stage === "Redeemable" ? "Review withdrawal" : "View deposit"}</a>
     </article>;
   };

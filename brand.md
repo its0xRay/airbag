@@ -69,6 +69,15 @@ strip beneath it, and a quiet footer. Avoid repeated feature lists or a second
 closing sales pitch.
 Creation lives in the landing workspace. Your positions is the management destination,
 with Price floors and Vault deposits modes and a shared Active/History filter.
+Untargeted visits prioritize ready withdrawals, then active positions; explicit destinations
+and category selections take precedence. Old confirmations collapse to a receipt disclosure.
+Creation links stay secondary in Positions. Mobile vault cards lead with the next action
+and withdrawal value; round dates are labelled in details.
+Buyer and depositor flows share asset names, selector styling and the selected asset.
+Expiry choices show their actual dates and remaining duration, not an implied new week.
+The buyer's supporting content is grouped into Holdings, Payout details, and Pricing & settlement.
+Illustrative payout and after-premium values have equal readable hierarchy; slider presets
+sit beneath a full-width slider. The vault amount precedes its lock summary and risk disclosure.
 Do not restore an Open position / Positions / Vaults navigation row.
 Markets, Pools and Onchain remain secondary destinations under Protocol in the header.
 The public menu contains Why Airbag, How it works and Assets, not Vaults or Onchain proof.

@@ -1,0 +1,69 @@
+/* Shared controls across the holder and depositor journeys. */
+.asset-selector { display:flex; flex-wrap:wrap; gap:8px; }
+.asset-option { display:flex; align-items:center; gap:12px; min-height:64px; padding:12px; text-align:left; border:1px solid var(--border); border-radius:var(--radius-sm); background:transparent; color:var(--text); cursor:pointer; }
+.asset-option[aria-pressed="true"] { background:var(--bg-elev2); border-color:var(--border-strong); }
+.asset-option:disabled { opacity:.65; cursor:wait; }
+.asset-option strong { display:block; font-size:15px; font-weight:500; }
+.asset-option small { display:block; margin-top:4px; font-size:14px; color:var(--text-dim); }
+.vaults-page .asset-selector { margin-bottom:24px; }
+.mechanism-outcomes { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:24px; }
+.mechanism-outcomes span { display:block; color:var(--text-dim); font-size:15px; }
+.mechanism-outcomes strong { display:block; margin-top:8px; font-size:clamp(20px,2.2vw,28px); font-weight:500; }
+.scenario-adjustment .scenario-slider input { min-height:44px; }
+.scenario-adjustment .scenario-presets { margin-top:4px; }
+.protection-secondary { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.protection-secondary h3 { font-size:16px; font-weight:500; margin:24px 0 16px; }
+.lp-market-intro .lp-h2 { grid-column:1 / -1; }
+.vault-amount-entry { margin-bottom:24px; }
+.vault-amount-entry .field { margin-bottom:8px; }
+.vault-amount-entry p { margin:8px 0 0; }
+.transaction-receipt { max-width:1120px; margin:12px auto; padding:0 16px; border-bottom:1px solid var(--border); color:var(--text-dim); font-size:14px; }
+.transaction-receipt summary { min-height:44px; align-content:center; cursor:pointer; }
+.transaction-receipt .row { padding-bottom:12px; flex-wrap:wrap; }
+.position-asset-filter { position:relative; font-size:14px; }
+.position-asset-filter summary { min-height:44px; padding:10px 12px; align-content:center; color:var(--text-dim); cursor:pointer; }
+.position-asset-filter .position-assets { position:absolute; z-index:5; right:0; padding:8px; background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius-sm); min-width:240px; flex-wrap:wrap; }
+.vault-position-date { grid-column:1 / -1; order:5; color:var(--text-dim); font-size:14px; }
+.vault-position-date summary { min-height:44px; align-content:center; cursor:pointer; }
+.vault-position-date p { margin:4px 0 0; }
+.vault-position-outcome > strong { font-size:20px; }
+.wallet-controls { gap:8px; }
+.wallet-controls > a { min-height:40px; display:inline-flex; align-items:center; }
+.position-card > .between > .row { min-width:0; align-items:center; }
+.position-card > .between strong { white-space:nowrap; }
+@media (max-width:800px) {
+  .protection-secondary { grid-template-columns:1fr; }
+  .mechanism-outcomes { gap:16px; }
+}
+@media (max-width:640px) {
+  .app-header { display:grid; grid-template-columns:auto 1fr auto; gap:8px; }
+  .app-header .spacer { display:none; }
+  .app-header .management-tools { justify-self:end; }
+  .app-header > .btn { grid-row:2; grid-column:1 / -1; justify-self:end; }
+  .app-header .wallet-controls { grid-column:3; grid-row:1; flex-wrap:wrap; justify-content:flex-end; }
+  .app-header .wallet-controls .btn { width:40px; min-width:40px; padding:8px; }
+  .app-header .wallet-controls .btn:not([aria-label]) { width:auto; }
+  .management-tools .tab { padding-inline:4px; }
+  .positions-page { gap:16px; }
+  .positions-page .app-page-head { gap:8px; padding-top:24px; }
+  .position-create-actions { width:auto; gap:12px; }
+  .position-create-actions .btn { flex:initial; padding:8px 0; border-color:transparent; font-size:14px; color:var(--text-dim); }
+  .position-toolbar { gap:4px; flex-wrap:nowrap; }
+  .position-filters { gap:8px; }
+  .position-filters .btn { padding-inline:10px; }
+  .position-asset-filter summary { padding-inline:4px; }
+  .position-vault-list .vault-position-row { grid-template-columns:1fr; gap:16px; }
+  .vault-position-title { order:0; }
+  .vault-position-title p { margin:8px 0 0; }
+  .vault-position-outcome { order:1; }
+  .vault-position-outcome > strong { font-size:24px; }
+  .vault-position-row > a { order:2; width:100%; }
+  .vault-position-principal { order:3; display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+  .vault-position-principal strong { margin:0; }
+  .vault-position-date { order:4; }
+}
+@media (max-width:540px) {
+  .asset-selector { width:100%; display:grid; grid-template-columns:1fr; }
+  .asset-option { width:100%; min-height:64px; }
+  .asset-option strong { font-size:16px; }
+}

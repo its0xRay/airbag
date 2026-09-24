@@ -13,6 +13,7 @@ import VaultsTab from "./components/VaultsTab";
 import WalletBar, { NETWORK } from "./components/WalletBar";
 import TransactionProgress from "./components/TransactionProgress";
 import { loadTransaction } from "./onchain/transactionRecovery";
+import "./components/ProductPolish.css";
 
 type Tab = "home" | "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
 const VAULTS_ENABLED = import.meta.env.VITE_VAULTS_ENABLED === "true";

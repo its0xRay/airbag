@@ -6,7 +6,7 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import { fmtClock, fmtOusd } from "../format";
 import { useNowSeconds } from "../useNowSeconds";
 import { pendingTransaction } from "../onchain/transactionRecovery";
-import AssetLogo from "./AssetLogo";
+import AssetSelector from "./AssetSelector";
 import { redemptionValue } from "../client/vaultPortfolio";
 import { useAssetAvailability } from "../data/useAssetAvailability";
 import "./VaultsTab.css";
@@ -128,40 +128,38 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
 
   return <section className={"vaults-page" + (embedded ? " vaults-embedded" : "")} aria-label="Fund a vault">
     {!embedded && <div className="app-page-head"><div><h1>Fund a vault</h1><p>Share in premiums. Your capital funds payouts.</p></div><span className="disclosure">Test oUSD · no real value</span></div>}
-    <div className="vault-asset-switch" role="group" aria-label="Choose a vault">
-      {VERIFIED_ASSETS.map((a, i) => <button key={a.key} className="vault-asset-option" aria-pressed={displayedAsset === i} disabled={chain.busy}
-        onClick={() => { setAsset(i); setRoundChoice(null); setReview(null); setFieldError(null);
-          const url = new URL(window.location.href); url.searchParams.delete("round"); window.history.replaceState(null, "", url);
-        }}><AssetLogo asset={a} /><span><strong>{i === 0 ? "NVDAx" : "Anthropic"}</strong><small>{i === 0 ? "Tokenized public equity" : "PreStocks token market"}</small></span></button>)}
-    </div>
+    <AssetSelector value={displayedAsset} label="Choose a vault" disabled={chain.busy} onChange={i => { setAsset(i); setRoundChoice(null); setReview(null); setFieldError(null);
+      const url = new URL(window.location.href); url.searchParams.delete("round"); window.history.replaceState(null, "", url);
+    }} />
     {error && <div className="callout warn" role="alert">{error} <button className="btn ghost" disabled={loading} onClick={() => void refresh()}>Retry</button></div>}
-    {!selected ? <section className="card empty" aria-busy={loading} role="status"><h2>{loading ? "Reading vault accounts…" : "No round published yet"}</h2><p>{loading ? "Checking confirmed capital and ownership." : "This vault has no published round. Deposits open when a funding window is available."}</p><button className="btn ghost" disabled={loading} onClick={() => void refresh()}>Refresh</button></section> : <>
-      <div className="vault-round-header"><h2>{VERIFIED_ASSETS[displayedAsset].symbol} vault <span className="pill gray">{stage}</span></h2></div>
-      <p className="disclosure" role="status">{!freshRound ? "Checking deposit availability" : canDeposit ? "Accepting deposits" : stage === "Funding" ? !availability.data ? "Checking deposit availability" : availability.data.depositsPaused ? "Deposits paused" : "Deposit capacity reached" : "Deposits closed for this round"} · {buyerStatus} <button className="text-action" onClick={() => { availability.refresh(); void refresh(); }}>Refresh availability</button></p>
+    {!selected ? <section className="card empty" aria-busy={loading} role="status"><h2>{loading ? "Loading vault…" : "No round published yet"}</h2><p>{loading ? "Checking deposits and available capital." : "This vault has no published round. Deposits open when a funding window is available."}</p><button className="btn ghost" disabled={loading} onClick={() => void refresh()}>Refresh</button></section> : <>
+      <div className="vault-round-header"><h2>{VERIFIED_ASSETS[displayedAsset].symbol} vault</h2></div>
+      <p className="disclosure" role="status">{!freshRound ? "Checking deposit availability" : canDeposit ? "Accepting deposits" : stage === "Funding" ? !availability.data ? "Checking deposit availability" : availability.data.depositsPaused ? "Deposits paused" : "Deposit capacity reached" : owned?.shares && !owned.redeemed && stage === "Redeemable" ? "Ready to withdraw" : owned?.shares && !owned.redeemed ? "Capital locked" : owned?.redeemed ? "Withdrawn" : "Funding closed"} <button className="text-action" onClick={() => { availability.refresh(); void refresh(); }}>Refresh availability</button></p>
       {!embedded && <ol className="vault-journey" aria-label="Deposit lifecycle">
         {["Deposit", "Capital locked", "Settlement", "Withdraw"].map((label, i) => <li key={label} aria-current={i === (stage === "Funding" ? 0 : stage === "Redeemable" ? 3 : stage === "Settling" ? 2 : 1) ? "step" : undefined}><span>0{i + 1}</span><strong>{label}</strong><small>{i === 0 ? `Until ${fmtClock(selected.fundingClose)}` : i === 1 ? "Funds back buyer payouts" : i === 2 ? `Latest expiry ${fmtClock(selected.latestExpiry)}` : "After every obligation resolves"}</small></li>)}
       </ol>}
       {funding && funding.address.toBase58() !== address && <div className="vault-next-round"><span>A new round is accepting deposits. Your existing deposit stays in this round.</span><button className="btn ghost" onClick={() => chooseRound(funding.address.toBase58())}>View funding round</button></div>}
-      <div className="vault-workspace"><section className="card vault-deposit-panel"><h2>Your deposit</h2>
+      <div className="vault-workspace"><section className="card vault-deposit-panel"><h2>{owned?.shares ? "Your deposit" : stage === "Funding" ? "Deposit" : "Deposits are closed"}</h2>
+        {stage === "Funding" && <div className="vault-amount-entry">          <label className="field" htmlFor="vault-amount"><span className="lbl">Deposit amount · oUSD</span><input id="vault-amount" form="vault-deposit-form" className="input mono" type="text" inputMode="decimal" autoComplete="off" value={amountText} disabled={chain.busy}
+            aria-invalid={!!fieldError} aria-describedby="vault-amount-help" onChange={e => { setAmountText(e.target.value); setReview(null); setFieldError(null); }} /></label>
+          <p id="vault-amount-help" className="disclosure">{chain.connected ? <>Balance {fmtOusd(chain.tokenBalance)}</> : "Demo wallet saved in this browser. Clearing site data removes access."}</p>
+</div>}
         <dl className="vault-lock-summary">
           {stage === "Funding" && <div><dt>Funding closes</dt><dd>{fmtClock(selected.fundingClose)}</dd></div>}
           <div><dt>Latest contract expiry</dt><dd>{fmtClock(selected.latestExpiry)}</dd></div>
         </dl>
-        <p>{stage === "Funding" ? "After funding closes, capital locks until all obligations settle." : "Capital unlocks after all obligations settle."} Delays can extend the lock.</p>
-        <p className="disclosure">Your deposit funds buyer payouts and can be lost. Premiums are not guaranteed profit. oUSD has no real value.</p>
+        <p>{stage === "Redeemable" ? "This round has settled." : stage === "Funding" ? "After funding closes, capital locks until all obligations settle. Delays can extend the lock." : "Capital unlocks after all obligations settle. Delays can extend the lock."}</p>
+        <p className="disclosure">Deposits can lose value. Premiums are not guaranteed profit. oUSD is a test token with no real value.</p>
         {ownedValue != null && owned && <p>Final net result: <strong className="mono">{token(ownedValue - owned.shares)}</strong> · test activity</p>}
         {owned && owned.shares > 0n ? <><strong className="vault-owned mono">{token(owned.shares)}</strong><p>{selected.totalShares > 0n ? (Number(owned.shares * 10000n / selected.totalShares) / 100).toFixed(2) : "0"}% of this round{stage === "Funding" ? " · changes as deposits arrive" : " · ownership fixed"}</p>
           {owned.redeemed ? <p className="callout">Withdrawn {token(owned.redemptionAmount)}</p> : stage !== "Funding" && stage !== "Redeemable" ? <p>Your capital is locked until settlement completes.</p> : stage === "Redeemable" ? <><p>Available to withdraw: <strong>{token(owned.shares * selected.finalBalance / selected.totalShares)}</strong></p><button className="btn primary" disabled={frozen} onClick={() => begin("redeem")}>Review withdrawal</button></> : null}</> : null}
-        {stage === "Funding" && <form onSubmit={e => { e.preventDefault(); if (!chain.connected) { void chain.connect(); return; } begin("deposit"); }}>
-          <label className="field" htmlFor="vault-amount"><span className="lbl">Deposit amount · oUSD</span><input id="vault-amount" className="input mono" type="text" inputMode="decimal" autoComplete="off" value={amountText} disabled={chain.busy}
-            aria-invalid={!!fieldError} aria-describedby="vault-amount-help" onChange={e => { setAmountText(e.target.value); setReview(null); setFieldError(null); }} /></label>
-          <p id="vault-amount-help" className="disclosure">{chain.connected ? <>Balance {fmtOusd(chain.tokenBalance)}</> : "Demo wallet saved in this browser. Clearing site data removes access."}</p>
+        {stage === "Funding" && <form id="vault-deposit-form" onSubmit={e => { e.preventDefault(); if (!chain.connected) { void chain.connect(); return; } begin("deposit"); }}>
           <p>You can cancel during the funding window.</p>
           <button className="btn primary" type="submit" aria-busy={chain.busy} disabled={chain.busy || (chain.connected && (frozen || !canDeposit))}>{chain.busy ? chain.status || "Connecting…" : chain.connected ? "Review deposit" : "Start with a demo wallet"}</button>
           {!!owned?.shares && !owned.redeemed && <button className="btn ghost" type="button" disabled={frozen} onClick={() => begin("cancel")}>Withdraw funding deposit</button>}
         </form>}
         {!chain.connected && stage !== "Funding" && <button className="btn primary" disabled={chain.busy} onClick={() => void chain.connect()}>{chain.busy ? "Connecting…" : "Connect to view your deposit"}</button>}
-        {stage !== "Funding" && !owned?.shares && <p className="disclosure">This round is closed to deposits. New deposits reopen with the next published funding round.</p>}
+        {stage !== "Funding" && !owned?.shares && <p className="disclosure">Choose another published funding round when available. No next opening time is confirmed.</p>}
         {currentReview && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review vault transaction"><h3>{currentReview.action === "deposit" ? "Review deposit" : "Review withdrawal"}</h3><p>{currentReview.action === "redeem" && selected.totalShares > 0n ? token(currentReview.amount * selected.finalBalance / selected.totalShares) : token(currentReview.amount)} · {VERIFIED_ASSETS[asset].symbol} vault</p><p>{currentReview.action === "deposit" ? "Your capital backs buyer payouts. Returns are not guaranteed; principal can be lost." : "Funds return to your connected demo wallet."} Test oUSD has no real value. Network fees are sponsored when available.</p><div className="row"><button className="btn primary" disabled={frozen} aria-busy={chain.busy} onClick={() => void confirm()}>{chain.busy ? chain.status : currentReview.action === "deposit" ? "Deposit" : "Withdraw"}</button><button className="btn ghost" disabled={chain.busy} onClick={() => setReview(null)}>Back</button></div></section>}
         {fieldError && <p className="field-error" role="alert">{fieldError}</p>}
         {embedded && chain.error && <p className="field-error" role="alert">{chain.error}</p>}
@@ -169,7 +167,7 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
       </section><section className="vault-capital" aria-label="Round capital">
         <div className="vault-metrics"><div><span>Deposited this round</span><strong className="mono">{token(selected.totalShares)}</strong></div><div><span>Committed to positions</span><strong className="mono">{token(selected.reserved)}</strong></div></div>
         <div className="capacity-visual"><div className="bar" role="meter" aria-label="Share of deposited capital committed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selected.totalShares ? Number(selected.reserved * 10000n / selected.totalShares) / 100 : 0}><span style={{ width: `${selected.totalShares ? Number(selected.reserved * 10000n / selected.totalShares) / 100 : 0}%` }} /></div></div>
-        <details className="secondary-tool"><summary>Round details</summary><dl className="vault-ledger">
+        <details className="secondary-tool"><summary>Round details</summary><p>{buyerStatus}</p><dl className="vault-ledger">
           <div><dt>Premiums collected</dt><dd>{token(selected.premiums)}</dd></div><div><dt>Buyer payouts</dt><dd>{token(selected.payouts)}</dd></div><div><dt>Premium refunds</dt><dd>{token(selected.refunds)}</dd></div>
           {stage === "Redeemable" && <div><dt>Final round result</dt><dd>{token(selected.finalBalance - selected.totalShares)}</dd></div>}
           <div><dt>Funding closes</dt><dd>{fmtClock(selected.fundingClose)}</dd></div><div><dt>New positions close</dt><dd>{fmtClock(selected.salesClose)}</dd></div><div><dt>Latest contract expiry</dt><dd>{fmtClock(selected.latestExpiry)}</dd></div><div><dt>Maximum commitment</dt><dd>{token(selected.exposureCap)}</dd></div><div><dt>Administrator deposit</dt><dd>{token(admin?.shares ?? 0n)}</dd></div><div><dt>Vault fees</dt><dd>None</dd></div></dl>

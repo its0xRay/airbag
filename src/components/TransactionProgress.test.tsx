@@ -15,6 +15,9 @@ describe("Homepage transaction feedback", () => {
     expect(renderToStaticMarkup(<TransactionProgress showConfirmed={false} onViewPositions={() => {}} />)).toContain("Transaction recovery");
   });
   it("retains confirmed transaction access inside the app", () => {
-    expect(renderToStaticMarkup(<TransactionProgress onViewPositions={() => {}} />)).toContain("Transaction confirmed onchain");
+    const html = renderToStaticMarkup(<TransactionProgress onViewPositions={() => {}} />);
+    expect(html).toContain("Last transaction confirmed");
+    expect(html).toContain("View receipt");
+    expect(html).not.toContain("<details open");
   });
 });

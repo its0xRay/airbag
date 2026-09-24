@@ -9,6 +9,8 @@ export default function TransactionProgress({ onViewPositions, onViewVaults, sho
   const recover = c.recoverTransaction;
   const busy = c.busy;
   const [dismissed, setDismissed] = useState<string | null>(null);
+  // A receipt restored on page load is not a new transaction notification.
+  const [restoredSignature, setRestoredSignature] = useState(() => tx?.state === "confirmed" ? tx.signature : null);
   const relevant = !!tx && matchesTransactionChain(tx, c.conn.rpcEndpoint);
   useEffect(() => {
     if (!relevant || tx?.state !== "checking" || busy) return;
@@ -20,10 +22,14 @@ export default function TransactionProgress({ onViewPositions, onViewVaults, sho
   // A completed receipt must not displace the public hero on every return visit.
   // Pending checks and failures remain visible; history retains confirmed receipts.
   if (tx.state === "confirmed" && !showConfirmed) return null;
+  if (tx.state === "confirmed" && tx.signature === restoredSignature) return <details className="transaction-receipt">
+    <summary>Last transaction confirmed</summary>
+    <div className="row"><a className="btn ghost" href={explorerUrl("tx", tx.signature)} target="_blank" rel="noreferrer">View receipt</a><button className="btn ghost" onClick={isVault ? onViewVaults : onViewPositions}>{isVault ? "View deposits" : "View position"}</button></div>
+  </details>;
   return <section className="transaction-progress" aria-label="Transaction recovery" role="status">
     <div><strong>{tx.state === "checking" ? "Checking your transaction" : tx.state === "confirmed" ? "Transaction confirmed onchain" : tx.state === "failed" ? "Transaction failed" : "Transaction expired without confirmation"}</strong>
-      <p className="faint">{tx.state === "checking" ? "Keep this page open or return later. We’ll check the original signature before allowing another submission." : tx.state === "confirmed" ? isVault ? "Your transaction is recorded. View your vault for ownership and redemption status." : "Your execution is recorded. Open Positions for coverage and settlement status." : "No successful execution was found. Review your account before submitting again."}</p></div>
+      <p className="faint">{tx.state === "checking" ? "Keep this page open or return later. We’ll check the original signature before allowing another submission." : tx.state === "confirmed" ? isVault ? "Your deposit activity is recorded. Check its withdrawal status in Positions." : "Your position is recorded. Follow its settlement in Positions." : "No successful execution was found. Review your account before submitting again."}</p></div>
     <div className="row"><a className="btn ghost" href={explorerUrl("tx", tx.signature)} target="_blank" rel="noreferrer">View transaction ↗</a>
-      {tx.state === "checking" ? <button className="btn ghost" disabled={c.recovering || busy} onClick={() => void recover()}>{c.recovering || busy ? "Checking…" : "Check status"}</button> : <><button className="btn ghost" onClick={isVault ? onViewVaults : onViewPositions}>{isVault ? "View vaults" : "View positions"}</button><button className="btn ghost" onClick={() => setDismissed(tx.signature)}>Dismiss</button></>}</div>
+      {tx.state === "checking" ? <button className="btn ghost" disabled={c.recovering || busy} onClick={() => void recover()}>{c.recovering || busy ? "Checking…" : "Check status"}</button> : <><button className="btn ghost" onClick={() => { if (tx.state === "confirmed") setRestoredSignature(tx.signature); (isVault ? onViewVaults : onViewPositions)(); }}>{isVault ? "View deposits" : "View positions"}</button><button className="btn ghost" onClick={() => setDismissed(tx.signature)}>Dismiss</button></>}</div>
   </section>;
 }

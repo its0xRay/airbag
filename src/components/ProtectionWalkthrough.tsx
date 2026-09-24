@@ -17,7 +17,13 @@ const vaultSteps = [
 const mobileBuyerSteps = [
   { title: "Choose", body: "Pick an asset, quantity, floor and expiry." },
   { title: "Pay once", body: "Review the premium. Your tokens stay with you." },
-  { title: "Settle", body: "Below the floor, payout is the reference-price difference × covered quantity. Early exercise is available before the cutoff." },
+  { title: "Settle", body: "Below your floor, receive the reference-price difference × covered quantity." },
+] as const;
+
+const mobileVaultSteps = [
+  { title: "Deposit", body: "Choose a vault and deposit before funding closes." },
+  { title: "Back payouts", body: "Locked capital funds payouts; premiums are not guaranteed profit." },
+  { title: "Withdraw", body: "Withdraw your remaining share after settlement; capital can lose value." },
 ] as const;
 
 function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "vault" }) {
@@ -50,7 +56,7 @@ function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "v
 
 export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = false, onSideChange }: { side?: "buyer" | "vault"; vaultsEnabled?: boolean; onSideChange?: (side: "buyer" | "vault") => void }) {
   const steps = side === "vault" ? vaultSteps : buyerSteps;
-  const mobileSteps = side === "vault" ? vaultSteps : mobileBuyerSteps;
+  const mobileSteps = side === "vault" ? mobileVaultSteps : mobileBuyerSteps;
   const [active, setActive] = useState(0);
   const articles = useRef<(HTMLElement | null)[]>([]);
 
@@ -83,7 +89,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
   return <section className="lp-section" id="how-it-works">
     <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">{side === "vault" ? "Deposit. Back payouts. Withdraw." : "Choose. Pay once. Keep holding."}</h2></div>
     {vaultsEnabled && <div className="walkthrough-sides" role="group" aria-label="Choose a walkthrough"><button className="btn ghost" aria-pressed={side === "buyer"} onClick={() => onSideChange?.("buyer")}>For holders</button><button className="btn ghost" aria-pressed={side === "vault"} onClick={() => onSideChange?.("vault")}>For depositors</button></div>}
-    <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /></details></div>
+    <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /><p>{side === "vault" ? "You can cancel before funding closes. Afterward, settlement delays can extend the lock." : "Early exercise must be requested before the cutoff. Settlement uses qualifying observations; unavailable references follow the contract’s recovery or refund rules."}</p></details></div>
     <div className="walkthrough">
       <div className="walkthrough-stories">
         {steps.map((step, i) => <article className="walkthrough-step" data-active={visibleActive === i} id={`protection-step-${i + 1}`} key={`${side}-${step.title}`} ref={element => { articles.current[i] = element; }}>

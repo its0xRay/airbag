@@ -11,8 +11,7 @@ export default function ProtectionMechanism({ symbol, quantity, floor, reference
   const units = fromFixed(quantity).toLocaleString(undefined, { maximumFractionDigits: 6 });
   return <div className="protection-mechanism" aria-label={`Hypothetical protection payout for ${units} ${symbol}`}>
     <ProtectionBoundary floor={floor} reference={reference} />
-    <div className="mechanism-payout"><span>Hypothetical payout</span><strong className="mono">{fmtOusd(fromFixed(gross))}</strong></div>
-    <div className="mechanism-range"><span>Payout − premium <strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></span><span>Maximum {fmtOusd(fromFixed(maximum))}</span></div>
-    <p className="mechanism-disclosure">Illustrative payout. Not a quote.</p>
+    <div className="mechanism-outcomes"><div><span>Payout</span><strong className="mono">{fmtOusd(fromFixed(gross))}</strong></div><div><span>After premium</span><strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></div></div><div className="mechanism-range"><span>Maximum payout {fmtOusd(fromFixed(maximum))}</span></div>
+    <p className="mechanism-disclosure">Illustrative payout, excluding token holdings. Not a quote.</p>
   </div>;
 }

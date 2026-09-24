@@ -17,7 +17,7 @@ export default function WalletBar() {
   }
 
   return (
-    <div className="row">
+    <div className="row wallet-controls">
       <span className="pill green mono demo-balance hide-sm">
         {c.tokenBalance.toLocaleString()} oUSD <small>demo</small>
       </span>

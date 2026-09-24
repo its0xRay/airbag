@@ -14,6 +14,7 @@ import RemindersPanel from "./RemindersPanel";
 import { useNowSeconds } from "../useNowSeconds";
 import VaultDepositList from "./VaultDepositList";
 import { repeatPosition, type SimilarTerms } from "../client/repeatPosition";
+import { preferredPositionKind, type PositionKind } from "../client/positionNavigation";
 
 const tok = (v: bigint) => Number(v) / 1e6;
 const qty = (v: bigint) => tok(v).toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -30,9 +31,16 @@ const STATUS_TONE: Record<string, string> = {
 export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: (assetId: number, quantity: number, terms?: SimilarTerms) => void; onProtect: (assetId: number, quantity?: number) => void; target?: PositionTarget | null }) {
   const c = useChain();
   const vaultsEnabled = import.meta.env.VITE_VAULTS_ENABLED === "true";
-  const [kind, setKind] = useState<"floors" | "vaults">(() => !target && vaultsEnabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("positions") === "vaults" ? "vaults" : "floors");
+  const [kindChoice, setKind] = useState<PositionKind | null>(() => {
+    if (target || !vaultsEnabled) return "floors";
+    const params = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+    if (params.has("deposit")) return "vaults";
+    const choice = params.get("positions");
+    return choice === "vaults" || choice === "floors" ? choice : null;
+  });
   const depositTarget = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("deposit") : null;
   const deposits = c.vaultDeposits ?? [];
+  const kind = kindChoice ?? preferredPositionKind(c.contracts, deposits);
   function chooseKind(next: "floors" | "vaults") {
     setKind(next); setView(null); setAssetId(-1);
     const url = new URL(window.location.href);
@@ -43,7 +51,11 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   const [viewChoice, setView] = useState<"active" | "history" | null>(null);
   const targetedPosition = c.contracts.find(k => k.address === target?.address);
   const targetedDeposit = deposits.find(d => d.round.address.toBase58() === depositTarget);
-  const view = viewChoice ?? (kind === "vaults" ? targetedDeposit?.deposit.redeemed ? "history" : "active" : targetedPosition && targetedPosition.status !== "Active" && targetedPosition.status !== "PartiallySettled" ? "history" : "active");
+  const hasOpenFloors = c.contracts.some(k => k.status === "Active" || k.status === "PartiallySettled");
+  const hasOpenDeposits = deposits.some(d => !d.deposit.redeemed);
+  const view = viewChoice ?? (kind === "vaults"
+    ? targetedDeposit ? targetedDeposit.deposit.redeemed ? "history" : "active" : hasOpenDeposits || !deposits.length ? "active" : "history"
+    : targetedPosition ? targetedPosition.status === "Active" || targetedPosition.status === "PartiallySettled" ? "active" : "history" : hasOpenFloors || !c.contracts.length ? "active" : "history");
   const focused = useRef(false);
   useEffect(() => {
     if (!target?.address || focused.current) return;
@@ -76,22 +88,22 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
   return (
     <div className="positions-page">
       <div className="app-page-head">
-        <div><h1>Your positions</h1><p>Track your floors, deposits and settled results.</p></div>
-        <div className="position-create-actions"><a className="btn primary" href="/?side=buyer#protection">Set your floor</a>{vaultsEnabled && <a className="btn ghost" href="/?side=vault#protection">Fund a vault</a>}</div>
+        <div><h1>Your positions</h1></div>
+        <div className="position-create-actions"><a className="btn ghost" href="/?side=buyer#protection">Set your floor</a>{vaultsEnabled && <a className="btn ghost" href="/?side=vault#protection">Fund a vault</a>}</div>
       </div>
 
       {vaultsEnabled && <div className="position-kind-switch" role="group" aria-label="Position type"><button aria-pressed={kind === "floors"} onClick={() => chooseKind("floors")}>Price floors <span>{c.contracts.length}</span></button><button aria-pressed={kind === "vaults"} onClick={() => chooseKind("vaults")}>Vault deposits <span>{deposits.length}</span></button></div>}
 
       <div className="position-toolbar">
         <div className="position-filters" role="group" aria-label="Position status"><button className="btn ghost" aria-pressed={view === "active"} onClick={() => setView("active")}>Active ({activeCount})</button><button className="btn ghost" aria-pressed={view === "history"} onClick={() => setView("history")}>History ({historyCount})</button></div>
-        <div className="position-assets" role="group" aria-label="Filter positions by asset">
+        <details className="position-asset-filter" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}><summary>{assetId < 0 ? "All assets" : asset.symbol}</summary><div className="position-assets" role="group" aria-label="Filter positions by asset" onClick={event => { const menu = event.currentTarget.closest("details"); if (menu) { menu.open = false; menu.querySelector("summary")?.focus(); } }}>
         <button className="btn ghost sm" aria-pressed={assetId < 0} onClick={() => setAssetId(-1)}>All assets</button>
         {VERIFIED_ASSETS.map((a, i) => (
           <button key={a.key} className="btn ghost sm" aria-pressed={i === assetId} onClick={() => setAssetId(i)}>
             {a.symbol}
           </button>
         ))}
-        </div>
+        </div></details>
       </div>
 
 
@@ -134,7 +146,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       </div></details>}
 
       <details className="secondary-tool position-context">
-        <summary>Inspect mainnet token holdings</summary>
+        <summary>Check your token holdings</summary>
         <p>This optional read-only tool can inspect any Solana address. It is separate from the connected Devnet wallet and does not modify a position.</p>
         <HoldingsCard onProtect={onProtect} />
       </details>
@@ -183,7 +195,6 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
             </div>
           </div>
         </div>
-        <a className="pill blue" href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">account ↗</a>
       </div>
 
       {open && <><div className="position-overview">

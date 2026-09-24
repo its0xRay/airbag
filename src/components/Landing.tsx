@@ -34,8 +34,10 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, [vaultsEnabled]);
-  function chooseSide(next: "buyer" | "vault", scroll = false) {
+  function chooseSide(next: "buyer" | "vault", scroll = false, assetId = side === "buyer" ? buyerDraft?.assetId ?? 1 : vaultDraft.asset) {
     if (launching) return;
+    if (next === "vault") setVaultDraft(current => ({ ...current, asset: assetId }));
+    else setBuyerDraft(current => current?.assetId === assetId ? current : { ...current, assetId, seriesId: undefined });
     setSide(next);
     setExplanationSide(next);
     const url = new URL(window.location.href);
@@ -57,15 +59,14 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             <button aria-pressed={side === "buyer"} disabled={launching} onClick={() => chooseSide("buyer")}>Set your floor</button>
             <button aria-pressed={side === "vault"} disabled={launching} onClick={() => chooseSide("vault")}>Fund a vault</button>
           </div>}
-          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { setBuyerDraft({ assetId }); chooseSide("buyer", true); }} /> : <BuyerPanel draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
+          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
         </div>
       </section>
 
       {vaultsEnabled ? <section className="lp-capital-market lp-section" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-market-intro">
           <span className="lp-eyebrow">Why Airbag</span>
-          <h2 className="lp-h2" id="why-protect-title">Two sides.<br /><span className="soft">The same risk.</span></h2>
-          <p className="lp-lede">Holders pay for a floor. Vault depositors fund payouts and share in premiums.</p>
+          <h2 className="lp-h2" id="why-protect-title">A floor for holders.<br /><span className="soft">Premiums for funders.</span></h2>
         </div>
         <div className="lp-market-mechanism">
           <div className="risk-relationship" aria-label="Mechanism: holders pay premiums to a vault; the vault funds contractual payouts to holders.">
@@ -106,7 +107,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
       <ProtectionWalkthrough side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Two assets.<br /><span className="soft">Two ways to participate.</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Two assets.<br /><span className="soft">Two ways to participate.</span></h2><p className="lp-lede">{vaultsEnabled ? "Set a floor or fund a vault for either token." : "Protection follows the traded token price."}</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];

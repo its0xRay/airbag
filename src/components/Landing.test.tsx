@@ -31,7 +31,7 @@ describe("two-sided landing release", () => {
   });
   it("explains capital flow and risk without invented yields or activity", () => {
     const html = render(true);
-    for (const copy of ["Two sides.", "The same risk.", "Contract payouts", "Deposits can lose value.", "Premiums are not guaranteed profit.", "Administrator deposits follow the same"]) expect(html).toContain(copy);
+    for (const copy of ["A floor for holders.", "Premiums for funders.", "Contract payouts", "Deposits can lose value.", "Premiums are not guaranteed profit.", "Administrator deposits follow the same"]) expect(html).toContain(copy);
     expect(html).not.toContain("APY");
     expect(html.match(/id="why-protect"/g)).toHaveLength(1);
     expect(html).not.toContain("Your protection should be too.");
