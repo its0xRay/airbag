@@ -12,10 +12,13 @@ describe("responsive two-sided walkthrough", () => {
     expect(html).not.toContain("walkthrough-inline");
     expect(html).toContain("covered quantity");
   });
-  it("explains depositor locks and losses rather than a buyer-only journey", () => {
+  it("explains depositor mechanics without repeated warnings", () => {
     const html = renderToStaticMarkup(<ProtectionWalkthrough side="vault" vaultsEnabled />);
     expect(html).toContain("Deposit. Back payouts. Withdraw.");
-    expect(html).toContain("Your deposit can lose value");
+    expect(html).not.toContain("can lose value");
+    expect(html).not.toContain("not guaranteed profit");
+    expect(html).not.toContain("no real value");
+    expect(html).toContain("funds stay locked until settlement completes");
     expect(html).toContain("after every obligation resolves");
     expect(html).toContain("Ownership share × remaining balance");
     expect(html).not.toContain("Keep holding");

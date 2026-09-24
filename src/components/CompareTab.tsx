@@ -76,7 +76,7 @@ export default function CompareTab() {
               <div className="kv"><span className="k">Jupiter liquidity</span><span className="v mono">{market.liquidity != null ? fmtUsd(market.liquidity, 0) : "—"}</span></div>
               <div className="kv"><span className="k">Freshness</span><span className="v mono" title={market.updatedAt ? new Date(market.updatedAt).toLocaleString() : undefined}>{market.updatedAt ? fmtAge(Math.floor(new Date(market.updatedAt).getTime() / 1000)) : "—"}</span></div>
               <div className="callout" style={{ marginTop: 14 }}>
-                New protection follows the <strong>{asset.symbol} token market</strong> using a 5-minute median. {equity ? "The stock benchmark is context only. Existing v1 contracts retain benchmark terms." : "The private company valuation is not the reference."}
+                New protection follows the <strong>{asset.symbol} token market</strong> using a 5-minute median. {equity ? "Stock benchmark for comparison. Older contracts retain their original terms." : "The private company valuation is not the reference."}
               </div>
             </>
           )}

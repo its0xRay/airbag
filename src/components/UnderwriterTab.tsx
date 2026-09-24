@@ -14,7 +14,7 @@ export default function UnderwriterTab() {
   return (
     <>
       <div className="app-page-head">
-        <div><div className="card-title">Pool risk & capital</div><h1>Pools</h1><p>Collateral and realized activity come from Devnet pool accounts. Cost assumptions are modelled and are never presented as executed hedges.</p></div>
+        <div><div className="card-title">Pool risk & capital</div><h1>Pools</h1><p>Devnet pool activity. Pricing assumptions shown separately; hedges are not executed.</p></div>
       </div>
 
       {c.publicError && <p className="field-error" role="alert">{c.publicError}</p>}
@@ -61,7 +61,6 @@ export default function UnderwriterTab() {
                 <details><summary>Devnet pool activity</summary><div className="kv"><span className="k">Premium receipts</span><span className="v mono">{fmtOusd(premiums)}</span></div><div className="kv"><span className="k">Gross payouts</span><span className="v mono">{fmtOusd(payouts)}</span></div><div className="kv"><span className="k">Failed-reference refunds</span><span className="v mono">{fmtOusd(refunds)}</span></div><div className="kv"><span className="k">Realized test net</span><span className={"v mono " + (realized >= 0 ? "pos" : "neg")}>{fmtOusd(realized)}</span></div><p className="test-activity-note">Includes intentionally exercised Devnet scenarios and is not representative of expected pool return.</p></details>
                 <details><summary>Pricing assumptions · v{m.version}</summary><div className="kv"><span className="k">Weekly jump and event risk</span><span className="v mono">{m.jumpEventBps} bps</span></div><div className="kv"><span className="k">Early exercise</span><span className="v mono">{m.earlyExerciseBps} bps</span></div><div className="kv"><span className="k">Execution and funding</span><span className="v mono">{m.executionFundingBps} bps</span></div><div className="kv"><span className="k">Operating expense</span><span className="v mono">{m.opsBps} bps</span></div><div className="kv"><span className="k">Capital opportunity cost</span><span className="v mono">{m.capitalCostBps} bps</span></div><div className="kv"><span className="k">Risk allowance</span><span className="v mono">{m.riskAllowanceBps} bps</span></div><div className="kv"><span className="k">Hedge cost assumption</span><span className="v mono">{m.hedgeCostBps} bps</span></div><div className="kv pricing-total"><span className="k">1-week base model load</span><span className="v mono">{baseModelLoad} bps</span></div><div className="kv"><span className="k">Executable hedge</span><span className="v">{m.hedgeAvailable ? "Not executed by Airbag" : "Unavailable"}</span></div></details>
               </div>
-              <p className="disclosure">Lifetime realized activity and current pricing assumptions are shown separately; they are not netted across different accounting periods. Maximum contractual payouts remain fully reserved; realized results depend on each contract’s floor and qualifying settlement reference.</p>
             </section>
           );
         })}

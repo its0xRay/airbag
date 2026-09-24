@@ -87,7 +87,7 @@ Buyer and depositor flows share asset names, selector styling and the selected a
 Expiry choices show their actual dates and remaining duration, not an implied new week.
 The buyer's supporting content is grouped into Holdings, Payout details, and Pricing & settlement.
 Illustrative payout and after-premium values have equal readable hierarchy; slider presets
-sit beneath a full-width slider. The vault amount precedes its lock summary and risk disclosure.
+sit beneath a full-width slider. The vault amount precedes its lock summary.
 Do not restore an Open position / Positions / Vaults navigation row.
 Markets, Pools and Onchain remain secondary destinations under Protocol in the header.
 The public menu contains Why Airbag, How it works and Assets, not Vaults or Onchain proof.
@@ -100,11 +100,11 @@ For the vault release, the supporting line is "Set a downside floor. Or fund pay
 A single selector above the working form switches between Set your floor and Fund a vault. Do not repeat these as hero buttons. Your positions opens the existing buyer-contract and vault-deposit overview.
 Only the selected real form mounts; changing modes preserves configuration but never carries transaction approval.
 The dedicated vault view retains history and management. Wallet connection does not submit a transaction.
-Why Airbag uses a holder-to-vault premium/payout relationship, not a second numbered process. State
-that depositor capital can lose value and premiums are not guaranteed profit.
+Why Airbag uses a holder-to-vault premium/payout relationship, not a second numbered process.
+Explain that the returned deposit may be smaller in deposit review, not repeated landing warnings.
 Gate this positioning with the vault feature itself until the coordinated release.
 Keep the hero free of environment labels; Devnet and oUSD disclosures remain
-in the product, checkout and transaction screens. Keep token-market contract scope in contract
+in the header, buyer checkout and Devnet FAQ. Keep token-market contract scope in contract
 details and holdings calculations, not a repeated hero caveat. The earlier onchain thesis
 supports the Why protect section rather than competing with the hero.
 Show only supported token markets, distinguishing tokenized public equity from
@@ -164,12 +164,12 @@ demo boundary is disclosed everywhere it matters.
 - Active voice, sentence case, no exclamation marks or em dashes in product copy.
 - Supporting text is at least 14px. Keep section labels neutral and consistent.
 - Remove decorative button arrows. Preserve functional disclosure chevrons and mechanism arrows.
-- The environment badge says Devnet, not Devnet demo. Keep oUSD's no-real-value disclosure at transaction points.
+- The environment badge says Devnet, not Devnet demo. Buyer checkout says “oUSD · test token, no monetary value”; keep the fuller explanation in the Devnet FAQ, not repeated receipts and diagrams.
 - Set 12: shorten repeated explanations; preserve unavailable-reference states,
   quote limits, browser-wallet access warnings and irreversible exercise review.
   Normal references show freshness without a redundant "Reference available" label.
-  Label scenarios "Illustrative payout. Not a quote." Keep oUSD's no-real-value
-  disclosure visible at checkout and combined holdings outcomes.
+  Label scenarios "Payout scenario · not a quote". Combined holdings outcomes
+  explain the illustrative 1 oUSD = $1 assumption and are not redeemable value.
 
 ## Rules of thumb
 

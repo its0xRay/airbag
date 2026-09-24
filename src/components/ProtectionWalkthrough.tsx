@@ -13,7 +13,7 @@ const buyerSteps = [
 const vaultSteps = [
   { title: "Deposit", heading: "Choose the risk you fund.", body: "Pick an asset vault and deposit during its funding window. You can cancel before it closes." },
   { title: "Back payouts", heading: "Your capital goes to work.", body: "Capital locks while the round backs positions. Premiums add to the balance; payouts and refunds reduce it." },
-  { title: "Withdraw", heading: "Your share, after settlement.", body: "Withdraw your share of the remaining balance after every obligation resolves. Your deposit can lose value; delays can extend the lock." },
+  { title: "Withdraw", heading: "Your share, after settlement.", body: "Withdraw your share of the remaining balance after every obligation resolves." },
 ] as const;
 const mobileBuyerSteps = [
   { title: "Choose", body: "Pick an asset, quantity, floor and expiry." },
@@ -23,15 +23,14 @@ const mobileBuyerSteps = [
 
 const mobileVaultSteps = [
   { title: "Deposit", body: "Choose a vault and deposit before funding closes." },
-  { title: "Back payouts", body: "Locked capital funds payouts; premiums are not guaranteed profit." },
-  { title: "Withdraw", body: "Withdraw your remaining share after settlement; capital can lose value." },
+  { title: "Back payouts", body: "Locked capital funds payouts." },
+  { title: "Withdraw", body: "Withdraw your remaining share after settlement." },
 ] as const;
 
 function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "vault" }) {
   if (side === "vault") return <div className="mechanism">
     <div className="mechanism-flow"><span>{step === 0 ? "Your test oUSD" : step === 1 ? "Asset-specific vault" : "Round obligations settled"}</span><span className="mechanism-arrow" aria-hidden="true">↓</span><strong>{step === 0 ? "Deposit into a funding round" : step === 1 ? "Capital reserved for buyer payouts" : "Withdraw your share"}</strong></div>
     <div className="mechanism-reserve"><span className="mechanism-label">{step === 0 ? "Before funding closes" : step === 1 ? "Round balance" : "Withdrawal value"}</span><strong>{step === 0 ? "Add or cancel your deposit" : step === 1 ? "Deposits + premiums − payouts − refunds" : "Ownership share × remaining balance"}</strong></div>
-    <p>{step === 0 ? "oUSD has no real value." : step === 1 ? "Premiums are not guaranteed profit." : "Capital can lose value. Settlement delays can extend the lock."}</p>
   </div>;
   return <div className="mechanism">
     {step === 0 && <>
@@ -50,7 +49,6 @@ function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "v
     </>}
     {step === 3 && <>
       <div className="mechanism-flow"><span>Verified settlement reference</span><span className="mechanism-arrow" aria-hidden="true">↓</span><div className="mechanism-formula"><span className="mechanism-label">Contract payout</span><strong>Quantity × max(floor − reference, 0)</strong></div><span className="mechanism-arrow" aria-hidden="true">↓</span><span>Onchain settlement in oUSD</span></div>
-      <p>oUSD is a demo token with no real value.</p>
     </>}
   </div>;
 }
@@ -85,7 +83,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
   return <section className="lp-section lp-light" id="how-it-works">
     <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">{side === "vault" ? "Deposit. Back payouts. Withdraw." : "Choose. Pay once. Keep holding."}</h2></div>
     {vaultsEnabled && <div className="walkthrough-sides" role="group" aria-label="Choose a walkthrough"><button className="btn ghost" aria-pressed={side === "buyer"} onClick={() => onSideChange?.("buyer")}>For holders</button><button className="btn ghost" aria-pressed={side === "vault"} onClick={() => onSideChange?.("vault")}>For depositors</button></div>}
-    <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /><p>{side === "vault" ? "You can cancel before funding closes. Afterward, settlement delays can extend the lock." : "Early exercise must be requested before the cutoff. Settlement uses qualifying observations; unavailable references follow the contract’s recovery or refund rules."}</p></details></div>
+    <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /><p>{side === "vault" ? "Cancel before funding closes. Afterward, funds stay locked until settlement completes." : "Early exercise must be requested before the cutoff. Settlement uses qualifying observations; unavailable references follow the contract’s recovery or refund rules."}</p></details></div>
     <div className="walkthrough">
       <div className="walkthrough-stories">
         {steps.map((step, i) => <article className="walkthrough-step" data-active={visibleActive === i} id={`protection-step-${i + 1}`} key={`${side}-${step.title}`} ref={element => { articles.current[i] = element; }}>

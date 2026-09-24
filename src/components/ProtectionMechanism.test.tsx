@@ -16,7 +16,7 @@ describe("Selected protection mechanism", () => {
     expect(html).toContain("13.00 oUSD");
     expect(html).toContain("215.00 oUSD");
     expect(html).toContain("Hypothetical reference");
-    expect(html).toContain("Illustrative payout, excluding token holdings. Not a quote.");
+    expect(html).toContain("Payout scenario · not a quote");
     expect(html).toContain("After premium");
   });
   it("never implies negative gross payouts above the floor", () => {

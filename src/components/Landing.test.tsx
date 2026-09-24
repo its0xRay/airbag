@@ -36,10 +36,13 @@ describe("two-sided landing release", () => {
     expect(html.match(/>Fund a vault<\/button>/g)).toHaveLength(1);
     expect(html).not.toContain('aria-label="Choose your side"');
   });
-  it("explains capital flow and risk without invented yields or activity", () => {
+  it("explains capital flow without repeated warnings or invented yields", () => {
     const html = render(true);
-    for (const copy of ["A floor for holders.", "Premiums for funders.", "Contract payouts", "Deposits can lose value.", "Premiums are not guaranteed profit.", "Administrator deposits follow the same"]) expect(html).toContain(copy);
+    for (const copy of ["A floor for holders.", "Premiums for funders.", "Contract payouts", "Administrator deposits follow the same"]) expect(html).toContain(copy);
     expect(html).not.toContain("APY");
+    expect(html).not.toContain("Deposits can lose value.");
+    expect(html).not.toContain("Premiums are not guaranteed profit.");
+    expect(html).toContain("oUSD is a test token with no real value or redemption promise.");
     expect(html.match(/id="why-protect"/g)).toHaveLength(1);
     expect(html).not.toContain("Your protection should be too.");
   });

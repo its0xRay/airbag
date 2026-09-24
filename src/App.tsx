@@ -136,7 +136,6 @@ export default function App() {
             <span
               className="pill gray hide-sm"
               style={{ marginLeft: 6 }}
-              title="Demo environment. oUSD has no real value."
             >
               {NETWORK}
             </span>

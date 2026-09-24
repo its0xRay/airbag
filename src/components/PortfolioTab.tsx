@@ -147,7 +147,6 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
 
       <details className="secondary-tool position-context">
         <summary>Check your token holdings</summary>
-        <p>This optional read-only tool can inspect any Solana address. It is separate from the connected Devnet wallet and does not modify a position.</p>
         <HoldingsCard onProtect={onProtect} />
       </details>
       </>}
@@ -203,7 +202,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
         <div><span>Expiry</span><strong>{fmtClock(k.expiryTs)}</strong></div>
       </div>
       <ProtectionBoundary floor={k.strike} compact />
-      <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)} · oUSD has no real value.</p></>}
+      <p className="position-reference">{contractReferenceLabel(k.assetId, k.referenceVersion)}</p></>}
       <details className="position-details" open={!open}><summary>{open ? "Receipts so far" : "Position outcome"}</summary>
         <div className="receipt-metrics">
           <div><span>Premium paid</span><strong className="mono">{fmtOusd(tok(k.premiumPaid))}</strong></div>
@@ -211,7 +210,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
           <div><span>Premium refunded</span><strong className="mono">{outcome ? fmtOusd(tok(outcome.refund)) : "Not loaded"}</strong></div>
           {outcome?.closed && <div><span>Net contract result</span><strong className="mono">{fmtOusd(tok(outcome.payout + outcome.refund - k.premiumPaid - k.feesPaid))}</strong></div>}
         </div>
-        <p className="disclosure">{outcome ? "Confirmed test-token amounts; excludes changes in holdings and network fees." : "Complete settlement records are not loaded. Refresh to reconcile the outcome."}</p>
+        <p className="disclosure">{outcome ? "Contract result only. Excludes holdings and network fees." : "Complete settlement records are not loaded. Refresh to reconcile the outcome."}</p>
         {!outcome && <button className="btn ghost" disabled={c.refreshing || c.busy} onClick={() => void c.refresh()}>Refresh receipts</button>}
       </details>
       {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry or request early exercise.</p>}
@@ -242,10 +241,10 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
             </button>
           </div>
           {exQty !== "" && !valid && <p id={`exercise-help-${k.address}`} className="field-error">Enter up to {qty(k.remainingQuantity)} tokens, with at most six decimal places.</p>}
-          {reviewQuantity === amount && valid && <div className="purchase-review" role="status"><strong>Exercise {amount} {asset.symbol}</strong><p>{qty(k.remainingQuantity - BigInt(Math.round(amount * 1e6)))} units remain protected. The requested quantity settles against a future qualifying reference, not the currently displayed price. The payout is not fixed now.</p><p>This request cannot be cancelled after submission. Remaining time value on the exercised quantity is forfeited.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setReviewQuantity(null)}>Cancel review</button></div>}
-          {!(reviewQuantity === amount && valid) && <div className="disclosure" style={{ marginTop: 8 }}>
-            Early exercise is irreversible and forfeits remaining time value. Payout uses a future qualifying reference.
-          </div>}
+          {reviewQuantity === amount && valid && <div className="purchase-review" role="status"><strong>Exercise {amount} {asset.symbol}</strong><p>{qty(k.remainingQuantity - BigInt(Math.round(amount * 1e6)))} units remain protected. Payout uses the reference after your request, not the current price.</p><button className="btn ghost sm" disabled={c.busy} onClick={() => setReviewQuantity(null)}>Cancel review</button></div>}
+          <div className="disclosure" style={{ marginTop: 8 }}>
+            Exercise cannot be cancelled and forfeits remaining time value.
+          </div>
           {exerciseTx && (
             <div className="callout" role="status" style={{ marginTop: 10 }}>
               Exercise request confirmed onchain · <a className="mono" href={explorerUrl("tx", exerciseTx)} target="_blank" rel="noreferrer">{exerciseTx.slice(0, 16)}… ↗</a>. Track settlement in the execution receipt.
@@ -276,7 +275,6 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
         <div><div className="stat-label">Original quantity</div><div className="stat-value sm mono">{qty(k.originalQuantity)}</div></div>
       </div>
 
-      <p className="disclosure">Recorded on Devnet · oUSD has no real value.</p>
       {k.vaultRound && <div className="kv"><span>Backing vault</span><a href={explorerUrl("address", k.vaultRound)} target="_blank" rel="noreferrer">Inspect round ↗</a></div>}
       <div className="contract-lifecycle" aria-label={`Contract ${k.contractId.toString()} lifecycle`}>
         <div className="lifecycle-row">
@@ -328,7 +326,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
           <a href={explorerUrl("tx", receipt.signature)} target="_blank" rel="noreferrer">Verify expiry settlement ↗</a>
         </div>;
       })()}
-      <p className="disclosure">Contract status: {k.status}. Receipt amounts come from confirmed accounts and program events, not projected returns.</p>
+      <p className="disclosure">Contract status: {k.status}.</p>
       <div className="lifecycle-transactions">{c.history.filter(entry => entry.contractId === k.contractId && !requests.some(request => c.requestTransactions[request.address]?.some(transaction => transaction.signature === entry.signature))).map(entry => <a key={entry.signature} href={explorerUrl("tx", entry.signature)} target="_blank" rel="noreferrer">{entry.err ? "Failed transaction" : entry.action} · <span className="mono">{entry.signature.slice(0, 10)}…</span> ↗</a>)}</div>
       <a href={explorerUrl("address", k.address)} target="_blank" rel="noreferrer">Verify contract account ↗</a>
       </details>

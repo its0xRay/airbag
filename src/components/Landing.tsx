@@ -75,7 +75,6 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             <div className="risk-exchange"><span>Premiums <b aria-hidden="true">→</b></span><span><b aria-hidden="true">←</b> Contract payouts</span></div>
             <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Separate vaults for each asset.</p></div>
           </div>
-          <p className="lp-market-risk">Deposits can lose value. Premiums are not guaranteed profit.</p>
         </div>
       </section> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
@@ -114,7 +113,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             const asset = VERIFIED_ASSETS[id];
             return <article className="lp-reference-card" key={asset.key}>
               <div className="lp-reference-card-head"><div className="row"><AssetLogo asset={asset} /><div><span className="lp-reference-kind">{id === 0 ? "xStock" : "PreStocks"}</span><h3>{asset.symbol}</h3></div></div></div>
-              <p className="lp-reference-summary">{id === 0 ? "Protection against NVDAx token-price declines, including discounts to NVIDIA’s stock price." : "Protection for Anthropic PreStocks’ traded token price. Not direct ownership of Anthropic shares or protection of its private valuation."}</p>
+              <p className="lp-reference-summary">{id === 0 ? "Protection against NVDAx token-price declines, including discounts to NVIDIA’s stock price." : "Protection for Anthropic PreStocks’ traded token price. Tracks the token price, not Anthropic shares or company valuation."}</p>
             </article>;
           })}
         </div>
@@ -127,7 +126,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             <h2 className="lp-h2">Visible terms.<br /><span className="soft">Verifiable execution.</span></h2><p className="lp-lede">Inspect the terms, reserves and settlement records on Solana Devnet.</p>
           </div>
           <div className="lp-faq">
-            <details><summary>How are payouts funded?</summary><p>Maximum contractual payout is fully reserved onchain when protection is purchased. Reserves are held in oUSD, a demo token with no real value.</p></details>
+            <details><summary>How are payouts funded?</summary><p>Maximum contractual payout is fully reserved onchain when protection is purchased.</p></details>
             {vaultsEnabled && <details><summary>How do vault deposits work?</summary><p>Deposit during a round’s funding window. After it closes, your ownership share is fixed and capital is locked until all obligations settle. Premiums increase the round’s balance; payouts and refunds reduce it. Administrator deposits follow the same proportional ownership and redemption rules.</p></details>}
             <details id="reference-rules"><summary>How is the reference verified?</summary><p>The authorized publisher submits external observations. The program checks timing, sample count and ordering, then calculates the median. The publisher remains a trust dependency.</p></details>
             <details><summary>What if a reference is unavailable?</summary><p>No price is invented. Failed exercise returns the requested quantity to coverage; invalid expiry follows the premium-refund rule.</p></details>
@@ -142,7 +141,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </nav>
       </section>
 
-      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top</a></footer>
+      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet</span><a href="#product">Back to top</a></footer>
     </main>
   );
 }
