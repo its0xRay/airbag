@@ -103,6 +103,10 @@ The dedicated vault view retains history and management. Wallet connection does 
 Why Airbag uses a holder-to-vault premium/payout relationship, not a second numbered process.
 Explain that the returned deposit may be smaller in deposit review, not repeated landing warnings.
 Gate this positioning with the vault feature itself until the coordinated release.
+Why Airbag uses two fixed directional rails: premiums to the vault, payouts back
+to holders when the floor pays. A short yellow trace runs once on entry; it is
+an explanation, never live activity. Text stays stationary. Mobile rails run
+vertically; reduced motion keeps the complete static diagram.
 Keep the hero free of environment labels; Devnet and oUSD disclosures remain
 in the header, buyer checkout and Devnet FAQ. Keep token-market contract scope in contract
 details and holdings calculations, not a repeated hero caveat. The earlier onchain thesis

@@ -1,0 +1,46 @@
+.risk-relationship.capital-flow {
+  grid-template-columns: minmax(0, 1fr) minmax(200px, .9fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+}
+.capital-paths { align-self: center; display: grid; gap: 32px; padding-inline: 8px; }
+.capital-path-label { color: var(--text); font-size: 15px; line-height: 1.5; }
+.capital-path-label small { display: block; color: var(--text-dim); font-size: 14px; }
+.capital-rail { position: relative; height: 2px; margin-top: 16px; background: var(--border-strong); }
+.capital-arrow { position: absolute; right: 0; top: -4px; width: 10px; height: 10px; border-top: 1px solid var(--text); border-right: 1px solid var(--text); transform: rotate(45deg); }
+.capital-payout .capital-arrow { right: auto; left: 0; transform: rotate(-135deg); }
+.capital-pulse { position: absolute; inset: -1px auto auto 0; width: 20%; height: 4px; background: var(--accent); opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .capital-flow[data-entered="true"] .capital-premium .capital-pulse { animation: premium-trace 800ms 200ms cubic-bezier(.4,0,.2,1) both; }
+  .capital-flow[data-entered="true"] .capital-payout .capital-pulse { animation: payout-trace 800ms 1100ms cubic-bezier(.4,0,.2,1) both; }
+}
+@keyframes premium-trace {
+  0% { transform: translateX(0); opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { transform: translateX(400%); opacity: 0; }
+}
+@keyframes payout-trace {
+  0% { transform: translateX(400%); opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { transform: translateX(0); opacity: 0; }
+}
+@media (max-width: 800px) {
+  .risk-relationship.capital-flow { grid-template-columns: 1fr; gap: 24px; }
+  .capital-paths { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 0; }
+  .capital-path { display: flex; align-items: center; gap: 16px; }
+  .capital-path-label { flex: 1; }
+  .capital-rail { flex: 0 0 2px; height: 64px; margin: 0 4px; }
+  .capital-arrow { right: -4px; top: auto; bottom: 0; transform: rotate(135deg); }
+  .capital-payout .capital-arrow { left: -4px; top: 0; bottom: auto; transform: rotate(-45deg); }
+  .capital-pulse { width: 4px; height: 20%; top: 0; left: -1px; }
+  @keyframes premium-trace {
+    0% { transform: translateY(0); opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { transform: translateY(400%); opacity: 0; }
+  }
+  @keyframes payout-trace {
+    0% { transform: translateY(400%); opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { transform: translateY(0); opacity: 0; }
+  }
+}

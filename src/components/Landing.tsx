@@ -1,4 +1,5 @@
 import ProtectionWalkthrough from "./ProtectionWalkthrough";
+import CapitalFlow, { CapitalFlowPaths } from "./CapitalFlow";
 import ProtectTab from "./ProtectTab";
 import AssetLogo from "./AssetLogo";
 import { VERIFIED_ASSETS } from "../data/assets";
@@ -70,11 +71,11 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
           <h2 className="lp-h2" id="why-protect-title">A floor for holders.<br /><span className="soft">Premiums for funders.</span></h2>
         </div>
         <div className="lp-market-mechanism">
-          <div className="risk-relationship" aria-label="Mechanism: holders pay premiums to a vault; the vault funds contractual payouts to holders.">
+          <CapitalFlow>
             <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your tokens. <br />Set a floor.</h3><p>One premium. No buyer margin calls.</p></div>
-            <div className="risk-exchange"><span>Premiums <b aria-hidden="true">→</b></span><span><b aria-hidden="true">←</b> Contract payouts</span></div>
+            <CapitalFlowPaths />
             <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Separate vaults for each asset.</p></div>
-          </div>
+          </CapitalFlow>
         </div>
       </section> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">

@@ -38,7 +38,7 @@ describe("two-sided landing release", () => {
   });
   it("explains capital flow without repeated warnings or invented yields", () => {
     const html = render(true);
-    for (const copy of ["A floor for holders.", "Premiums for funders.", "Contract payouts", "Administrator deposits follow the same"]) expect(html).toContain(copy);
+    for (const copy of ["A floor for holders.", "Premiums for funders.", "When the floor pays", "Administrator deposits follow the same"]) expect(html).toContain(copy);
     expect(html).not.toContain("APY");
     expect(html).not.toContain("Deposits can lose value.");
     expect(html).not.toContain("Premiums are not guaranteed profit.");
