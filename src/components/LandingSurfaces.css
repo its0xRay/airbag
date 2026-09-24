@@ -1,0 +1,72 @@
+/* Scoped reading surfaces. Execution screens retain the existing dark palette. */
+.lp-light {
+  --bg: #f5f5f2;
+  --bg-elev: #ffffff;
+  --bg-elev2: #e8e9e5;
+  --text: #0a0e14;
+  --text-dim: #505660;
+  --text-faint: #606670;
+  --border: #d0d3d5;
+  --border-strong: #7d838b;
+  --blue: #254f91;
+  position: relative;
+  isolation: isolate;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Paint beyond the content gutter without widening the page or clipping sticky
+   diagrams/focus rings. Only the decorative pseudo-element is clipped. */
+.lp-light::before {
+  content: "";
+  position: absolute;
+  inset: -1px 0;
+  z-index: -1;
+  background: var(--bg);
+  box-shadow: 0 0 0 100vmax var(--bg);
+  clip-path: inset(0 -100vmax);
+  pointer-events: none;
+}
+.lp-light .soft { color: var(--text-dim); }
+.lp-light .walkthrough-sides .btn { border-color: var(--border-strong); }
+.lp-light :is(a, button, summary):focus-visible { outline-color: var(--text); }
+.lp-light .lp-proof-strip :is(a, button):hover strong {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.lp-light .risk-party-icon {
+  color: var(--accent-foreground);
+  background: var(--accent);
+  border-color: transparent;
+}
+.lp-light .risk-exchange b { color: var(--text); }
+.lp-light .walkthrough-step[data-active="true"] .walkthrough-step-label .mono {
+  color: var(--accent-foreground);
+  background: var(--accent);
+  border-radius: 4px;
+  padding-inline: 4px;
+  margin-inline: -4px;
+}
+
+/* Dark diagrams remain a consistent visual language inside the light chapter,
+   including the expandable mobile mechanics and the buyer-only fallback. */
+.lp-light :is(.walkthrough-visual, .walkthrough-mobile .mechanism, .lp-ownership-art) {
+  --bg: #0a0e14;
+  --bg-elev: #111722;
+  --bg-elev2: #161d2b;
+  --text: #e6edf6;
+  --text-dim: #9aa9bd;
+  --text-faint: #7d8da3;
+  --border: #222c3d;
+  --border-strong: #33405a;
+  color: var(--text);
+  background: var(--bg-elev);
+}
+.lp-light .walkthrough-visual a:focus-visible { outline-color: var(--accent); }
+.lp-light .walkthrough-mobile .mechanism {
+  padding: 24px 16px;
+  margin-bottom: 20px;
+  border-radius: var(--radius);
+}
+.lp-light .lp-ownership-art { border-radius: var(--radius-sm); }

@@ -7,6 +7,16 @@ Design tokens live in `src/index.css` under `:root`.
 
 Dark-first, cool-gray temperature. Surfaces get lighter as they elevate.
 
+The landing page uses grouped light reading sections, not a theme toggle.
+Hero and real floor/vault workspace stay dark. Why Airbag and How it works share
+an off-white chapter; supported markets return to dark. FAQ and verification are
+off-white, followed by the dark footer. All transactional screens remain dark.
+`LandingSurfaces.css` scopes light tokens: base `#f5f5f2`, raised `#ffffff`,
+hover `#e8e9e5`, text `#0a0e14`, secondary `#505660`, tertiary `#606670`.
+Keep yellow `#ffdc00` as a fill behind dark labels, never yellow text or a yellow
+focus ring on off-white. Light sections use dark focus outlines and underlined
+link hover states. Mechanism diagrams remain dark inset panels, including mobile.
+
 | Token | Value | Use |
 |---|---|---|
 | `--bg` | `#0a0e14` | Page base (with a soft radial wash) |

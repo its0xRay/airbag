@@ -11,6 +11,13 @@ const render = (enabled?: boolean) => renderToStaticMarkup(<Landing vaultsEnable
 afterEach(() => vi.unstubAllGlobals());
 
 describe("two-sided landing release", () => {
+  it("keeps execution and markets dark while grouping explanatory light surfaces", () => {
+    const html = render(true);
+    expect(html).toContain('class="lp-capital-market lp-section lp-light"');
+    expect(html).toContain('class="lp-section lp-verification lp-light"');
+    expect(html).toContain('class="lp-hero lp-product-hero"');
+    expect(html).toContain('class="lp-section" id="assets"');
+  });
   it("keeps unreleased vault claims and entry points out of the default page", () => {
     const html = render();
     expect(html).not.toContain("Fund a vault");

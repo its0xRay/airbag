@@ -8,6 +8,7 @@ import type { ProtectDraft } from "../App";
 import { useEffect, useState } from "react";
 import VaultsTab, { type VaultDraft } from "./VaultsTab";
 import "./LandingWorkspace.css";
+import "./LandingSurfaces.css";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
 
@@ -63,7 +64,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
       </section>
 
-      {vaultsEnabled ? <section className="lp-capital-market lp-section" id="why-protect" aria-labelledby="why-protect-title">
+      {vaultsEnabled ? <section className="lp-capital-market lp-section lp-light" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-market-intro">
           <span className="lp-eyebrow">Why Airbag</span>
           <h2 className="lp-h2" id="why-protect-title">A floor for holders.<br /><span className="soft">Premiums for funders.</span></h2>
@@ -76,7 +77,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
           </div>
           <p className="lp-market-risk">Deposits can lose value. Premiums are not guaranteed profit.</p>
         </div>
-      </section> : <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
+      </section> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
           <span className="lp-eyebrow">Why Airbag</span>
           <h2 className="lp-h2" id="why-protect-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h2>
@@ -120,7 +121,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         <div className="lp-note"><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets</button></div>
       </section>
 
-      <section className="lp-section lp-verification" id="onchain-proof">
+      <section className="lp-section lp-verification lp-light" id="onchain-proof">
         <div className="lp-proof-layout">
           <div className="lp-evidence">
             <h2 className="lp-h2">Visible terms.<br /><span className="soft">Verifiable execution.</span></h2><p className="lp-lede">Inspect the terms, reserves and settlement records on Solana Devnet.</p>
