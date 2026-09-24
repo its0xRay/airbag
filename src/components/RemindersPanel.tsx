@@ -62,8 +62,8 @@ export default function RemindersPanel({ onRenew }: { onRenew: (assetId: number,
       {tracked.map((k) => <Row key={k.address} k={k} tracking />)}
       {soon.length > 0 && (
         <>
-          <div className="faint" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", margin: "12px 0 4px" }}>
-            Expiring soon — no reminder set
+          <div className="faint" style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", margin: "12px 0 4px" }}>
+            Expiring soon. No reminder set
           </div>
           {soon.map((k) => <Row key={k.address} k={k} tracking={false} />)}
         </>

@@ -123,7 +123,7 @@ export default function App() {
               style={{ marginLeft: 6 }}
               title="Demo environment. oUSD has no real value."
             >
-              {NETWORK} demo
+              {NETWORK}
             </span>
           )}
         </button>
@@ -138,7 +138,7 @@ export default function App() {
               {VAULTS_ENABLED && <button className="text-action" onClick={() => goTo("vaults")}>Vaults</button>}
             </nav>
             <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a,button")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Airbag</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a>{VAULTS_ENABLED && <button className="text-action" onClick={() => goTo("vaults")}>Vaults</button>}</nav></details>
-            {connected ? <button className="btn ghost" onClick={() => goTo(VAULTS_ENABLED && new URLSearchParams(window.location.search).get("side") === "vault" ? "vaults" : useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app →</button> : <a className="btn ghost" href="#protection">Get started ↓</a>}
+            {connected && <button className="btn ghost" onClick={() => goTo("portfolio")}>Your positions</button>}
           </>
         ) : (
           <WalletBar />
@@ -160,7 +160,7 @@ export default function App() {
           ))}
           {VAULTS_ENABLED && <button className={"tab" + (tab === "vaults" ? " active" : "")} aria-current={tab === "vaults" ? "page" : undefined} onClick={() => goTo("vaults")}>Vaults</button>}
           <details className="protocol-menu" ref={protocolMenu} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }} onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
-            <summary className={"tab" + (TABS.slice(2).some(([t]) => t === tab) ? " active" : "")}>Protocol <span aria-hidden="true">⌄</span></summary>
+            <summary className={"tab" + (TABS.slice(2).some(([t]) => t === tab) ? " active" : "")}>Protocol <svg className="ui-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></summary>
             <div className="protocol-options">{TABS.slice(2).map(([t, label]) => <button key={t} onClick={() => goTo(t)} aria-current={tab === t ? "page" : undefined}>{label}</button>)}</div>
           </details>
         </nav>

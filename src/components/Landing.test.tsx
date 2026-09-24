@@ -19,12 +19,15 @@ describe("two-sided landing release", () => {
   });
   it("introduces both sides without replacing the buyer workflow", () => {
     const html = render(true);
-    expect(html).toContain("Set a downside floor—or back it and share in premiums.");
+    expect(html).toContain("Set a downside floor. Or fund payouts and share in premiums.");
     expect(html).toContain('id="protection"');
     expect(html).toContain('aria-label="Choose your Airbag flow"');
     expect(html).toContain("Fund a vault");
     expect(html).toContain("actual-protect-workspace");
     expect(html).toContain("Buyer walkthrough");
+    expect(html.match(/>Set your floor<\/button>/g)).toHaveLength(1);
+    expect(html.match(/>Fund a vault<\/button>/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-label="Choose your side"');
   });
   it("explains capital flow and risk without invented yields or activity", () => {
     const html = render(true);

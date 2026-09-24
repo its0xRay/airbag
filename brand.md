@@ -73,8 +73,8 @@ available alongside active coverage.
 
 Lead with the category headline: "Risk management for tokenized equities."
 "Keep the upside. Define your downside." is the single supporting line.
-For the vault release, the supporting line is "Set a downside floor—or back it and share in premiums."
-Both hero actions select and scroll to one shared workspace, with Set your floor and Fund a vault modes.
+For the vault release, the supporting line is "Set a downside floor. Or fund payouts and share in premiums."
+A single selector above the working form switches between Set your floor and Fund a vault. Do not repeat these as hero buttons. Your positions opens the existing buyer-contract and vault-deposit overview.
 Only the selected real form mounts; changing modes preserves configuration but never carries transaction approval.
 The dedicated vault view retains history and management. Wallet connection does not submit a transaction.
 Why Airbag uses a holder-to-vault premium/payout relationship, not a second numbered process. State
@@ -136,13 +136,16 @@ Plain, precise, and **honest about limits**. This product protects money, and th
 demo boundary is disclosed everywhere it matters.
 
 - Say what a thing is: "Settles onchain against a live Jupiter median."
-- Name the boundary rather than burying it: "Demo tokens — no redemption promise."
+- Name the boundary rather than burying it: "Demo tokens. No redemption promise."
 - Never imply an indicative price is executable, or that a simulated value is settled.
-- Active voice, sentence case, no exclamation marks.
+- Active voice, sentence case, no exclamation marks or em dashes in product copy.
+- Supporting text is at least 14px. Keep section labels neutral and consistent.
+- Remove decorative button arrows. Preserve functional disclosure chevrons and mechanism arrows.
+- The environment badge says Devnet, not Devnet demo. Keep oUSD's no-real-value disclosure at transaction points.
 - Set 12: shorten repeated explanations; preserve unavailable-reference states,
   quote limits, browser-wallet access warnings and irreversible exercise review.
   Normal references show freshness without a redundant "Reference available" label.
-  Label scenarios "Illustrative payout—not a quote." Keep oUSD's no-real-value
+  Label scenarios "Illustrative payout. Not a quote." Keep oUSD's no-real-value
   disclosure visible at checkout and combined holdings outcomes.
 
 ## Rules of thumb

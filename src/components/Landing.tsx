@@ -50,11 +50,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
           <h1 className="lp-title"><span className="hero-accent">Risk management</span><br />for tokenized equities.</h1>
-          <p className="lp-hero-tagline">{vaultsEnabled ? "Set a downside floor—or back it and share in premiums." : "Keep the upside. Define your downside."}</p>
-          {vaultsEnabled && <nav className="lp-market-actions" aria-label="Choose your side">
-            <button className="btn primary" disabled={launching} onClick={() => chooseSide("buyer", true)}>Set your floor <span aria-hidden="true">↓</span></button>
-            <button className="btn ghost" disabled={launching} onClick={() => chooseSide("vault", true)}>Fund a vault <span aria-hidden="true">↓</span></button>
-          </nav>}
+          <p className="lp-hero-tagline">{vaultsEnabled ? "Set a downside floor. Or fund payouts and share in premiums." : "Keep the upside. Define your downside."}</p>
         </div>
         <div id="protection" className="landing-workspace">
           {vaultsEnabled && <div className="workspace-modes" role="group" aria-label="Choose your Airbag flow">
@@ -73,9 +69,9 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
         <div className="lp-market-mechanism">
           <div className="risk-relationship" aria-label="Mechanism: holders pay premiums to a vault; the vault funds contractual payouts to holders.">
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true">↗</span><span className="lp-eyebrow">For holders</span><h3>Keep your tokens. <br />Set a floor.</h3><p>One premium. No buyer margin calls.</p></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your tokens. <br />Set a floor.</h3><p>One premium. No buyer margin calls.</p></div>
             <div className="risk-exchange"><span>Premiums <b aria-hidden="true">→</b></span><span><b aria-hidden="true">←</b> Contract payouts</span></div>
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true">▱</span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Separate vaults for each asset.</p></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Separate vaults for each asset.</p></div>
           </div>
           <p className="lp-market-risk">Deposits can lose value. Premiums are not guaranteed profit.</p>
         </div>
@@ -110,7 +106,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
       <ProtectionWalkthrough side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} onStart={() => chooseSide(explanationSide, true)} />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Two assets.<br /><span className="soft">{vaultsEnabled ? "Two ways to participate." : "One protection workflow."}</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Supported<br /><span className="soft">token markets.</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
@@ -120,7 +116,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             </article>;
           })}
         </div>
-        <div className="lp-note"><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets →</button></div>
+        <div className="lp-note"><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets</button></div>
       </section>
 
       <section className="lp-section lp-verification" id="onchain-proof">
@@ -138,13 +134,13 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
         <nav className="lp-proof-strip" aria-label="Protocol evidence">
           <a href={explorerUrl("address", OPTKET_PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer"><strong>Onchain program</strong><small>Inspect the deployment ↗</small></a>
-          <button onClick={() => onLaunch(vaultsEnabled ? "vaults" : "underwriter")}><strong>{vaultsEnabled ? "Vault capital" : "Reserved collateral"}</strong><small>{vaultsEnabled ? "Inspect funding & ownership →" : "Inspect pool funding →"}</small></button>
-          <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><strong>Reference rules</strong><small>Understand settlement ↑</small></a>
-          <button onClick={() => onLaunch("history")}><strong>Transaction history</strong><small>Inspect actual activity →</small></button>
+          <button onClick={() => onLaunch(vaultsEnabled ? "vaults" : "underwriter")}><strong>{vaultsEnabled ? "Vault capital" : "Reserved collateral"}</strong><small>{vaultsEnabled ? "View funding and ownership" : "View pool funding"}</small></button>
+          <a href="#reference-rules" onClick={() => { const rules = document.getElementById("reference-rules"); if (rules instanceof HTMLDetailsElement) rules.open = true; }}><strong>Reference rules</strong><small>Understand settlement</small></a>
+          <button onClick={() => onLaunch("history")}><strong>Transaction history</strong><small>View transactions</small></button>
         </nav>
       </section>
 
-      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top ↑</a></footer>
+      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet · oUSD has no real value</span><a href="#product">Back to top</a></footer>
     </main>
   );
 }

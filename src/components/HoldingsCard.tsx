@@ -59,10 +59,10 @@ export default function HoldingsCard({ onProtect }: { onProtect?: (assetId: numb
   return (
     <div className="card" style={{ marginBottom: 14 }}>
       <div className="between" style={{ marginBottom: 4 }}>
-        <div className="card-title" style={{ margin: 0 }}>Real holdings — Solana mainnet</div>
+        <div className="card-title" style={{ margin: 0 }}>Real holdings · Solana mainnet</div>
         <span className="pill blue">read-only</span>
       </div>
-      <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>
+      <div className="faint" style={{ fontSize: 14, marginBottom: 14 }}>
         Look up any wallet's actual balance of the verified assets. Raw Token-2022 amounts are
         converted to share-equivalents using the token’s current scaled-balance multiplier.
       </div>
@@ -137,7 +137,7 @@ export default function HoldingsCard({ onProtect }: { onProtect?: (assetId: numb
 
           {rows.every((r) => r.holdings && r.holdings.displayed === 0) && (
             <div className="disclosure" style={{ marginTop: 12 }}>
-              This wallet holds neither asset. That's expected for most wallets — try one that
+              This wallet holds neither asset. That's expected for most wallets. Try one that
               holds NVDAx or Anthropic PreStocks, or just enter a quantity manually in Open position.
             </div>
           )}

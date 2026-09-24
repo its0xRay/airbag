@@ -35,7 +35,7 @@ function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "v
     {step === 1 && <>
       <div className="mechanism-flow"><span>One premium</span><span className="mechanism-arrow" aria-hidden="true">↓</span><strong>Protection contract</strong></div>
       <div className="mechanism-reserve"><span className="mechanism-label">Pool collateral</span><strong>Maximum payout reserved</strong><div className="mechanism-reserve-line" aria-hidden="true" /></div>
-      <p>The pool funds the reserve—not buyer margin.</p>
+      <p>The pool supplies the reserve. No buyer margin.</p>
     </>}
     {step === 2 && <>
       <div className="mechanism-hold"><div className="mechanism-wallet"><span className="mechanism-label">Your wallet</span><div className="mechanism-assets">{VERIFIED_ASSETS.map(asset => <AssetLogo key={asset.key} asset={asset} />)}</div><strong>Underlying tokens</strong></div><span className="mechanism-plus" aria-hidden="true">+</span><div className="mechanism-separate"><span className="mechanism-label">Alongside it</span><strong>Protection contract</strong></div></div>
@@ -81,7 +81,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
   const visibleActive = Math.min(active, steps.length - 1);
 
   return <section className="lp-section" id="how-it-works">
-    <div className="lp-section-head"><div className="lp-kicker">How it works</div><h2 className="lp-h2">{side === "vault" ? "Deposit. Back payouts. Withdraw." : "Choose. Pay once. Keep holding."}</h2></div>
+    <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">{side === "vault" ? "Deposit. Back payouts. Withdraw." : "Choose. Pay once. Keep holding."}</h2></div>
     {vaultsEnabled && <div className="walkthrough-sides" role="group" aria-label="Choose a walkthrough"><button className="btn ghost" aria-pressed={side === "buyer"} onClick={() => onSideChange?.("buyer")}>For holders</button><button className="btn ghost" aria-pressed={side === "vault"} onClick={() => onSideChange?.("vault")}>For depositors</button></div>}
     <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /></details></div>
     <div className="walkthrough">
@@ -98,6 +98,6 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
         <nav className="walkthrough-nav" aria-label="Jump to an explanation">{steps.map((step, i) => <a key={step.title} href={`#protection-step-${i + 1}`} aria-label={`${i + 1}. ${step.title}`} aria-current={visibleActive === i ? "step" : undefined}>0{i + 1}</a>)}</nav>
       </aside>
     </div>
-    <a className="lp-text-link" href="#protection" onClick={onStart}>{side === "vault" ? "Fund a vault" : "Set your floor"} ↑</a>
+    <a className="lp-text-link" href="#protection" onClick={onStart}>{side === "vault" ? "Fund a vault" : "Set your floor"}</a>
   </section>;
 }

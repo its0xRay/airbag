@@ -95,7 +95,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
       {c.contracts.length > 0 && <details className="secondary-tool position-context"><summary>Expiry reminders</summary><RemindersPanel onRenew={onRenew} /></details>}
 
       {hasCoverageData && <details className="secondary-tool position-context"><summary>Coverage and holdings comparison</summary><div className="card">
-        <div className="card-title">Coverage tracker — {asset.symbol}</div>
+        <div className="card-title">Coverage tracker · {asset.symbol}</div>
         <div className="grid cols-3">
           <div><div className="stat-label">Holdings (read-only)</div><div className="stat-value sm mono">{held ? held.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "—"}</div></div>
           <div><div className="stat-label">Active protected</div><div className="stat-value sm mono pos">{qty(activeProtected)}</div></div>
@@ -114,7 +114,7 @@ export default function PortfolioTab({ onRenew, onProtect, target }: { onRenew: 
           <div><div className="stat-label">Protected more than held</div><div className={"stat-value sm mono " + (excess > 0 ? "neg" : "")}>{excess.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div></div>
         </div>
         <div className="disclosure" style={{ marginTop: 10 }}>
-          Informational only — the tracker never modifies contracts. Use the optional wallet inspector below to compare
+          Informational only. The tracker never modifies contracts. Use the optional wallet inspector below to compare
           against real {asset.symbol} holdings.
         </div>
       </div></details>}
@@ -194,7 +194,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
       {open && beforeCutoff && k.remainingQuantity > 0n && <p className="position-next-step">Hold to expiry or request early exercise.</p>}
       {k.pendingQuantity > 0n && (
         <div className="callout" style={{ marginTop: 12 }}>
-          {qty(k.pendingQuantity)} pending — the keeper settles it against the next qualifying
+          {qty(k.pendingQuantity)} pending. The keeper settles it against the next qualifying
           reference and pays intrinsic value automatically.
         </div>
       )}
@@ -236,7 +236,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
 
       {open && expired && k.pendingQuantity === 0n && (
         <div className="disclosure" style={{ marginTop: 12 }}>
-          Past expiry — the keeper settles remaining quantity automatically, or applies the contractual
+          Past expiry. The keeper settles remaining quantity automatically, or applies the contractual
           failed-reference refund if no qualifying reference exists.
         </div>
       )}

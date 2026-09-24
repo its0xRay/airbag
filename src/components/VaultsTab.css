@@ -18,6 +18,11 @@
 .vault-round-history .field { max-width:480px; margin-top:16px; }
 .vaults-page summary { min-height:44px; align-content:center; }
 .vaults-page .vault-lock-summary { color:var(--text); }
+.vault-lock-summary { display:grid; gap:12px; margin:0 0 16px; font-size:15px; }
+.vault-lock-summary > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; }
+.vault-lock-summary dt { color:var(--text-dim); }
+.vault-lock-summary dd { margin:0; font-variant-numeric:tabular-nums; }
+.vault-round-header h2 { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
 .vault-asset-option:disabled { cursor:wait; opacity:.65; }
 .vault-capital { min-width: 0; padding-top: 16px; }
 .vault-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-bottom: 24px; }
@@ -61,7 +66,7 @@
   .vault-next-round { flex-direction: column; align-items: start; }
   .vaults-page { padding: 0 16px 32px; }
   .vault-workspace { grid-template-columns: 1fr; gap: 24px; }
-  .vault-asset-option { padding: 16px; gap: 12px; align-items: flex-start; }
+  .vault-asset-option { padding: 16px; gap: 12px; align-items: center; }
   .vault-asset-option strong { font-size: 18px; }
   .vault-round-header { flex-direction: column; align-items: stretch; gap: 12px; }
   .vault-round-header .field { max-width: none; }

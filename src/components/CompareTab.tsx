@@ -58,10 +58,10 @@ export default function CompareTab() {
       <div className="grid cols-2">
         <div className="card">
           <div className="between" style={{ marginBottom: 4 }}>
-            <div className="card-title" style={{ margin: 0 }}>{equity ? "Token vs stock benchmark" : "Token protection reference"} — {asset.symbol}</div>
+            <div className="card-title" style={{ margin: 0 }}>{equity ? "Token vs stock benchmark" : "Token protection reference"} · {asset.symbol}</div>
             {market?.available ? <span className="pill gray">Market data</span> : <span className="pill amber">{loading ? "loading…" : "unavailable"}</span>}
           </div>
-          <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>{asset.name} · {asset.benchmarkLabel}</div>
+          <div className="faint" style={{ fontSize: 14, marginBottom: 14 }}>{asset.name} · {asset.benchmarkLabel}</div>
 
           {err && <div className="callout warn" role="alert">Live market data is unavailable. <button className="text-action" onClick={() => { setLoading(true); setErr(null); setRefreshKey((value) => value + 1); }}>Try again</button></div>}
           {loading && !market && <div className="empty">Fetching live mainnet data…</div>}
@@ -86,8 +86,8 @@ export default function CompareTab() {
         <details className="card token-details">
           <summary><span><strong>Token details</strong><small>Mint, decimals and conversion configuration</small></span><span aria-hidden="true">+</span></summary>
           <div className="token-details-body">
-          <div className="card-title">Token verification — {asset.symbol}</div>
-          <div className="kv"><span className="k">Mint (mainnet)</span><span className="v mono" style={{ fontSize: 11 }}><a href={solscan} target="_blank" rel="noreferrer">{asset.mint.slice(0, 6)}…{asset.mint.slice(-4)}</a></span></div>
+          <div className="card-title">Token verification · {asset.symbol}</div>
+          <div className="kv"><span className="k">Mint (mainnet)</span><span className="v mono" style={{ fontSize: 14 }}><a href={solscan} target="_blank" rel="noreferrer">{asset.mint.slice(0, 6)}…{asset.mint.slice(-4)}</a></span></div>
           <div className="kv"><span className="k">Token program</span><span className="v">{asset.program} <span className="pill green">verified</span></span></div>
           <div className="kv"><span className="k">Decimals</span><span className="v mono">{asset.decimals}</span></div>
           <div className="kv"><span className="k">Scaled multiplier (live)</span><span className="v mono">{mult != null ? mult.toFixed(10) : "Unavailable"}</span></div>

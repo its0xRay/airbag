@@ -97,7 +97,7 @@ export default function CalculatorTab() {
             />
           )}
           <div className="disclosure" style={{ marginTop: 10 }}>
-            Hypothetical — not a prediction of the settlement value. Live {asset.kind === "EquityToken" ? "benchmark" : "market"} is{" "}
+            Hypothetical, not a prediction of the settlement value. Live {asset.kind === "EquityToken" ? "benchmark" : "market"} is{" "}
             <strong>{spotReal ? fmtUsd(spotReal) : "…"}</strong>.
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function CalculatorTab() {
           <div className="kv">
             <span className="k">Outcome vs strike</span>
             <span className="v">
-              {!selected ? "—" : ref < selected.strike ? "below — pays intrinsic" : ref === selected.strike ? "at strike — zero" : "above — zero payout"}
+              {!selected ? "—" : ref < selected.strike ? "below: pays intrinsic" : ref === selected.strike ? "at strike: zero" : "above: zero payout"}
             </span>
           </div>
           <div className="kv"><span className="k">Strike</span><span className="v mono">{selected ? fmtPrice(selected.strike) : "—"}</span></div>

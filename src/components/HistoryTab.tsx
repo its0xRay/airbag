@@ -40,7 +40,7 @@ export default function HistoryTab({ onProtect }: { onProtect: () => void }) {
         <div className="card-title" style={{ margin: 0 }}>{scope === "program" ? "Program-wide Devnet activity" : "Connected-wallet activity"}</div>
         <button className="btn ghost sm" disabled={c.busy || c.publicLoading} aria-busy={c.publicLoading} onClick={() => scope === "program" ? c.refreshPublic() : c.refresh()}>{c.publicLoading ? "Refreshing…" : "Refresh"}</button>
       </div>
-      <div className="faint" style={{ fontSize: 12, marginBottom: 14 }}>
+      <div className="faint" style={{ fontSize: 14, marginBottom: 14 }}>
         {scope === "program"
           ? "Confirmed transactions invoking the deployed Airbag program, newest first."
           : "Signatures touching contracts owned by this wallet, newest first."} Every row opens in the explorer.

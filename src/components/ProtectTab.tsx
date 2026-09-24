@@ -255,7 +255,7 @@ export default function ProtectTab({
   return (
     <div className={"protect-workspace" + (embedded ? " protect-embedded" : "")}>
       {!embedded && <div className="app-page-head"><div><h1>Open position</h1><p>Choose your floor. Keep the upside.</p></div></div>}
-      {isRenewal && <div className="callout">Quantity copied. Review the available floor and expiry, then confirm a fresh quote. This opens a separate position—not continuous coverage. Your previous position is unchanged.</div>}
+      {isRenewal && <div className="callout">Quantity copied. Review the available floor and expiry, then confirm a fresh quote. This opens a separate position, not continuous coverage. Your previous position is unchanged.</div>}
       <div className="protect-market-head">
         <div className="protect-assets" role="group" aria-label="Choose an asset">
           {VERIFIED_ASSETS.map((a, i) => <button key={a.key} className={"btn " + (assetId === i ? "primary" : "ghost")} aria-pressed={assetId === i} onClick={() => { userChoseAsset.current = true; setAssetId(i); setSeriesId(null); setTenor("short"); setScenario(null); setDone(null); }} disabled={c.busy}><AssetLogo asset={a} /><span className="asset-choice-copy"><strong>{i === 0 ? "NVDAx" : "Anthropic PreStocks"}</strong><small>{i === 0 ? "Tokenized public equity" : "Pre-IPO token exposure"}</small></span><span className="asset-choice-check" aria-hidden="true">{assetId === i ? "✓" : ""}</span></button>)}
@@ -272,7 +272,7 @@ export default function ProtectTab({
         <ProtectionBoundary floor={receipt.strike} compact />
         <div className="receipt-metrics"><div><span>Maximum payout at purchase</span><strong>{fmtOusd(tok(maxLiability(toFixed(receipt.quantity), receipt.strike)))}</strong></div><div><span>Premium paid</span><strong>{receipt.premium != null ? fmtOusd(receipt.premium) : "See transaction"}</strong></div><div><span>Expires</span><strong>{fmtClock(receipt.expiry)}</strong></div></div>
         <p className="disclosure">Maximum payout reserved at issuance. Current reserve, reference terms and settlement receipts are in your position.</p>
-        <div className="receipt-actions"><button className="btn primary" onClick={() => onViewPositions?.(receipt.assetId, receipt.address ?? undefined)}>View position →</button><button className="btn ghost" onClick={() => setDone(null)}>Open another</button><a className="lp-text-link" href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">Verify transaction ↗</a></div><p className="disclosure">oUSD is a demo token with no real value.</p>
+        <div className="receipt-actions"><button className="btn primary" onClick={() => onViewPositions?.(receipt.assetId, receipt.address ?? undefined)}>View position</button><button className="btn ghost" onClick={() => setDone(null)}>Open another</button><a className="lp-text-link" href={explorerUrl("tx", done)} target="_blank" rel="noreferrer">Verify transaction ↗</a></div><p className="disclosure">oUSD is a demo token with no real value.</p>
       </section> : <div className="protect-layout">
         <aside className="card protection-ticket" aria-label="Set your floor">
           <h2>Set your floor</h2>

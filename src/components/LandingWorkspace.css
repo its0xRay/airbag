@@ -28,7 +28,7 @@
   .risk-party h3 { font-size:24px; }
   .risk-party h3 br { display:none; }
   .risk-exchange { grid-template-columns:1fr 1fr; gap:24px; }
-  .risk-exchange span { font-size:13px; }
+  .risk-exchange span { font-size:14px; }
   .risk-exchange span:first-child b { transform:rotate(90deg); }
   .risk-exchange span:last-child b { transform:rotate(90deg); }
   .lp-market-risk { text-align:left; }

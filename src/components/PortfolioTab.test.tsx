@@ -57,7 +57,7 @@ describe("Positions presentation", () => {
   it("shows pending settlement guidance without an exercise action when no quantity remains", () => {
     state.contracts = [{ ...account, remainingQuantity: 0n, pendingQuantity: 1_000_000n }];
     const html = render();
-    expect(html).toContain("pending — the keeper settles");
+    expect(html).toContain("pending. The keeper settles");
     expect(html).not.toContain('<details class="position-exercise">');
   });
   it("shows positions from both assets by default", () => {
