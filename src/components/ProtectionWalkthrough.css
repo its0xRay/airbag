@@ -1,6 +1,6 @@
 .walkthrough { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:64px; align-items:start; }
 .walkthrough-step { min-height:300px; padding:32px 0 48px; border-top:1px solid var(--border); scroll-margin-top:130px; }
-.walkthrough-step:last-child { min-height:380px; }
+.walkthrough-step:last-child { min-height:280px; }
 .walkthrough-step-label { display:flex; gap:20px; color:var(--text-dim); font-size:14px; align-items:baseline; }
 .walkthrough-step-label .mono { color:var(--text-faint); font-size:14px; }
 .walkthrough-step[data-active="true"] .walkthrough-step-label .mono { color:var(--accent); }
@@ -21,6 +21,8 @@
 .mechanism-contract { margin:24px auto 0; border:1px solid var(--border-strong); border-radius:var(--radius-sm); padding:20px; }
 .mechanism-terms { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:20px; font-size:14px; }
 .mechanism-terms > span { border-bottom:1px solid var(--border); padding-bottom:10px; }
+.mechanism-terms strong { display:block; margin-top:8px; font-weight:500; color:var(--text); }
+.mechanism > .walkthrough-example-label { margin:0 0 20px; font-size:14px; }
 .mechanism-flow { display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; font-size:14px; }
 .mechanism-flow > strong { font-size:20px; font-weight:500; }
 .mechanism-arrow { color:var(--accent); font-size:22px; line-height:1; }

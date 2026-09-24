@@ -1028,7 +1028,7 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 .scenario-results > div:not(:first-child) strong { font-size:16px; font-weight:500; }
 .scenario-results { align-items:baseline; }
 .scenario-card .unified-payoff svg, .protect-embedded .scenario-card .unified-payoff svg { width:100%; height:auto; aspect-ratio:600 / 270; overflow:visible; }
-.unified-payoff text { fill:var(--text-dim); font:12px var(--mono); }
+.unified-payoff text { fill:var(--text-dim); font:16px var(--mono); }
 .unified-payoff { container-type:inline-size; }
 @container (max-width:500px) { .unified-payoff svg text { font-size:20px; } }
 @container (max-width:340px) { .unified-payoff svg text { font-size:26px; } }

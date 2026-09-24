@@ -1,5 +1,25 @@
 # Brand — Airbag
 
+## Current landing decisions (supersede earlier layout notes below)
+
+Hero: category “Risk management for tokenized equities”, headline “Set your floor.
+Keep your tokens.”, descriptor “Cash-settled puts on tokenized equities,
+underwritten by isolated vaults.” No additional hero paragraph. Keep the Devnet
+oUSD value boundary beside premium and review.
+The buyer opens on an available longer expiry and below-reference floor where
+available. Preserve chosen duration across asset switches. A clearly labelled
+15% downside scenario is the initial illustration, never a fabricated quote or
+a guarantee of positive net payout. All negative calculated outcomes stay visible.
+Gross contract payout leads; premium and payout minus premium are secondary.
+Use the existing payoff curve instead of a rectangular boundary in the explorer;
+compact floor motifs remain appropriate for confirmed receipts and positions.
+Premium and review belong in the input column; cutoff details expand and appear
+in review. Mobile exploration remains optional. Walkthrough values form one
+explicitly illustrative example, never claimed as live terms or activity.
+Keep the existing directional capital-flow animation. Explain why holders keep
+exposure and avoid leveraged-short management, and how depositor capital funds
+payouts. Use varied section headings and consistent asset names.
+
 Yellow-and-charcoal identity for risk management on Solana.
 Design tokens live in `src/index.css` under `:root`.
 

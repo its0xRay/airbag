@@ -62,7 +62,7 @@
 }
 .asset-selector { display:flex; flex-wrap:wrap; gap:8px; }
 .asset-option { display:flex; align-items:center; gap:12px; min-height:64px; padding:12px; text-align:left; border:1px solid var(--border); border-radius:var(--radius-sm); background:transparent; color:var(--text); cursor:pointer; }
-.asset-option[aria-pressed="true"] { background:var(--bg-elev2); border-color:var(--border-strong); }
+.asset-option[aria-pressed="true"] { background:var(--bg-elev2); border-color:var(--text-dim); }
 .asset-option:disabled { opacity:.65; cursor:wait; }
 .asset-option strong { display:block; font-size:15px; font-weight:500; }
 .asset-option small { display:block; margin-top:4px; font-size:14px; color:var(--text-dim); }
@@ -70,6 +70,24 @@
 .mechanism-outcomes { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:24px; }
 .mechanism-outcomes span { display:block; color:var(--text-dim); font-size:15px; }
 .mechanism-outcomes strong { display:block; margin-top:8px; font-size:clamp(20px,2.2vw,28px); font-weight:500; }
+.scenario-gross { margin-top:24px; }
+.scenario-gross > span { display:block; font-size:15px; color:var(--text-dim); }
+.scenario-gross > strong { display:block; margin-top:8px; font-size:clamp(30px,3vw,40px); font-weight:500; overflow-wrap:anywhere; }
+.scenario-context,.premium-recovery { color:var(--text-dim); font-size:14px; line-height:1.6; }
+.premium-recovery strong { color:var(--text); }
+.protection-mechanism .mechanism-outcomes { margin-top:20px; }
+.protection-mechanism .mechanism-outcomes strong { font-size:20px; overflow-wrap:anywhere; }
+.protection-mechanism .payoff-chart { margin:24px 0 16px; }
+.protection-mechanism .unified-payoff svg { aspect-ratio:600 / 220; }
+.payoff-axis-title { font-size:14px; color:var(--text-dim); }
+.payoff-axis-values { display:flex; justify-content:space-between; gap:16px; font-size:14px; color:var(--text-dim); margin-bottom:8px; }
+.coverage-scope > span { display:block; margin-top:4px; }
+.protection-ticket .protection-checkout { border:0; padding-top:16px; }
+.protection-ticket .checkout-row { display:flex; flex-direction:column; align-items:stretch; gap:16px; }
+.protection-ticket .ticket-purchase { min-width:0; }
+.protection-ticket .ticket-purchase .btn { width:100%; min-width:0; }
+.protection-ticket .review-terms { grid-template-columns:1fr; }
+.protection-ticket .ticket-footnote { font-size:14px; }
 .scenario-adjustment .scenario-slider input { min-height:44px; }
 .scenario-adjustment .scenario-presets { margin-top:4px; }
 .protection-secondary { grid-template-columns:repeat(3,minmax(0,1fr)); }

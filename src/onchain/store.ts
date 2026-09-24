@@ -363,7 +363,7 @@ export const useChain = create<ChainState>((set, get) => ({
 
   connect: async (restoreOnly = false) => {
     if (get().busy) return;
-    set({ busy: true, error: null, status: "connecting…" });
+    set({ busy: true, error: null, status: "Connecting wallet…" });
     try {
       if (restoreOnly && !localStorage.getItem(BURNER_KEY)) return;
       const burner = loadBurner();
@@ -392,6 +392,7 @@ export const useChain = create<ChainState>((set, get) => ({
         quoteAuthority: cfg.quoteAuthority,
         sponsor: trial?.budgetWallet ? new PublicKey(trial.budgetWallet) : null,
         tokenBalance,
+        status: "Loading positions…",
       });
       await get().refresh();
       set({ status: "" });

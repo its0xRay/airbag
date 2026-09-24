@@ -33,22 +33,23 @@ function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "v
     <div className="mechanism-reserve"><span className="mechanism-label">{step === 0 ? "Before funding closes" : step === 1 ? "Round balance" : "Withdrawal value"}</span><strong>{step === 0 ? "Add or cancel your deposit" : step === 1 ? "Deposits + premiums − payouts − refunds" : "Ownership share × remaining balance"}</strong></div>
   </div>;
   return <div className="mechanism">
+    <p className="walkthrough-example-label">Illustrative example · not an available quote</p>
     {step === 0 && <>
-      <div className="mechanism-assets">{VERIFIED_ASSETS.map(asset => <span key={asset.key}><AssetLogo asset={asset} />{asset.symbol}</span>)}</div>
-      <div className="mechanism-contract"><span className="mechanism-label">Your contract terms</span><div className="mechanism-terms"><span>Asset</span><span>Quantity</span><span>Price floor</span><span>Expiry</span></div></div>
+      <div className="mechanism-assets"><span><AssetLogo asset={VERIFIED_ASSETS[0]} />NVDAx</span></div>
+      <div className="mechanism-contract"><span className="mechanism-label">Your contract terms</span><div className="mechanism-terms"><span>Asset<strong>NVDAx</strong></span><span>Quantity<strong>1 token</strong></span><span>Price floor<strong>$200</strong></span><span>Expiry<strong>7 days</strong></span></div></div>
       <p>Choose what to protect. Define the floor.</p>
     </>}
     {step === 1 && <>
-      <div className="mechanism-flow"><span>One premium</span><span className="mechanism-arrow" aria-hidden="true">↓</span><strong>Protection contract</strong></div>
-      <div className="mechanism-reserve"><span className="mechanism-label">Pool collateral</span><strong>Maximum payout reserved</strong><div className="mechanism-reserve-line" aria-hidden="true" /></div>
+      <div className="mechanism-flow"><span>Illustrative premium · 5 oUSD</span><span className="mechanism-arrow" aria-hidden="true">↓</span><strong>Protection contract</strong></div>
+      <div className="mechanism-reserve"><span className="mechanism-label">Pool collateral</span><strong>200 oUSD maximum payout reserved</strong><div className="mechanism-reserve-line" aria-hidden="true" /></div>
       <p>The pool supplies the reserve. No buyer margin.</p>
     </>}
     {step === 2 && <>
-      <div className="mechanism-hold"><div className="mechanism-wallet"><span className="mechanism-label">Your wallet</span><div className="mechanism-assets">{VERIFIED_ASSETS.map(asset => <AssetLogo key={asset.key} asset={asset} />)}</div><strong>Underlying tokens</strong></div><span className="mechanism-plus" aria-hidden="true">+</span><div className="mechanism-separate"><span className="mechanism-label">Alongside it</span><strong>Protection contract</strong></div></div>
+      <div className="mechanism-hold"><div className="mechanism-wallet"><span className="mechanism-label">Your wallet</span><div className="mechanism-assets"><AssetLogo asset={VERIFIED_ASSETS[0]} /></div><strong>1 NVDAx</strong></div><span className="mechanism-plus" aria-hidden="true">+</span><div className="mechanism-separate"><span className="mechanism-label">Alongside it</span><strong>$200 floor · 7-day term</strong></div></div>
       <p>No underlying deposit into Airbag.</p>
     </>}
     {step === 3 && <>
-      <div className="mechanism-flow"><span>Verified settlement reference</span><span className="mechanism-arrow" aria-hidden="true">↓</span><div className="mechanism-formula"><span className="mechanism-label">Contract payout</span><strong>Quantity × max(floor − reference, 0)</strong></div><span className="mechanism-arrow" aria-hidden="true">↓</span><span>Onchain settlement in oUSD</span></div>
+      <div className="mechanism-flow"><span>Illustrative settlement reference · $180</span><span className="mechanism-arrow" aria-hidden="true">↓</span><div className="mechanism-formula"><span className="mechanism-label">Contract payout</span><strong>1 × max($200 − $180, 0) = 20 oUSD</strong></div><span className="mechanism-arrow" aria-hidden="true">↓</span><span>Payout minus 5 oUSD premium: 15 oUSD</span></div>
     </>}
   </div>;
 }
@@ -81,7 +82,7 @@ export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = 
   const visibleActive = Math.min(active, steps.length - 1);
 
   return <section className="lp-section lp-light" id="how-it-works">
-    <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">{side === "vault" ? "Deposit. Back payouts. Withdraw." : "Choose a floor. Pay once. Settle onchain."}</h2></div>
+    <div className="lp-section-head"><div className="lp-eyebrow">How it works</div><h2 className="lp-h2">How Airbag works</h2></div>
     {vaultsEnabled && <div className="walkthrough-sides" role="group" aria-label="Choose a walkthrough"><button className="btn ghost" aria-pressed={side === "buyer"} onClick={() => onSideChange?.("buyer")}>For holders</button><button className="btn ghost" aria-pressed={side === "vault"} onClick={() => onSideChange?.("vault")}>For depositors</button></div>}
     <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /><p>{side === "vault" ? "Cancel before funding closes. Afterward, funds stay locked until settlement completes." : "Early exercise must be requested before the cutoff. Settlement uses qualifying observations; unavailable references follow the contract’s recovery or refund rules."}</p></details></div>
     <div className="walkthrough">

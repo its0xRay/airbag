@@ -22,11 +22,11 @@ describe("two-sided landing release", () => {
     const html = render();
     expect(html).not.toContain("Fund a vault");
     expect(html).not.toContain("How do vault deposits work?");
-    expect(html).toContain("Pay once. Receive the difference if the settlement reference falls below your floor.");
+    expect(html).toContain("Cash-settled puts on tokenized equities.");
   });
   it("introduces both sides without replacing the buyer workflow", () => {
     const html = render(true);
-    expect(html).toContain("Pay once for a floor. Or fund payouts and share in premiums.");
+    expect(html).toContain("Cash-settled puts on tokenized equities, underwritten by isolated vaults.");
     expect(html).toContain('id="protection"');
     expect(html).toContain('aria-label="Choose your Airbag flow"');
     expect(html).toContain("Fund a vault");
@@ -38,7 +38,7 @@ describe("two-sided landing release", () => {
   });
   it("explains capital flow without repeated warnings or invented yields", () => {
     const html = render(true);
-    for (const copy of ["A floor for holders.", "Premiums for funders.", "When the floor pays", "Administrator deposits follow the same"]) expect(html).toContain(copy);
+    for (const copy of ["Why set a floor?", "Fund contractual payouts.", "When the floor pays", "Administrator deposits follow the same"]) expect(html).toContain(copy);
     expect(html).not.toContain("APY");
     expect(html).not.toContain("Deposits can lose value.");
     expect(html).not.toContain("Premiums are not guaranteed profit.");
