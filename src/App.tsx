@@ -138,7 +138,7 @@ export default function App() {
               {VAULTS_ENABLED && <button className="text-action" onClick={() => goTo("vaults")}>Vaults</button>}
             </nav>
             <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a,button")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Airbag</a><a href="#how-it-works">How it works</a><a href="#assets">Assets</a><a href="#onchain-proof">Onchain proof</a>{VAULTS_ENABLED && <button className="text-action" onClick={() => goTo("vaults")}>Vaults</button>}</nav></details>
-            {connected ? <button className="btn ghost" onClick={() => goTo(useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app ↗</button> : <a className="btn ghost" href="#protection">Get started ↗</a>}
+            {connected ? <button className="btn ghost" onClick={() => goTo(VAULTS_ENABLED && new URLSearchParams(window.location.search).get("side") === "vault" ? "vaults" : useChain.getState().contracts.length ? "portfolio" : "protect")}>Open app →</button> : <a className="btn ghost" href="#protection">Get started ↓</a>}
           </>
         ) : (
           <WalletBar />

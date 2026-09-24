@@ -1,6 +1,6 @@
 .walkthrough { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:64px; align-items:start; }
 .walkthrough-step { min-height:300px; padding:32px 0 48px; border-top:1px solid var(--border); scroll-margin-top:130px; }
-.walkthrough-step:last-child { min-height:520px; }
+.walkthrough-step:last-child { min-height:380px; }
 .walkthrough-step-label { display:flex; gap:20px; color:var(--text-dim); font-size:14px; align-items:baseline; }
 .walkthrough-step-label .mono { color:var(--text-faint); font-size:12px; }
 .walkthrough-step[data-active="true"] .walkthrough-step-label .mono { color:var(--accent); }
@@ -39,6 +39,9 @@
 .walkthrough-nav a:hover { background:var(--bg-elev2); color:var(--text); }
 .walkthrough-nav a[aria-current="step"] { background:var(--bg-elev2); color:var(--accent); }
 .walkthrough-inline { display:none; }
+.walkthrough-mobile { display:none; }
+.walkthrough-sides { display:flex; gap:12px; margin-bottom:24px; }
+.walkthrough-sides [aria-pressed="true"] { color:var(--text); border-color:var(--border-strong); background:var(--bg-elev2); }
 @media (prefers-reduced-motion:no-preference) {
   .walkthrough-progress > span { transition:transform 250ms cubic-bezier(0,0,0.2,1); }
   .walkthrough-scene { transition:opacity 200ms cubic-bezier(0,0,0.2,1), transform 200ms cubic-bezier(0,0,0.2,1); transform:translateY(8px); }
@@ -61,7 +64,15 @@
   .walkthrough-nav { padding-top:8px; }
 }
 @media (max-width:800px) {
-  .walkthrough { display:block; }
+  .walkthrough { display:none; }
+  .walkthrough-mobile { display:block; }
+  .walkthrough-mobile ol { padding:0; margin:0; list-style:none; }
+  .walkthrough-mobile li { display:grid; grid-template-columns:24px 1fr; gap:16px; padding:20px 0; border-top:1px solid var(--border); }
+  .walkthrough-mobile li > span { color:var(--text-faint); font-size:13px; padding-top:4px; }
+  .walkthrough-mobile h3 { font-size:20px; margin:0 0 8px; font-weight:500; }
+  .walkthrough-mobile p { color:var(--text-dim); font-size:15px; line-height:1.6; margin:0; }
+  .walkthrough-mobile details { margin-top:8px; }
+  .walkthrough-mobile summary { min-height:44px; align-content:center; }
   .walkthrough-visual { display:none; }
   .walkthrough-step, .walkthrough-step:last-child { min-height:0; padding:28px 0 36px; }
   .walkthrough-step h3 { font-size:24px; margin-top:20px; }

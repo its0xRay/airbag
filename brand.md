@@ -58,7 +58,7 @@ illustration beside two concise buyer benefits. Reserve funding belongs in
 onchain proof, not the buyer-benefit trio. Illustrations contain no balances,
 transaction statuses or simulated execution.
 The scroll-led walkthrough pairs readable steps with a sticky mechanism diagram.
-Only narrow viewports show diagrams inline. Short desktop windows use a compact
+Narrow viewports use a three-step summary and an optional mechanics disclosure, not four inline diagrams. Short desktop windows use a compact
 right-side panel. Reduced motion retains the responsive layout with instant
 diagram changes and no animated transitions.
 These explain mechanics only; they never depict simulated transactions.
@@ -73,11 +73,11 @@ available alongside active coverage.
 
 Lead with the category headline: "Risk management for tokenized equities."
 "Keep the upside. Define your downside." is the single supporting line.
-For the vault release, the supporting line becomes "Define your downside—or fund
-it and share in the premiums." One primary "Set your floor" anchor leads to the
-existing workspace; secondary "Fund a vault" opens the real vault view without
-requiring a wallet just to inspect it. Replace the buyer-only Why Airbag panel
-with a compact two-sided capital-flow explanation, not another dashboard. State
+For the vault release, the supporting line is "Set a downside floor—or back it and share in premiums."
+Both hero actions select and scroll to one shared workspace, with Set your floor and Fund a vault modes.
+Only the selected real form mounts; changing modes preserves configuration but never carries transaction approval.
+The dedicated vault view retains history and management. Wallet connection does not submit a transaction.
+Why Airbag uses a holder-to-vault premium/payout relationship, not a second numbered process. State
 that depositor capital can lose value and premiums are not guaranteed profit.
 Gate this positioning with the vault feature itself until the coordinated release.
 Keep the hero free of environment labels; Devnet and oUSD disclosures remain
@@ -100,6 +100,8 @@ The desktop Protect workspace places terms left and the payout boundary right,
 with one shared premium/action row beneath. Holdings lookup, detailed curve and
 methodology expand below the primary workflow. Use natural height and responsive
 stacking, never clipped panels, internal scrolling or tiny type to force a fit.
+On mobile, a compact maximum-payout summary precedes an optional Explore payouts panel.
+Vault entry prioritizes the deposit action and lock terms; accounting and historical rounds remain secondary.
 The hero keeps breathing room and a product peek; it does not squeeze the entire
 workspace above the fold. The evidence strip links to program, pool funding,
 reference rules and actual activity; it is not a second numbered walkthrough.

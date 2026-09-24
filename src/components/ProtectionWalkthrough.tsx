@@ -3,14 +3,29 @@ import AssetLogo from "./AssetLogo";
 import { VERIFIED_ASSETS } from "../data/assets";
 import "./ProtectionWalkthrough.css";
 
-const steps = [
-  { title: "Choose a floor", heading: "Set your floor.", body: "Choose an asset, quantity, price floor and expiry. Explore the payout before connecting your wallet." },
-  { title: "Pay once", heading: "One premium upfront.", body: "Buy with a fresh signed quote. The pool reserves your maximum contractual payout when the position is issued." },
-  { title: "Keep holding", heading: "Your tokens stay with you.", body: "The underlying stays in your wallet. Protection is a separate contract, without buyer margin or liquidation." },
-  { title: "Exercise or settle", heading: "A reference. A defined payout.", body: "Request partial or full exercise before the cutoff, or let the keeper settle at expiry. A separate contract pays when its settlement reference falls below your floor." },
+const buyerSteps = [
+  { title: "Choose", heading: "Set your floor.", body: "Choose an asset, quantity, floor and expiry. Explore payouts before connecting." },
+  { title: "Pay once", heading: "One premium upfront.", body: "Review the cost. A fresh signed quote is checked before purchase, and the maximum payout is reserved." },
+  { title: "Keep holding", heading: "Your tokens stay with you.", body: "Your position is a separate contract. No buyer margin calls or token deposit." },
+  { title: "Settle", heading: "Below your floor? The contract pays the difference.", body: "Payout uses the settlement reference and covered quantity. Request early exercise before the cutoff, or settle automatically at expiry." },
+] as const;
+const vaultSteps = [
+  { title: "Deposit", heading: "Choose the risk you fund.", body: "Pick an asset vault and deposit during its funding window. You can cancel before it closes." },
+  { title: "Back payouts", heading: "Your capital goes to work.", body: "Capital locks while the round backs positions. Premiums add to the balance; payouts and refunds reduce it." },
+  { title: "Withdraw", heading: "Your share, after settlement.", body: "Withdraw your share of the remaining balance after every obligation resolves. Your deposit can lose value; delays can extend the lock." },
+] as const;
+const mobileBuyerSteps = [
+  { title: "Choose", body: "Pick an asset, quantity, floor and expiry." },
+  { title: "Pay once", body: "Review the premium. Your tokens stay with you." },
+  { title: "Settle", body: "Below the floor, payout is the reference-price difference × covered quantity. Early exercise is available before the cutoff." },
 ] as const;
 
-function Mechanism({ step }: { step: number }) {
+function Mechanism({ step, side = "buyer" }: { step: number; side?: "buyer" | "vault" }) {
+  if (side === "vault") return <div className="mechanism">
+    <div className="mechanism-flow"><span>{step === 0 ? "Your test oUSD" : step === 1 ? "Asset-specific vault" : "Round obligations settled"}</span><span className="mechanism-arrow" aria-hidden="true">↓</span><strong>{step === 0 ? "Deposit into a funding round" : step === 1 ? "Capital reserved for buyer payouts" : "Withdraw your share"}</strong></div>
+    <div className="mechanism-reserve"><span className="mechanism-label">{step === 0 ? "Before funding closes" : step === 1 ? "Round balance" : "Withdrawal value"}</span><strong>{step === 0 ? "Add or cancel your deposit" : step === 1 ? "Deposits + premiums − payouts − refunds" : "Ownership share × remaining balance"}</strong></div>
+    <p>{step === 0 ? "oUSD has no real value." : step === 1 ? "Premiums are not guaranteed profit." : "Capital can lose value. Settlement delays can extend the lock."}</p>
+  </div>;
   return <div className="mechanism">
     {step === 0 && <>
       <div className="mechanism-assets">{VERIFIED_ASSETS.map(asset => <span key={asset.key}><AssetLogo asset={asset} />{asset.symbol}</span>)}</div>
@@ -33,7 +48,9 @@ function Mechanism({ step }: { step: number }) {
   </div>;
 }
 
-export default function ProtectionWalkthrough() {
+export default function ProtectionWalkthrough({ side = "buyer", vaultsEnabled = false, onSideChange, onStart }: { side?: "buyer" | "vault"; vaultsEnabled?: boolean; onSideChange?: (side: "buyer" | "vault") => void; onStart?: () => void }) {
+  const steps = side === "vault" ? vaultSteps : buyerSteps;
+  const mobileSteps = side === "vault" ? vaultSteps : mobileBuyerSteps;
   const [active, setActive] = useState(0);
   const articles = useRef<(HTMLElement | null)[]>([]);
 
@@ -41,6 +58,7 @@ export default function ProtectionWalkthrough() {
     let frame = 0;
     const update = () => {
       frame = 0;
+      if (window.innerWidth <= 800) return;
       // Derive from current positions, including reverse scroll and anchor jumps.
       // Only the diagram changes; reading content stays in the normal document flow.
       const readingLine = window.innerHeight * 0.42;
@@ -59,25 +77,27 @@ export default function ProtectionWalkthrough() {
       window.removeEventListener("resize", schedule);
       cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [side]);
+  const visibleActive = Math.min(active, steps.length - 1);
 
   return <section className="lp-section" id="how-it-works">
-    <div className="lp-section-head"><div className="lp-kicker">How it works</div><h2 className="lp-h2">Choose, pay, hold, settle.</h2></div>
+    <div className="lp-section-head"><div className="lp-kicker">How it works</div><h2 className="lp-h2">{side === "vault" ? "Deposit. Back payouts. Withdraw." : "Choose. Pay once. Keep holding."}</h2></div>
+    {vaultsEnabled && <div className="walkthrough-sides" role="group" aria-label="Choose a walkthrough"><button className="btn ghost" aria-pressed={side === "buyer"} onClick={() => onSideChange?.("buyer")}>For holders</button><button className="btn ghost" aria-pressed={side === "vault"} onClick={() => onSideChange?.("vault")}>For depositors</button></div>}
+    <div className="walkthrough-mobile"><ol>{mobileSteps.map((step, i) => <li key={step.title}><span className="mono" aria-hidden="true">0{i + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol><details className="secondary-tool" key={side}><summary>See the mechanics</summary><Mechanism step={side === "vault" ? 2 : 3} side={side} /></details></div>
     <div className="walkthrough">
       <div className="walkthrough-stories">
-        {steps.map((step, i) => <article className="walkthrough-step" data-active={active === i} id={`protection-step-${i + 1}`} key={step.title} ref={element => { articles.current[i] = element; }}>
+        {steps.map((step, i) => <article className="walkthrough-step" data-active={visibleActive === i} id={`protection-step-${i + 1}`} key={`${side}-${step.title}`} ref={element => { articles.current[i] = element; }}>
           <div className="walkthrough-step-label"><span className="mono">0{i + 1}</span><span>{step.title}</span></div>
           <h3>{step.heading}</h3><p>{step.body}</p>
-          <div className="walkthrough-inline"><span className="mechanism-label">How it works · diagram</span><Mechanism step={i} /></div>
         </article>)}
       </div>
       <aside className="walkthrough-visual" aria-label="Protection mechanism diagrams">
-        <div className="walkthrough-visual-head"><span className="mechanism-label">How it works · diagram</span><span className="mono">0{active + 1} / 04</span></div>
-        <div className="walkthrough-progress" aria-hidden="true"><span style={{ transform: `scaleX(${(active + 1) / steps.length})` }} /></div>
-        <div className="walkthrough-stage">{steps.map((step, i) => <div className="walkthrough-scene" data-active={active === i} aria-hidden={active !== i} key={step.title}><Mechanism step={i} /></div>)}</div>
-        <nav className="walkthrough-nav" aria-label="Jump to an explanation">{steps.map((step, i) => <a key={step.title} href={`#protection-step-${i + 1}`} aria-label={`${i + 1}. ${step.title}`} aria-current={active === i ? "step" : undefined}>0{i + 1}</a>)}</nav>
+        <div className="walkthrough-visual-head"><span className="mechanism-label">Mechanism diagram</span><span className="mono">0{visibleActive + 1} / 0{steps.length}</span></div>
+        <div className="walkthrough-progress" aria-hidden="true"><span style={{ transform: `scaleX(${(visibleActive + 1) / steps.length})` }} /></div>
+        <div className="walkthrough-stage">{steps.map((step, i) => <div className="walkthrough-scene" data-active={visibleActive === i} aria-hidden={visibleActive !== i} key={step.title}><Mechanism step={i} side={side} /></div>)}</div>
+        <nav className="walkthrough-nav" aria-label="Jump to an explanation">{steps.map((step, i) => <a key={step.title} href={`#protection-step-${i + 1}`} aria-label={`${i + 1}. ${step.title}`} aria-current={visibleActive === i ? "step" : undefined}>0{i + 1}</a>)}</nav>
       </aside>
     </div>
-    <a className="lp-text-link" href="#protection">Set your floor →</a>
+    <a className="lp-text-link" href="#protection" onClick={onStart}>{side === "vault" ? "Fund a vault" : "Set your floor"} ↑</a>
   </section>;
 }

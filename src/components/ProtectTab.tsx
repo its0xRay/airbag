@@ -33,6 +33,7 @@ export default function ProtectTab({
   onInitialDraftConsumed,
   onViewPositions,
   onConnected,
+  onDraftChange,
 }: {
   embedded?: boolean;
   renewal?: RepeatPosition | null;
@@ -41,6 +42,7 @@ export default function ProtectTab({
   onInitialDraftConsumed?: () => void;
   onViewPositions?: (assetId: number, address?: string) => void;
   onConnected?: (draft: ProtectDraft) => void;
+  onDraftChange?: (draft: ProtectDraft) => void;
 } = {}) {
   const c = useChain();
   const [publicSeries, setPublicSeries] = useState<SeriesInfo[]>([]);
@@ -82,21 +84,31 @@ export default function ProtectTab({
   const [referenceRetry, setReferenceRetry] = useState(0);
   const choseInitialAsset = useRef(false);
   const userChoseAsset = useRef(false);
+  const appliedDraft = useRef<ProtectDraft | null>(null);
+  const [explorePayout, setExplorePayout] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    if (!initialDraft || renewal) return;
+    if (!initialDraft || renewal || appliedDraft.current === initialDraft) return;
+    appliedDraft.current = initialDraft;
     choseInitialAsset.current = true;
     // Parent navigation supplies a one-shot draft that must hydrate local form state.
     // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(initialDraft.assetId);
     setSeriesId(initialDraft.seriesId ?? null);
     const drafted = c.seriesList.find((s) => s.assetId === initialDraft.assetId && s.seriesId === initialDraft.seriesId);
+    // Restore the explicit duration along with the parent-supplied form draft.
+    // oxlint-disable-next-line react/set-state-in-effect
     if (initialDraft.tenor) setTenor(initialDraft.tenor);
     else if (drafted) setTenor(drafted.shortDated ? "short" : "weekly");
     if (initialDraft.quantityText !== undefined) setQtyStr(initialDraft.quantityText);
     else if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
     onInitialDraftConsumed?.();
   }, [c.seriesList, initialDraft, onInitialDraftConsumed, renewal]);
+
+  useEffect(() => {
+    onDraftChange?.({ assetId, seriesId: seriesId ?? undefined, quantityText: qtyStr, tenor });
+  }, [assetId, seriesId, qtyStr, tenor, onDraftChange]);
 
   // Open the demo on an executable market when one is available. This only
   // chooses the initial asset; a user's explicit asset selection is preserved.
@@ -278,7 +290,8 @@ export default function ProtectTab({
           </fieldset>
         </aside>
         <section className="protection-analysis" aria-label="Protection payout">
-          <div className="card scenario-card"><h2>Payout preview</h2>
+          <div className="mobile-payout-overview"><span>Maximum contract payout</span><strong className="mono">{selected && qty > 0n ? fmtOusd(tok(notional)) : "—"}</strong><p>Settlement reference below your floor: difference × covered quantity. At or above: zero.</p><button className="text-action" aria-expanded={explorePayout} aria-controls="payout-exploration" onClick={() => setExplorePayout(value => !value)}>{explorePayout ? "Close payout explorer −" : "Explore payouts +"}</button></div>
+          <div id="payout-exploration" className={"card scenario-card payout-exploration" + (explorePayout ? " is-expanded" : "")}><h2>Payout preview</h2>
           {selected && est && qty > 0n ? <>
             <ProtectionMechanism symbol={asset.symbol} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
             <div className="scenario-price-row"><label htmlFor="scenario-price">Explore settlement price</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>
@@ -295,7 +308,8 @@ export default function ProtectTab({
           <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Demo wallet saved in this browser; clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </div>
-        <section className="protection-secondary" aria-label="Additional protection details">
+        <button className="mobile-position-details text-action" aria-expanded={showDetails} aria-controls="position-details" onClick={() => setShowDetails(value => !value)}>{showDetails ? "Close position details −" : "Position details +"}</button>
+        <section id="position-details" className={"protection-secondary" + (showDetails ? " is-expanded" : "")} aria-label="Additional protection details">
           <details className="card protection-details"><summary>Look up mainnet holdings</summary><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} /></details>
           {selected && est && qty > 0n && <>
             <details className="card protection-details"><summary>Holdings + protection outcome</summary>

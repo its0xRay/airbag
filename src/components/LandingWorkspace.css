@@ -1,0 +1,44 @@
+.workspace-modes { display:flex; gap:8px; padding:0 0 16px; }
+.workspace-modes button { min-height:48px; padding:12px 24px; border:1px solid transparent; border-radius:var(--radius-sm); background:transparent; color:var(--text-dim); font:500 16px var(--sans); cursor:pointer; }
+.workspace-modes button[aria-pressed="true"] { background:var(--bg-elev2); border-color:var(--border-strong); color:var(--text); }
+.workspace-modes button:hover { color:var(--text); }
+.workspace-modes button:disabled { cursor:wait; }
+.lp-capital-market { grid-template-columns:1fr; gap:40px; }
+.lp-market-intro { display:grid; grid-template-columns:1fr 1fr; gap:0 64px; align-items:end; }
+.lp-market-intro > .lp-eyebrow { grid-column:1 / -1; }
+.lp-market-intro .lp-h2 { margin-bottom:0; }
+.lp-market-intro .lp-lede { max-width:42ch; margin:0; font-size:18px; }
+.risk-relationship { display:grid; grid-template-columns:minmax(0,1fr) minmax(160px,.65fr) minmax(0,1fr); gap:24px; align-items:center; background:var(--bg-elev); border-radius:var(--radius); padding:48px; }
+.risk-party { min-width:0; }
+.risk-party-icon { display:grid; place-items:center; width:56px; height:56px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); color:var(--accent); font-size:32px; margin-bottom:28px; }
+.risk-party .lp-eyebrow { display:block; font-size:14px; color:var(--text-dim); margin-bottom:12px; }
+.risk-party h3 { font-size:clamp(24px,2.5vw,32px); font-weight:500; letter-spacing:-.025em; line-height:1.2; margin:0 0 16px; }
+.risk-party p { font-size:15px; color:var(--text-dim); line-height:1.6; margin:0; }
+.risk-exchange { display:grid; gap:20px; }
+.risk-exchange span { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--border-strong); color:var(--text-dim); font-size:14px; }
+.risk-exchange b { color:var(--accent); font-size:24px; font-weight:400; }
+.lp-market-risk { text-align:right; }
+.mobile-payout-overview { display:none; }
+.mobile-position-details { display:none; }
+@media (max-width:800px) {
+  .lp-market-intro { display:block; }
+  .lp-market-intro .lp-lede { margin-top:20px; font-size:16px; }
+  .risk-relationship { padding:24px; gap:24px; grid-template-columns:1fr; }
+  .risk-party-icon { width:40px; height:40px; font-size:24px; float:right; margin:0 0 16px 16px; }
+  .risk-party h3 { font-size:24px; }
+  .risk-party h3 br { display:none; }
+  .risk-exchange { grid-template-columns:1fr 1fr; gap:24px; }
+  .risk-exchange span { font-size:13px; }
+  .risk-exchange span:first-child b { transform:rotate(90deg); }
+  .risk-exchange span:last-child b { transform:rotate(90deg); }
+  .lp-market-risk { text-align:left; }
+  .mobile-payout-overview { display:block; padding:20px 0; border-top:1px solid var(--border); }
+  .mobile-payout-overview > span { display:block; color:var(--text-dim); font-size:14px; }
+  .mobile-payout-overview strong { display:block; margin-top:8px; font-size:22px; }
+  .mobile-payout-overview p { font-size:14px; line-height:1.5; color:var(--text-dim); max-width:45ch; }
+  .mobile-payout-overview button { min-height:44px; }
+  .payout-exploration:not(.is-expanded) { display:none; }
+  .mobile-position-details { display:block; grid-column:1 / -1; min-height:44px; text-align:left; }
+  .protection-secondary:not(.is-expanded) { display:none; }
+  .workspace-modes button { flex:1; padding-inline:12px; }
+}

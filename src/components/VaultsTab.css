@@ -8,6 +8,17 @@
 .vault-round-header h2 { font-size: 24px; font-weight: 500; }
 .vault-round-header .field { max-width: 320px; }
 .vault-workspace { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.vaults-embedded { max-width:none; margin:0; padding:28px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-elev); }
+.vaults-embedded .vault-deposit-panel { padding:0; border:0; background:transparent; }
+.vaults-embedded .vault-asset-switch { margin-bottom:24px; }
+.vaults-embedded .vault-round-header { margin-bottom:12px; }
+.vaults-embedded .vault-round-header h2 { margin:0; font-size:20px; }
+.vaults-embedded .vault-workspace { margin-top:24px; }
+.vault-round-history { margin-top:24px; }
+.vault-round-history .field { max-width:480px; margin-top:16px; }
+.vaults-page summary { min-height:44px; align-content:center; }
+.vaults-page .vault-lock-summary { color:var(--text); }
+.vault-asset-option:disabled { cursor:wait; opacity:.65; }
 .vault-capital { min-width: 0; padding-top: 16px; }
 .vault-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-bottom: 24px; }
 .vault-metrics span { display: block; font-size: 15px; color: var(--text-dim); }
@@ -56,4 +67,9 @@
   .vault-round-header .field { max-width: none; }
   .vault-deposit-panel { padding: 20px; }
   .vault-buyer-link { flex-wrap: wrap; }
+  .vaults-embedded { padding:20px; }
+  .vaults-embedded .vault-asset-switch { grid-template-columns:1fr; gap:12px; }
+  .vault-asset-option strong { font-size:16px; }
+  .vaults-embedded .vault-asset-option { min-height:72px; }
+  .vaults-embedded .vault-capital { border-top:1px solid var(--border); padding-top:20px; }
 }

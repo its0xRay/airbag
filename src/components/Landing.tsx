@@ -5,10 +5,19 @@ import { VERIFIED_ASSETS } from "../data/assets";
 import { explorerUrl } from "../onchain/store";
 import { OPTKET_PROGRAM_ID } from "../client/optketProgram";
 import type { ProtectDraft } from "../App";
+import { useEffect, useState } from "react";
+import VaultsTab, { type VaultDraft } from "./VaultsTab";
+import "./LandingWorkspace.css";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
 
-export default function Landing({ onLaunch, onViewPosition, onConnected, vaultsEnabled = false }: {
+// Keep a mount-time draft: edits are remembered without rehydrating the form on every keystroke.
+function BuyerPanel({ draft, remember, onViewPosition }: { draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
+  const [initial] = useState(draft);
+  return <ProtectTab embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
+}
+
+export default function Landing({ onLaunch, onViewPosition, launching = false, vaultsEnabled = false }: {
   onLaunch: (tab: AppTab, draft?: ProtectDraft) => void | Promise<void>;
   onViewPosition: (assetId: number, address?: string) => void;
   onConnected: (draft: ProtectDraft) => void;
@@ -16,38 +25,59 @@ export default function Landing({ onLaunch, onViewPosition, onConnected, vaultsE
   launchStatus?: string;
   vaultsEnabled?: boolean;
 }) {
+  const [side, setSide] = useState<"buyer" | "vault">(() => vaultsEnabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("side") === "vault" ? "vault" : "buyer");
+  const [explanationSide, setExplanationSide] = useState(side);
+  const [buyerDraft, setBuyerDraft] = useState<ProtectDraft | null>(null);
+  const [vaultDraft, setVaultDraft] = useState<VaultDraft>({ asset: 0, amount: "100" });
+  useEffect(() => {
+    const restore = () => setSide(vaultsEnabled && new URLSearchParams(window.location.search).get("side") === "vault" ? "vault" : "buyer");
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [vaultsEnabled]);
+  function chooseSide(next: "buyer" | "vault", scroll = false) {
+    if (launching) return;
+    setSide(next);
+    setExplanationSide(next);
+    const url = new URL(window.location.href);
+    if (next === "vault") url.searchParams.set("side", "vault"); else url.searchParams.delete("side");
+    url.searchParams.delete("round");
+    if (scroll) url.hash = "protection";
+    window.history.replaceState(null, "", url);
+    if (scroll) document.getElementById("protection")?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
   return (
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
           <h1 className="lp-title"><span className="hero-accent">Risk management</span><br />for tokenized equities.</h1>
-          <p className="lp-hero-tagline">{vaultsEnabled ? "Define your downside—or fund it and share in the premiums." : "Keep the upside. Define your downside."}</p>
+          <p className="lp-hero-tagline">{vaultsEnabled ? "Set a downside floor—or back it and share in premiums." : "Keep the upside. Define your downside."}</p>
           {vaultsEnabled && <nav className="lp-market-actions" aria-label="Choose your side">
-            <a className="btn primary" href="#protection">Set your floor <span aria-hidden="true">↓</span></a>
-            <button className="btn ghost" onClick={() => onLaunch("vaults")}>Fund a vault <span aria-hidden="true">↗</span></button>
+            <button className="btn primary" disabled={launching} onClick={() => chooseSide("buyer", true)}>Set your floor <span aria-hidden="true">↓</span></button>
+            <button className="btn ghost" disabled={launching} onClick={() => chooseSide("vault", true)}>Fund a vault <span aria-hidden="true">↓</span></button>
           </nav>}
         </div>
-        <div id="protection"><ProtectTab embedded onViewPositions={onViewPosition} onConnected={onConnected} /></div>
+        <div id="protection" className="landing-workspace">
+          {vaultsEnabled && <div className="workspace-modes" role="group" aria-label="Choose your Airbag flow">
+            <button aria-pressed={side === "buyer"} disabled={launching} onClick={() => chooseSide("buyer")}>Set your floor</button>
+            <button aria-pressed={side === "vault"} disabled={launching} onClick={() => chooseSide("vault")}>Fund a vault</button>
+          </div>}
+          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { setBuyerDraft({ assetId }); chooseSide("buyer", true); }} /> : <BuyerPanel draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
+        </div>
       </section>
 
       {vaultsEnabled ? <section className="lp-capital-market lp-section" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-market-intro">
           <span className="lp-eyebrow">Why Airbag</span>
-          <h2 className="lp-h2" id="why-protect-title">Your downside.<br /><span className="soft">Someone else’s commitment.</span></h2>
-          <p className="lp-lede">Airbag connects people who want to reduce downside with people willing to fund it.</p>
+          <h2 className="lp-h2" id="why-protect-title">Two sides.<br /><span className="soft">The same risk.</span></h2>
+          <p className="lp-lede">Holders pay for a floor. Vault depositors fund payouts and share in premiums.</p>
         </div>
         <div className="lp-market-mechanism">
-          <div className="lp-market-sides">
-            <div><h3>Set your floor</h3><p>Pay one premium. Keep your tokens. No buyer margin calls.</p></div>
-            <div><h3>Fund a vault</h3><p>Choose NVDAx or Anthropic. Share the premiums and the cost of buyer payouts.</p></div>
+          <div className="risk-relationship" aria-label="Mechanism: holders pay premiums to a vault; the vault funds contractual payouts to holders.">
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true">↗</span><span className="lp-eyebrow">For holders</span><h3>Keep your tokens. <br />Set a floor.</h3><p>One premium. No buyer margin calls.</p></div>
+            <div className="risk-exchange"><span>Premiums <b aria-hidden="true">→</b></span><span><b aria-hidden="true">←</b> Contract payouts</span></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true">▱</span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Separate vaults for each asset.</p></div>
           </div>
-          <ol className="lp-capital-flow" aria-label="How vault capital moves">
-            <li><span className="lp-flow-number" aria-hidden="true">01</span><strong>Capital in</strong><p>Depositors fund an asset-specific round.</p></li>
-            <li><span className="lp-flow-number" aria-hidden="true">02</span><strong>Premiums in</strong><p>Buyers pay for a floor. Maximum payouts are reserved.</p></li>
-            <li><span className="lp-flow-number" aria-hidden="true">03</span><strong>Payouts out</strong><p>The vault funds payouts under each contract’s reference rules.</p></li>
-            <li><span className="lp-flow-number" aria-hidden="true">04</span><strong>Redeem your share</strong><p>Once obligations settle, depositors redeem their share of the remaining balance.</p></li>
-          </ol>
-          <p className="lp-market-risk">Depositor capital can lose value. Premiums are not guaranteed profit.</p>
+          <p className="lp-market-risk">Deposits can lose value. Premiums are not guaranteed profit.</p>
         </div>
       </section> : <section className="lp-why" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
@@ -77,10 +107,10 @@ export default function Landing({ onLaunch, onViewPosition, onConnected, vaultsE
         </div>
       </section>}
 
-      <ProtectionWalkthrough />
+      <ProtectionWalkthrough side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} onStart={() => chooseSide(explanationSide, true)} />
 
       <section className="lp-section" id="assets">
-        <div className="lp-section-head"><span className="lp-eyebrow">Two supported markets</span><h2 className="lp-h2">Public or private.<br /><span className="soft">{vaultsEnabled ? "Choose either side." : "One protection workflow."}</span></h2><p className="lp-lede">{vaultsEnabled ? "Token-market downside. Separate vaults for each asset." : "Protection follows the traded token price."}</p></div>
+        <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Two assets.<br /><span className="soft">{vaultsEnabled ? "Two ways to participate." : "One protection workflow."}</span></h2><p className="lp-lede">Protection follows the traded token price.</p></div>
         <div className="lp-reference-cards">
           {[1, 0].map((id) => {
             const asset = VERIFIED_ASSETS[id];
@@ -90,8 +120,7 @@ export default function Landing({ onLaunch, onViewPosition, onConnected, vaultsE
             </article>;
           })}
         </div>
-        <p className="lp-lede lp-shared-reference">Jupiter observations · 5-minute median · Fresh data and active series required</p>
-        <div className="lp-note"><p className="disclosure">Existing NVDAx v1 contracts retain their stock-benchmark terms.</p><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets</button></div>
+        <div className="lp-note"><button className="btn ghost sm" onClick={() => onLaunch("compare")}>View markets →</button></div>
       </section>
 
       <section className="lp-section lp-verification" id="onchain-proof">
@@ -105,7 +134,6 @@ export default function Landing({ onLaunch, onViewPosition, onConnected, vaultsE
             <details id="reference-rules"><summary>How is the reference verified?</summary><p>The authorized publisher submits external observations. The program checks timing, sample count and ordering, then calculates the median. The publisher remains a trust dependency.</p></details>
             <details><summary>What if a reference is unavailable?</summary><p>No price is invented. Failed exercise returns the requested quantity to coverage; invalid expiry follows the premium-refund rule.</p></details>
             <details><summary>What is real, and what is Devnet?</summary><p>Market references come from real tokens. Purchases, reserves and settlements are onchain. oUSD is a test token with no real value or redemption promise.</p></details>
-            <details><summary>What happens to older NVDAx positions?</summary><p>Benchmark v1 contracts keep their original NVIDIA benchmark and equity-session rules. New v2 contracts protect the NVDAx token market. Each position identifies its reference.</p></details>
           </div>
         </div>
         <nav className="lp-proof-strip" aria-label="Protocol evidence">
