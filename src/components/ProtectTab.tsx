@@ -1,4 +1,5 @@
 import AssetSelector from "./AssetSelector";
+import { defaultFloor } from "../client/defaultFloor";
 import PayoffChart from "./PayoffChart";
 import ProtectionMechanism from "./ProtectionMechanism";
 import ProtectionBoundary from "./ProtectionBoundary";
@@ -62,7 +63,7 @@ export default function ProtectTab({
   }, [c.svcUrl, seriesRetry]);
   const [assetId, setAssetId] = useState(1);
   const [seriesId, setSeriesId] = useState<number | null>(null);
-  const [tenor, setTenor] = useState<"short" | "weekly">("short");
+  const [tenor, setTenor] = useState<"short" | "weekly">("weekly");
   const [qtyStr, setQtyStr] = useState("1");
   const [holdingsInputs, setHoldingsInputs] = useState<Record<number, string>>({});
   const [reference, setReference] = useState<QuoteReference | null>(null);
@@ -178,12 +179,19 @@ export default function ProtectTab({
   const effectiveTenor = options.some((s) => s.shortDated === (tenor === "short")) ? tenor : tenor === "short" ? "weekly" : "short";
   const tenorOptions = options.filter((s) => s.shortDated === (effectiveTenor === "short"));
   const selected: SeriesInfo | undefined =
-    options.find((s) => s.seriesId === seriesId) ?? tenorOptions[0] ?? options[0];
+    options.find((s) => s.seriesId === seriesId) ?? defaultFloor(tenorOptions, reference?.available && reference.assetId === assetId ? toFixed(reference.price) : undefined);
+
+  useEffect(() => {
+    if (similarDraft || renewal || (initialDraft && appliedDraft.current !== initialDraft) || !reference?.available || reference.assetId !== assetId || !selected || options.some(s => s.seriesId === seriesId)) return;
+    // Freeze the initial floor once a real reference arrives; polling must not change it.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setSeriesId(selected.seriesId);
+  }, [assetId, initialDraft, options, reference, renewal, selected, seriesId, similarDraft]);
 
   const quantity = Number(qtyStr);
   const qty = Number.isFinite(quantity) && quantity > 0 && quantity <= 1e9 ? toFixed(quantity) : 0n;
-  const spotReal = reference?.available ? reference.price : undefined;
-  const referenceReady = reference?.available === true;
+  const spotReal = reference?.available && reference.assetId === assetId ? reference.price : undefined;
+  const referenceReady = reference?.available === true && reference.assetId === assetId;
   const spot = spotReal != null ? toFixed(spotReal) : 0n;
 
   const now = useNowSeconds();
@@ -237,7 +245,7 @@ export default function ProtectTab({
   const holdingsQuantity = Number(holdingsText);
   const holdingsValid = holdingsText.trim() !== "" && Number.isFinite(holdingsQuantity) && holdingsQuantity >= 0 && holdingsQuantity <= 1e9;
   const outcome = selected && est && holdingsValid ? combinedOutcome(toFixed(holdingsQuantity), qty, selected.strike, toFixed(scenarioPrice), est.premium) : null;
-  const referenceStatus = referenceReady ? "Reference available" : reference?.status === "session_closed" ? "Equity session closed" : reference?.status === "stale" ? "Waiting for a fresh reference" : marketError ? "Reference unavailable" : reference ? "Reference unavailable" : "Checking reference…";
+  const referenceStatus = referenceReady ? "Reference available" : reference?.available === false && reference.status === "session_closed" ? "Equity session closed" : reference?.available === false && reference.status === "stale" ? "Waiting for a fresh reference" : marketError ? "Reference unavailable" : reference ? "Reference unavailable" : "Checking reference…";
 
   const buyLabel = c.busy ? c.status || "Submitting…" : !c.connected ? "Start with a demo wallet" : !referenceReady ? referenceStatus : !admissionReady ? capacityReached ? "Above available capacity" : availability.label ?? "Capacity reached" : tooBig ? "Above maximum size" : closed ? "Purchase closed" : !affordable ? "Insufficient oUSD" : approved ? "Open position" : "Review position";
 
@@ -275,15 +283,16 @@ export default function ProtectTab({
       </section> : <div className="protect-layout">
         <aside className="card protection-ticket" aria-label="Set your floor">
           <fieldset disabled={c.busy} className="ticket-fields" onClick={() => { if (approval) setApproval(null); }}><legend className="sr-only">Contract terms</legend>
-          <label className="field" htmlFor="protected-quantity"><span className="lbl">Quantity · {asset.symbol}</span></label>
+          <label className="field" htmlFor="protected-quantity"><span className="lbl">Quantity · {assetId === 1 ? "Anthropic PreStocks" : asset.symbol}</span></label>
           <div className="quantity-control"><button type="button" disabled={quantity <= 0.01} aria-label="Decrease protected quantity by one" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setApproval(null); }} aria-describedby="quantity-help" aria-invalid={qty <= 0n || tooBig} /><button type="button" disabled={!!selected && qty >= selected.maxContractSize} aria-label="Increase protected quantity by one" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
-          <div className="field-help" id="quantity-help">{tooBig ? "Maximum " + (selected ? tok(selected.maxContractSize) : 0) + " units." : qty <= 0n ? "Enter a quantity above zero." : selected ? `Max ${tok(selected.maxContractSize)} tokens` : ""}</div>
+          <div className="field-help" id="quantity-help">{qty <= 0n ? "Enter a quantity above zero." : selected ? `Maximum per position: ${tok(selected.maxContractSize)} tokens` : ""}</div>
           {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setQtyStr(String(c.exposure[assetId]))}>Use reference holdings</button>}
-          <div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{option ? new Date(option.expiryTs * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : kind === "short" ? "Near expiry" : "Later expiry"}<span>{option ? fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
+          <div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{option ? new Date(option.expiryTs * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : kind === "short" ? "Near expiry" : "Later expiry"}<span>{option ? (kind === "short" ? "Quick Devnet expiry · " : "") + fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
           <div className="ticket-label">Price floor</div>
           <div className="floor-list">{tenorOptions.map((s) => { const distance = spotReal ? (tok(s.strike) - spotReal) / spotReal : null; return <button key={s.seriesId} className={"strike-option" + (selected?.seriesId === s.seriesId ? " active" : "")} aria-pressed={selected?.seriesId === s.seriesId} onClick={() => setSeriesId(s.seriesId)}><strong className="mono">{fmtPrice(s.strike)}</strong><span className="floor-distance">{distance == null ? "Reference unavailable" : Math.abs(distance * 100).toFixed(1) + "% " + (distance >= 0 ? "above" : "below") + " reference"}</span></button>; })}</div>
           {!selected && <div className="empty terms-loading" role="status" aria-busy={seriesLoading}>{seriesLoading ? <><span className="loading-shape" aria-hidden="true" /><span className="loading-shape" aria-hidden="true" />Loading contract terms…</> : seriesError ? "Couldn’t load contract terms. Try again." : "No expiry is open for purchase. Check again shortly."}{!seriesLoading && <button className="text-action" onClick={() => { setSeriesLoading(true); setSeriesRetry((n) => n + 1); }}>Try again</button>}</div>}
           {selected && seriesError && <p className="field-error">Terms could not refresh. Buying checks availability again.</p>}
+          <div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{referenceRatio != null && <p className="disclosure">≈ {fmtPct(referenceRatio)} of reference value · {secsLeft < 60 ? "Less than 1m" : fmtDuration(secsLeft)} remaining</p>}
           {selected && <div className="ticket-expiry"><div><span>Expires in {fmtDuration(selected.expiryTs - now)}</span><strong>{fmtClock(selected.expiryTs)}</strong></div><div><span>Early exercise closes</span><strong>{fmtClock(selected.exerciseCutoffTs)}</strong></div></div>}
           </fieldset>
         </aside>
@@ -291,24 +300,24 @@ export default function ProtectTab({
           <div className="mobile-payout-overview"><span>Maximum contract payout</span><strong className="mono">{selected && qty > 0n ? fmtOusd(tok(notional)) : "—"}</strong><p>Settlement reference below your floor: difference × covered quantity. At or above: zero.</p><button className="text-action" aria-expanded={explorePayout} aria-controls="payout-exploration" onClick={() => setExplorePayout(value => !value)}>{explorePayout ? "Close payout explorer −" : "Explore payouts +"}</button></div>
           <div id="payout-exploration" className={"card scenario-card payout-exploration" + (explorePayout ? " is-expanded" : "")}><h2>Payout preview</h2>
           {selected && est && qty > 0n ? <>
-            <ProtectionMechanism symbol={asset.symbol} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
             <div className="scenario-price-row"><label htmlFor="scenario-price">Explore settlement price</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>
             <div className="scenario-adjustment"><label className="scenario-slider"><span className="sr-only">Explore settlement price</span><input aria-label="Price at settlement (illustrative scenario)" aria-valuetext={fmtUsd(scenarioPrice)} type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setScenario(Math.max(chartMin, Math.min(chartMax, scenarioPrice + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1)))); setScenarioPreset(null); setScenarioText(null); } }} onChange={(e) => { setScenario(Number(e.target.value)); setScenarioPreset(null); setScenarioText(null); }} /></label>
             <div className="scenario-presets">{["Current", "Floor", "Breakeven", "15% lower"].map(label => <button key={label} className="btn ghost sm" aria-pressed={scenarioPreset === label} onClick={() => { setScenarioPreset(label); setScenarioText(null); }}>{label === "Current" ? "Latest reference" : label}</button>)}</div>
             </div>
+            <ProtectionMechanism symbol={asset.symbol} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
           </> : <div className="empty"><strong>{qty <= 0n ? "Enter a valid quantity" : referenceStatus}</strong><p>Waiting for current pricing and contract terms.</p></div>}
           </div>
         </section>
         <div className="protection-checkout">
           {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase" onKeyDown={e => { if (e.key === "Escape" && !c.busy) cancelReview(); }}><h3>Review position</h3><dl className="review-terms"><div><dt>Quantity</dt><dd>{quantity} {asset.symbol}</dd></div><div><dt>Price floor</dt><dd className="mono">{selected && fmtPrice(selected.strike)}</dd></div><div><dt>Expires</dt><dd>{selected && fmtClock(selected.expiryTs)}</dd></div><div><dt>Maximum premium</dt><dd className="mono">{fmtOusd(tok(approved.maxPremium))}</dd></div></dl><p>You won’t pay above this premium limit.</p>{selected?.vaultRound && <p>Funded by the {asset.symbol} vault. <a href={explorerUrl("address", selected.vaultRound)} target="_blank" rel="noreferrer">Inspect backing round ↗</a></p>}<button className="btn ghost sm" disabled={c.busy} onClick={cancelReview}>Cancel review</button></section>}
-          <div className="checkout-row"><div><div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{referenceRatio != null && <p className="disclosure">≈ {fmtPct(referenceRatio)} of reference value · {secsLeft < 60 ? "Less than 1m" : fmtDuration(secsLeft)} remaining</p>}{c.connected && <div className="ticket-balance">Balance {fmtOusd(c.tokenBalance, 0)}</div>}<p className="disclosure">oUSD · test token, no monetary value</p></div>
+          <div className="checkout-row"><div>{c.connected && <div className="ticket-balance">Balance {fmtOusd(c.tokenBalance, 0)}</div>}<p className="disclosure">oUSD · test token, no monetary value</p></div>
           <div className="ticket-purchase"><button ref={purchaseButton} className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
           <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Wallet saved in this browser. Clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
         </div>
         <button className="mobile-position-details text-action" aria-expanded={showDetails} aria-controls="position-details" onClick={() => setShowDetails(value => !value)}>{showDetails ? "Close position details −" : "Position details +"}</button>
         <section id="position-details" className={"protection-secondary" + (showDetails ? " is-expanded" : "")} aria-label="Additional protection details">
-          <details className="card protection-details"><summary>Holdings</summary><h3>Check your token holdings</h3><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} />
+          <details className="card protection-details"><summary>Holdings</summary><h3>Check your token holdings</h3><p>Token ownership is not required to open a position.</p><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} />
           {selected && est && qty > 0n && <><h3>Holdings + payout scenario</h3>
               <label htmlFor="scenario-holdings">Holdings in this scenario · {asset.symbol}</label>
               <input id="scenario-holdings" className="input mono" inputMode="decimal" autoComplete="off" value={holdingsText} aria-invalid={!holdingsValid} aria-describedby="holdings-scenario-help" onChange={e => setHoldingsInputs(current => ({ ...current, [assetId]: e.target.value }))} />

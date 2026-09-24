@@ -152,7 +152,7 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
           {stage === "Funding" && <div><dt>Funding closes</dt><dd>{fmtClock(selected.fundingClose)}</dd></div>}
           <div><dt>Latest contract expiry</dt><dd>{fmtClock(selected.latestExpiry)}</dd></div>
         </dl>
-        <p>{stage === "Redeemable" ? "This round has settled." : stage === "Funding" ? "Funds lock when funding closes and unlock after settlement completes." : "Funds unlock after settlement completes."}</p>
+        <p>{stage === "Redeemable" ? "This round has settled." : stage === "Funding" ? "Premiums add to the vault. Payouts reduce its balance. Funds lock when funding closes and unlock after settlement." : "Funds unlock after settlement completes."}</p>
         {ownedValue != null && owned && <p>Final net result: <strong className="mono">{token(ownedValue - owned.shares)}</strong> · test activity</p>}
         {owned && owned.shares > 0n ? <><strong className="vault-owned mono">{token(owned.shares)}</strong><p>{selected.totalShares > 0n ? (Number(owned.shares * 10000n / selected.totalShares) / 100).toFixed(2) : "0"}% of this round{stage === "Funding" ? " · changes as deposits arrive" : " · ownership fixed"}</p>
           {owned.redeemed ? <p className="callout">Withdrawn {token(owned.redemptionAmount)}</p> : stage !== "Funding" && stage !== "Redeemable" ? <p>Your capital is locked until settlement completes.</p> : stage === "Redeemable" ? <><p>Available to withdraw: <strong>{token(owned.shares * selected.finalBalance / selected.totalShares)}</strong></p><button className="btn primary" disabled={frozen} onClick={() => begin("redeem")}>Review withdrawal</button></> : null}</> : null}

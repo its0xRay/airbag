@@ -53,8 +53,9 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product">
         <div className="lp-hero-copy">
-          <h1 className="lp-title"><span className="hero-accent">Risk management</span><br />for tokenized equities.</h1>
-          <p className="lp-hero-tagline">{vaultsEnabled ? "Set a downside floor. Or fund payouts and share in premiums." : "Keep the upside. Define your downside."}</p>
+          <p className="lp-hero-category">Risk management for tokenized equities</p>
+          <h1 className="lp-title"><span className="hero-accent">Set your floor.</span><br />Keep your tokens.</h1>
+          <p className="lp-hero-tagline">{vaultsEnabled ? "Pay once for a floor. Or fund payouts and share in premiums." : "Pay once. Receive the difference if the settlement reference falls below your floor."}</p>
         </div>
         <div id="protection" className="landing-workspace">
           {vaultsEnabled && <div className="workspace-modes" role="group" aria-label="Choose your Airbag flow">
@@ -72,9 +73,9 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
         <div className="lp-market-mechanism">
           <CapitalFlow>
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your tokens. <br />Set a floor.</h3><p>One premium. No buyer margin calls.</p></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your tokens. <br />Set a floor.</h3><p>Token-market floors for public and pre-IPO exposure.</p></div>
             <CapitalFlowPaths />
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Separate vaults for each asset.</p></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Back payouts. <br />Share in premiums.</h3><p>Every position’s maximum contractual payout is reserved onchain.</p></div>
           </CapitalFlow>
         </div>
       </section> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
@@ -110,11 +111,11 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
       <section className="lp-section" id="assets">
         <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Two assets.<br /><span className="soft">Two ways to participate.</span></h2><p className="lp-lede">{vaultsEnabled ? "Set a floor or fund a vault for either token." : "Protection follows the traded token price."}</p></div>
         <div className="lp-reference-cards">
-          {[1, 0].map((id) => {
+          {[0, 1].map((id) => {
             const asset = VERIFIED_ASSETS[id];
             return <article className="lp-reference-card" key={asset.key}>
               <div className="lp-reference-card-head"><div className="row"><AssetLogo asset={asset} /><div><span className="lp-reference-kind">{id === 0 ? "xStock" : "PreStocks"}</span><h3>{asset.symbol}</h3></div></div></div>
-              <p className="lp-reference-summary">{id === 0 ? "Protection against NVDAx token-price declines, including discounts to NVIDIA’s stock price." : "Protection for Anthropic PreStocks’ traded token price. Tracks the token price, not Anthropic shares or company valuation."}</p>
+              <p className="lp-reference-summary">{id === 0 ? "A floor on the NVDAx token-market reference, not NVIDIA’s stock price. Token discounts can affect your payout." : "A floor for pre-IPO token exposure. Tracks Anthropic PreStocks’ traded token price, not company valuation."}</p>
             </article>;
           })}
         </div>

@@ -22,11 +22,11 @@ describe("two-sided landing release", () => {
     const html = render();
     expect(html).not.toContain("Fund a vault");
     expect(html).not.toContain("How do vault deposits work?");
-    expect(html).toContain("Keep the upside. Define your downside.");
+    expect(html).toContain("Pay once. Receive the difference if the settlement reference falls below your floor.");
   });
   it("introduces both sides without replacing the buyer workflow", () => {
     const html = render(true);
-    expect(html).toContain("Set a downside floor. Or fund payouts and share in premiums.");
+    expect(html).toContain("Pay once for a floor. Or fund payouts and share in premiums.");
     expect(html).toContain('id="protection"');
     expect(html).toContain('aria-label="Choose your Airbag flow"');
     expect(html).toContain("Fund a vault");

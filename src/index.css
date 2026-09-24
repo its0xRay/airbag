@@ -1013,7 +1013,7 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 .btn { min-height:44px; }
 .btn[aria-pressed="true"], .strike-option.active { background:var(--bg-elev2); border-color:var(--text-dim); color:var(--text); }
 .protect-workspace .strike-option.active { background:var(--bg-elev2); border-color:var(--text-dim); }
-.strike-option.active::after { content:"✓"; color:var(--text); }
+.lp-hero-category { font-size:clamp(16px,1.6vw,20px); line-height:1.5; color:var(--text-dim); margin:0 0 20px; }
 .quantity-control button:disabled { opacity:0.4; cursor:not-allowed; }
 .scenario-price-row { display:flex; align-items:center; gap:8px; margin-top:24px; }
 .scenario-price-row label { margin-right:auto; font-size:14px; }
@@ -1086,7 +1086,8 @@ summary:focus-visible, .input:focus-visible { outline:2px solid var(--accent); o
 .boundary-caption { display:flex; justify-content:space-between; align-items:baseline; gap:16px; color:var(--text-dim); font-size:14px; }
 .boundary-caption strong { color:var(--text); font-size:24px; font-weight:500; }
 .protection-boundary svg { width:100%; height:auto; display:block; overflow:visible; }
-.boundary-region { fill:var(--accent-dim); }
+.boundary-region { fill:color-mix(in srgb,var(--accent) 24%,transparent); }
+.boundary-axis-label { display:flex; justify-content:space-between; gap:12px; color:var(--text-dim); font-size:12px; margin-bottom:12px; }
 .boundary-axis { stroke:var(--text-faint); stroke-width:1; }
 .boundary-floor { stroke:var(--accent); stroke-width:2; }
 .boundary-gap { stroke:var(--accent); stroke-width:2; stroke-dasharray:4 4; }

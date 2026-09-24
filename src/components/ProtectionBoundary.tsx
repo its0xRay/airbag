@@ -19,6 +19,7 @@ export default function ProtectionBoundary({ floor, reference, compact = false }
         <circle className="boundary-reference" cx={x(reference)} cy="68" r="6" />
       </>}
     </svg>}
+    {!compact && <div className="boundary-axis-label"><span>$0</span><span>Higher settlement reference</span></div>}
     <div className="boundary-zones"><span>Below floor · difference × quantity</span><span>At or above · zero payout</span></div>
   </div>;
 }
