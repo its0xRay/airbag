@@ -1,6 +1,6 @@
 # Airbag
 
-Risk management for tokenized equities on Solana. Set your downside—or fund it and share in the premiums.
+Price floors for tokenized equities on Solana. Keep your tokens, or fund isolated vaults that underwrite payouts.
 
 [Try Airbag](https://www.airbag.fyi/) · [Deployed program](https://explorer.solana.com/address/Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky?cluster=devnet) · [Architecture](docs/architecture.md) · [Deployment](DEPLOY.md)
 
@@ -19,7 +19,7 @@ New positions follow token-market references, not guaranteed portfolio values. T
 
 Choose an asset, quantity, floor and expiry. Start with a browser demo wallet, review the maximum premium, then open a position. Follow it in Positions.
 
-To fund positions, open Vaults and choose an asset. Deposits can be cancelled during funding; after activation they lock until every obligation settles. Positions shows buyer contracts and vault deposits together. Administrator deposits have the same proportional rights. New empty funding rounds are published automatically when reference and operational checks pass; deposits are never automatically reinvested.
+To fund positions, choose **Fund a vault** and an asset. Deposits can be cancelled during funding; after activation they lock until every obligation settles. Your positions shows buyer contracts and vault deposits together. Administrator deposits have the same proportional rights. New empty funding rounds are published automatically when reference and operational checks pass; deposits are never automatically reinvested.
 
 Purchases and settlements execute on Solana Devnet. Premiums and payouts use **oUSD, a test token with no monetary value**; transaction fees are sponsored. Payout previews are illustrative, not executable quotes.
 

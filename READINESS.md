@@ -1,75 +1,58 @@
-# Devnet release checks — 22 September 2026
+# Devnet verification
 
-## Implemented
+Checked 25 September 2026 against the hosted Airbag services. This is a release
+check, not a security audit or a mainnet-readiness claim.
 
-- Keeper observation snapshots, original timestamps and reference-version scope;
-  network/program/publisher validation, expiry pruning and non-overlapping ticks.
-- Restricted, paced RPC relay behind `RPC_PROXY_ENABLED`; frontend opt-in through
-  `VITE_USE_RPC_RELAY`. Private endpoints remain server-side.
-- Weekly and short series rollover; existing contracts remain unchanged.
-- Read-only `npm run check:devnet` and more detailed health responses.
-- Separate scenario holdings/protected quantities; confirmed expiry-event receipts.
-- Read-only demo-wallet restoration, cross-tab submission lock and journal sync;
-  chain-bound transaction recovery across provider changes.
-- Durable trial-cap increase handling without resetting spend or wallet limits.
-- GitHub Actions checks, updated setup/deployment notes and page metadata.
+## Build and setup
 
-## Verified locally
+- 204 tests across 40 files pass, along with frontend build, server type check
+  and lint.
+- A clean checkout installs with `npm ci` and builds successfully.
+- Local links in README, deployment and architecture documentation resolve.
+- The deployed Solana program matches the local binary:
+  `4249a1860b27633d2b37fa408f015f171d14f60a462fc48096416beb5ff8c4b5`.
 
-- Build, lint, server type check and 103 unit/component tests pass.
-- Browser reload restores an existing wallet; scenario holdings can differ from
-  protected quantity and change the displayed arithmetic independently.
-- Live read-only service check: references available, two floors per asset and
-  duration, funded sponsorship and remaining cap headroom.
-- Targeted scan of 344 Git-history blobs: no private QuickNode URL, GitHub token,
-  private-key PEM or 64-byte key-array pattern matches. Not a comprehensive audit.
+## Hosted services
 
-## Still requires completion
+- Both token-market references are available, with two short and two weekly
+  floors per asset. Purchases are not paused.
+- Keeper private health is healthy, persistence is enabled, and both observation
+  buffers contain fresh samples. Both Railway services have separate volumes.
+- Series and vault-round rotation are enabled. Availability remains conditional
+  on real references, capital and operational checks; it is not guaranteed.
+- Fee sponsorship has funded SOL and spending-cap headroom. Balance snapshots
+  are not a guarantee of capacity throughout judging; continue checking health.
 
-- Select the operational-alert destination and verify delivery.
-- Verify hosted weekly rollover; an actual expiry receipt has been checked live.
-- Finish two-tab submission/refresh testing, positive mainnet holdings import,
-  sponsorship/network failure checks and physical mobile-browser testing.
-- Complete social preview artwork and final accessibility/performance review.
-- Review repository publication separately; visibility has not been changed.
+## Transaction evidence
 
-Video and pitch materials are outside this checklist. No mainnet readiness claim.
+- A fresh zero-SOL wallet deposited and cancelled 1 test oUSD in each asset's
+  funding round. Exact token balances were restored.
+- New 0.01-token positions were purchased for both assets and 0.004-token partial
+  exercise requests settled through the hosted keeper using real observations.
+  Both subsequently expired with zero remaining quantity and zero reserves,
+  without the reference-failure refund path. The test wallet remained at zero SOL:
+  [NVDAx contract](https://explorer.solana.com/address/3ssrwuFEXp9AkzoF7gdZWFZHNWdtK5isqH6iw77PFfGn?cluster=devnet),
+  [Anthropic contract](https://explorer.solana.com/address/CS6UkFBD4PdojEZgywnCHY5MeaBoFPGZj2GSc4jUEMSD?cluster=devnet).
+- Existing completed vault rounds for both assets have onchain premium receipts,
+  payouts, proportional redemptions, zero refunds and no remaining obligations.
+  See [vault lifecycle evidence](docs/vault-implementation.md).
+- A browser withdrawal returned 100 test oUSD to the connected wallet. The
+  withdrawn state and balance survived reload:
+  [confirmed withdrawal](https://explorer.solana.com/tx/25MFnkKKg5rqjkNFF8mW8gaMxvJr4iLmoF5tdhq5DcwHJ31poYokGRwkyM4CXRML76BKW7VZqpNyQYUfzErLThyR?cluster=devnet).
 
-## Set Grand1 presentation checks
+## Limits of this check
 
-- Category/hero copy, connected protocol sequence, price-floor boundary visual,
-  shared checkout row and secondary disclosures implemented without changing
-  pricing, reference policy, transaction submission or onchain programs.
-- At 1280 × 800, the embedded primary workspace (asset/reference through purchase
-  row) spans approximately 670px. No fixed-height clipping or internal scrolling.
-  Browser checks at 375/768/1280px found no horizontal overflow. Keyboard floor
-  preset and reference adjustment produced the expected contractual payout.
-- Actual hosted Devnet purchase from the local frontend: contract #35,
-  0.01 NVDAx, $225 floor, displayed 0.02 oUSD premium, 2.25 oUSD reserved.
-  Signature `4oEy6ZBAvjpZ21m27tqAHtmhXUkZSZsA6UYohoiCDsrFSnHTQVvezKcSFBfNRxQJmkeEiVApeLwwKh3Av19NDL3z`.
-  Receipt focus and exact-position handoff verified. A prior ANTHROPIC quote above
-  the approved premium was correctly rejected, preserving the editable terms.
-- Confirmed positions reuse the floor motif with actual reserve/reference data;
-  no hypothetical reference or calculated payout is inserted into a receipt.
-
-## Hosted activation and presentation checks
-
-- Keeper `/data` volume and `KEEPER_STATE_PATH` activated. Controlled restart
-  retained original observation timestamps; private health returned healthy with
-  persistence enabled and fresh samples after restart.
-- Railway restricted relay uses the existing QuickNode Devnet endpoint; Vercel
-  production opts in through `VITE_USE_RPC_RELAY`. Verified Devnet genesis,
-  rejected unsupported RPC, restored wallet/positions and loaded expiry receipt.
-  Published JavaScript contained no QuickNode hostname.
-- Refined hero, supported-asset categories, selected-term payoff illustration,
-  progressive disclosure, proof links and confirmed-purchase position handoff.
-  No pricing, reference policy or program changes.
-- Local frontend against hosted Devnet: real NVDAx purchase of 0.01 units,
-  contract #34, confirmed signature
-  `4vvx3uqoJ6aFp4vMYXNkSQzAxRDrqYsku7C4XCjrdnkv4Axgj4iYGiKj3CkfP6afKcG4z4A6pQG6UatJKDL67rmJ`.
-  Confirmation and exact-contract focus verified. Responsive browser checks do not
-  replace physical mobile-device testing.
-- Browser checks at 375, 768 and 1280px: no horizontal overflow, readable asset
-  logos, responsive hero/controls, keyboard scenario adjustment and real position
-  handoff. Reduced-motion handling inspected in CSS. Existing large-bundle build
-  warning remains a performance follow-up.
+- Invalid quantity and review cancellation were checked in the live browser.
+  RPC outage, transaction reconciliation and stale-reference behavior have
+  automated test coverage; this does not replace full browser fault injection.
+- Responsive desktop/tablet/mobile checks do not replace physical iOS/Android
+  testing. A full fresh vault round was not repeated during this check; completed
+  rounds were inspected, alongside new deposit/cancel and withdrawal transactions.
+- A targeted scan of 614 historical text blobs found no GitHub-token,
+  private-key-PEM or credential-bearing QuickNode URL pattern matches. This is
+  not a comprehensive secret audit.
+- Dependency audit: 14 affected packages (6 high, 8 moderate, no critical),
+  including transitive Solana libraries and optional Anchor/Mocha tools.
+  No breaking automatic dependency upgrades were applied. Runtime reachability
+  and compatible remediation need a dedicated dependency review.
+- Operational alert delivery and physical-device testing remain to be verified.
