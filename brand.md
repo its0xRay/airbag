@@ -11,6 +11,8 @@ financial markers, with dark text. Reserve status colors for actual state.
 - Dark hero and transaction workspace; light explanatory sections.
 - Buyer and vault tabs share one panel and preserve editable drafts, never approvals.
 - Desktop pairs the introduction with the workspace. Mobile stacks them.
+- Desktop landing content shares a 1600px maximum width and 32px minimum gutters,
+  including navigation and footer. Paragraphs retain their own reading-width limits.
 - Keep controls readable and touch-sized. Avoid clipped panels and internal scrolling.
 - Positions prioritize the next available action, with details progressively disclosed.
 

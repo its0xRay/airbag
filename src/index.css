@@ -73,6 +73,11 @@ button { font-family: inherit; }
 /* layout */
 .app { max-width: 1180px; margin: 0 auto; padding: 0 24px 80px; }
 .app.home-mode { padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+/* One landing-page grid. Keep the existing hero's 1600px content width while
+   giving the header, explanatory sections and footer the same outer edges. */
+@media (min-width:1100px) {
+  .app.home-mode { max-width:1664px; padding-inline:32px; }
+}
 .header {
   position: sticky; top: 0; z-index: 20;
   backdrop-filter: blur(12px);
