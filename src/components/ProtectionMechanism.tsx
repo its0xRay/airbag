@@ -25,6 +25,6 @@ export default function ProtectionMechanism({ symbol, quantity, floor, reference
     <p className="premium-recovery">{recoveryPrice > 0 ? <>Break-even reference: <strong className="mono">{fmtUsd(recoveryPrice)}</strong></> : recoveryPrice === 0 ? "Payout covers premium only at a zero reference." : "Premium exceeds the maximum contract payout."}</p>
     <PayoffChart compact={narrative} points={points} min={chartMin} max={chartMax} floor={floorPrice} breakeven={recoveryPrice} price={fromFixed(reference)} net={fromFixed(gross - premium)} scale={scale} />
     <div className="mechanism-range"><span>Maximum payout {fmtOusd(fromFixed(maximum))}</span></div>
-    <p className="mechanism-disclosure">Payout scenario · not a quote</p>
+    <p className="mechanism-disclosure">Hypothetical settlement price</p>
   </div>;
 }
