@@ -23,7 +23,7 @@ describe("Selected protection mechanism", () => {
     expect(html).toContain("0.00 oUSD");
     expect(html).toContain("−4.00 oUSD");
     expect(html).toContain("Payout minus estimated premium");
-    expect(html).toContain("Payout scenario · not a quote");
+    expect(html).toContain("Hypothetical settlement price");
     expect(html).not.toContain("you paid");
     expect(html).toContain('viewBox="0 0 560 100"');
     expect(html).toContain("Break-even $213.00");
@@ -35,7 +35,7 @@ describe("Selected protection mechanism", () => {
     expect(html).toContain("13.00 oUSD");
     expect(html).toContain("215.00 oUSD");
     expect(html).toContain("Hypothetical reference");
-    expect(html).toContain("Payout scenario · not a quote");
+    expect(html).toContain("Hypothetical settlement price");
     expect(html).toContain("Payout minus premium");
   });
   it("never implies negative gross payouts above the floor", () => {
