@@ -51,8 +51,10 @@ check, not a security audit or a mainnet-readiness claim.
 - A targeted scan of 614 historical text blobs found no GitHub-token,
   private-key-PEM or credential-bearing QuickNode URL pattern matches. This is
   not a comprehensive secret audit.
-- Dependency audit: 14 affected packages (6 high, 8 moderate, no critical),
-  including transitive Solana libraries and optional Anchor/Mocha tools.
-  No breaking automatic dependency upgrades were applied. Runtime reachability
-  and compatible remediation need a dedicated dependency review.
+- Dependency recheck (26 September 2026): a clean `npm ci` and `npm audit`
+  report zero known vulnerabilities. Patched transitive dependencies are pinned;
+  the unpatched native `bigint-buffer` implementation is replaced by the local
+  JavaScript workspace in `vendor/bigint-buffer`. Solana and Anchor SDK versions
+  are unchanged. Compatibility tests cover token encoding, transaction signing,
+  RPC calls and tooling. CI checks for moderate-or-higher dependency advisories.
 - Operational alert delivery and physical-device testing remain to be verified.

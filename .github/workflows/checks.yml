@@ -18,6 +18,7 @@ jobs:
           cache: npm
       - run: npm run check:secrets
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run build
       - run: npm run lint
       - run: npm test
