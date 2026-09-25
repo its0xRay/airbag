@@ -62,6 +62,7 @@ export default function App() {
   const status = useChain((s) => s.status);
   const refresh = useChain((s) => s.refresh);
   const chainError = useChain((s) => s.error);
+  const refreshWarning = useChain((s) => s.refreshWarning);
   const clearError = useChain((s) => s.clearError);
   const [tab, updateTab] = useState<Tab>(tabFromUrl);
   const setTab = (next: Tab) => {
@@ -165,6 +166,9 @@ export default function App() {
 
 
 
+      {refreshWarning && <div className="callout warn" role="status" style={{ margin: "14px 16px" }}>
+        <div className="between"><span>{refreshWarning}</span><button className="btn ghost sm" onClick={() => void refresh({ history: false })}>Retry refresh</button></div>
+      </div>}
       {chainError && tab !== "protect" && tab !== "home" && (
         <div className="callout warn" role="alert" style={{ margin: "14px 16px" }}>
           <div className="between">

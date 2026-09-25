@@ -231,6 +231,7 @@ interface ChainState {
   transaction: TrackedTransaction | null;
   recovering: boolean;
   refreshing: boolean;
+  refreshWarning: string | null;
   recoverTransaction: () => Promise<void>;
   rpcUrl: string;
   svcUrl: string;
@@ -287,6 +288,7 @@ export const useChain = create<ChainState>((set, get) => ({
   transaction: loadTransaction(),
   recovering: false,
   refreshing: false,
+  refreshWarning: null,
   recoverTransaction: async () => {
     const tx = get().transaction;
     if (!tx || get().recovering) return;
@@ -409,21 +411,28 @@ export const useChain = create<ChainState>((set, get) => ({
     set({ refreshing: true });
     try {
     const current = get();
+    let incomplete = false;
+    const preserve = <T,>(value: T) => { incomplete = true; return value; };
     const [pool0, pool1, legacyContracts, seriesList] = await Promise.all([
-      client.getPool(0).catch(() => current.pools[0] ?? null), client.getPool(1).catch(() => current.pools[1] ?? null),
-      client.getContractsForBuyer(burner.publicKey).catch(() => current.contracts.filter(c => !c.vaultRound)),
-      loadSeries(svcUrl).catch(() => current.seriesList),
+      client.getPool(0).catch(() => preserve(current.pools[0] ?? null)), client.getPool(1).catch(() => preserve(current.pools[1] ?? null)),
+      client.getContractsForBuyer(burner.publicKey).catch(() => preserve(current.contracts.filter(c => !c.vaultRound))),
+      loadSeries(svcUrl).catch(() => preserve(current.seriesList)),
     ]);
 
     const vaultPortfolio = import.meta.env.VITE_VAULTS_ENABLED === "true"
-      ? await loadVaultPortfolio(new VaultClient(conn), burner.publicKey)
+      ? await loadVaultPortfolio(new VaultClient(conn), burner.publicKey).catch(() => preserve({
+        contracts: current.contracts.filter(c => !!c.vaultRound),
+        requests: current.requests.filter(r => current.contracts.some(c => c.vaultRound && c.address === r.contract.toBase58())),
+        vaultDeposits: current.vaultDeposits,
+      }))
       : { contracts: [], requests: [], vaultDeposits: [] };
     const contracts = [...legacyContracts, ...vaultPortfolio.contracts];
     const legacyRequests = await client.getRequestsForContracts(legacyContracts.map((contract) => new PublicKey(contract.address)))
-      .catch(() => current.requests.filter(r => legacyContracts.some(c => c.address === r.contract.toBase58())));
+      .catch(() => preserve(current.requests.filter(r => legacyContracts.some(c => c.address === r.contract.toBase58()))));
     const requests = [...legacyRequests, ...vaultPortfolio.requests];
     // Coverage is useful before slower history and balance reads finish.
-    set({ contracts, requests, vaultDeposits: vaultPortfolio.vaultDeposits, pools: { 0: pool0, 1: pool1 }, seriesList });
+    set({ contracts, requests, vaultDeposits: vaultPortfolio.vaultDeposits, pools: { 0: pool0, 1: pool1 }, seriesList,
+      refreshWarning: incomplete ? "Some onchain data could not refresh. Previously loaded data is shown where available. Retry to check for updates." : null });
 
     // Real transaction history: every signature that touched a contract the
     // user owns (§13.7) — no local log, straight from the chain.

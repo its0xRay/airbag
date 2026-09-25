@@ -39,5 +39,8 @@ describe("public RPC boundary", () => {
     const response = await relay(request("getGenesisHash", []));
     expect(JSON.stringify(response)).not.toContain("secret-provider-key");
     expect(response).toHaveProperty("error");
+    expect(response).toHaveProperty("error.message", "Could not refresh onchain data. Please retry shortly.");
+    const confirmation = await relay(request("getBlockHeight", []));
+    expect(confirmation).toHaveProperty("error.message", "Could not check transaction status. Do not resubmit until its status is known.");
   });
 });

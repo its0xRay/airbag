@@ -76,7 +76,12 @@ export function createRpcRelay(endpoint: string, program: string) {
       if (result.error || !("result" in result)) throw new Error("RPC request rejected");
       return { jsonrpc: "2.0", id: request.id, result: result.result };
     } catch {
-      return { jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Devnet RPC unavailable. Check your transaction status before retrying." } };
+      const message = request.method === "sendTransaction"
+        ? "Submission status is uncertain. Check your transaction status before retrying."
+        : ["getSignatureStatuses", "getBlockHeight"].includes(request.method)
+          ? "Could not check transaction status. Do not resubmit until its status is known."
+          : "Could not refresh onchain data. Please retry shortly.";
+      return { jsonrpc: "2.0", id: request.id, error: { code: -32000, message } };
     }
   };
   const run = (request: RpcRequest): Promise<Record<string, unknown>> =>
