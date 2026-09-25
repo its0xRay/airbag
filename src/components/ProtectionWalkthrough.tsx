@@ -45,7 +45,7 @@ function Mechanism({ step, side = "buyer", example }: { step: number; side?: "bu
   return <div className="mechanism">
     {step === 0 && <>
       <div className="mechanism-assets"><span><AssetLogo asset={asset} />{label}</span></div>
-      <div className="mechanism-contract"><span className="mechanism-label">Selected terms</span><div className="mechanism-terms"><span>Asset<strong>{label}</strong></span><span>Quantity<strong>{quantity} tokens</strong></span><span>Price floor<strong>{floor}</strong></span><span>Expiry<strong>{fmtClock(example.expiry)}</strong></span></div></div>
+      <div className="mechanism-contract"><span className="mechanism-label">Selected terms</span><div className="mechanism-terms"><span>Asset<strong>{label}</strong></span><span>Quantity<strong>{quantity} {quantity === 1 ? "token" : "tokens"}</strong></span><span>Price floor<strong>{floor}</strong></span><span>Expiry<strong>{fmtClock(example.expiry)}</strong></span></div></div>
       <p>Choose what to protect. Define the floor.</p>
     </>}
     {step === 1 && <>

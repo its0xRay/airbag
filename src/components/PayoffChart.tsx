@@ -19,7 +19,7 @@ export default function PayoffChart({ points, min, max, floor, breakeven, price,
       <polyline points={points.map(p => `${cx(p.value)},${cy(p.net)}`).join(" ")} />
       <circle cx={cx(price)} cy={cy(net)} r="4" fill="var(--text)" />
       <text x="8" y="96">{fmtUsd(min)}</text><text x="280" y="96" textAnchor="middle">{breakeven >= 0 ? `Break-even ${fmtUsd(breakeven)}` : "Premium exceeds max payout"}</text><text x="552" y="96" textAnchor="end">{fmtUsd(max)}</text>
-    </svg></div>;
+    </svg><div className="mobile-payoff-labels" aria-hidden="true"><span>Floor {fmtUsd(floor)}</span><span>{breakeven >= 0 ? `Break-even ${fmtUsd(breakeven)}` : "Premium exceeds max payout"}</span><span>{fmtUsd(min)}</span><span>{fmtUsd(max)}</span></div></div>;
   }
   return <div className="payoff-chart unified-payoff"><div className="payoff-axis-title">Payout minus premium · oUSD</div><svg viewBox="0 0 600 220" role="img" aria-label={`Payout minus premium across settlement references. Floor ${fmtUsd(floor)}. Hypothetical reference ${fmtUsd(price)}. At or above the floor: zero payout, minus the premium.`}>
     <title>Protection contract only; excludes changes in token holdings</title>

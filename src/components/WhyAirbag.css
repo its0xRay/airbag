@@ -1,5 +1,5 @@
 .why-heading { display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; margin-bottom:32px; }
-.why-heading .lp-h2 { max-width:22ch; margin-bottom:0; }
+.why-heading .lp-h2 { max-width:22ch; margin-bottom:0; text-wrap:balance; }
 .why-heading > p { font-size:20px; line-height:1.5; color:var(--text-dim); max-width:34ch; }
 .why-comparison,.why-funding { border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-elev); }
 .why-comparison table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; text-align:left; }
@@ -22,6 +22,9 @@
 .funding-vault p { color:#9aa9bd; }
 .why-funding .capital-paths { padding:0; gap:24px; }
 .why-funding .capital-path-label { font-size:14px; }
+@media(min-width:801px) {
+  .why-funding .capital-path-label { display:flex; align-items:flex-end; min-height:42px; }
+}
 @media(max-width:800px) {
   .why-heading { grid-template-columns:1fr; gap:16px; }
   .why-heading > p { font-size:17px; margin:0; }

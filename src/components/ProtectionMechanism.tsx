@@ -3,16 +3,16 @@ import { fmtOusd, fmtUsd } from "../format";
 import PayoffChart from "./PayoffChart";
 
 /** Illustrates selected contract terms. Never supplies a quote or a settlement price. */
-export default function ProtectionMechanism({ symbol, quantity, floor, reference, premium, hidePremium = false, narrative = false }: {
-  symbol: string; quantity: bigint; floor: bigint; reference: bigint; premium: bigint; hidePremium?: boolean; narrative?: boolean;
+export default function ProtectionMechanism({ symbol, quantity, floor, reference, premium, hidePremium = false, narrative = false, priceRange }: {
+  symbol: string; quantity: bigint; floor: bigint; reference: bigint; premium: bigint; hidePremium?: boolean; narrative?: boolean; priceRange?: { min: number; max: number };
 }) {
   const gross = payout(quantity, floor, reference);
   const maximum = maxLiability(quantity, floor);
   const units = fromFixed(quantity).toLocaleString(undefined, { maximumFractionDigits: 6 });
   const floorPrice = fromFixed(floor);
   const recoveryPrice = quantity > 0n ? floorPrice - fromFixed(premium) / fromFixed(quantity) : -1;
-  const chartMax = Math.max(floorPrice * 1.25, fromFixed(reference) * 1.1, 1);
-  const chartMin = Math.max(0, Math.min(floorPrice * .7, fromFixed(reference) * .9, recoveryPrice > 0 ? recoveryPrice * .9 : floorPrice * .7));
+  const chartMax = priceRange?.max ?? Math.max(floorPrice * 1.25, fromFixed(reference) * 1.1, 1);
+  const chartMin = priceRange?.min ?? Math.max(0, Math.min(floorPrice * .7, fromFixed(reference) * .9, recoveryPrice > 0 ? recoveryPrice * .9 : floorPrice * .7));
   const points = [
     { value: chartMin, net: fromFixed(quantity) * (floorPrice - chartMin) - fromFixed(premium) },
     { value: floorPrice, net: -fromFixed(premium) },

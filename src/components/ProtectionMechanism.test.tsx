@@ -10,6 +10,13 @@ const render = (reference: number, quantity = 1) => renderToStaticMarkup(<Protec
   reference={toFixed(reference)} premium={toFixed(2)} />);
 
 describe("Selected protection mechanism", () => {
+  it("keeps the chart on the slider's fixed price range as scenarios change", () => {
+    for (const reference of [0, 125, 250]) {
+      const html = renderToStaticMarkup(<ProtectionMechanism narrative priceRange={{ min: 0, max: 250 }} symbol="NVDAx" quantity={toFixed(1)} floor={toFixed(215)} reference={toFixed(reference)} premium={toFixed(2)} />);
+      expect(html).toContain('$250.00</text>');
+      expect(html).toContain(`cx="${8 + reference / 250 * 544}"`);
+    }
+  });
   it("keeps narrative outcomes calculated and hypothetical, including losses", () => {
     const html = renderToStaticMarkup(<ProtectionMechanism narrative hidePremium symbol="NVDAx" quantity={toFixed(2)} floor={toFixed(215)} reference={toFixed(220)} premium={toFixed(4)} />);
     expect(html).toContain("your payout is");
