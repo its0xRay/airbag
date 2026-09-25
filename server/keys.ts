@@ -14,8 +14,8 @@ function parseSecret(raw: string, label: string): Keypair {
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr) || arr.length !== 64) throw new Error("expected a 64-byte JSON array");
     return Keypair.fromSecretKey(Uint8Array.from(arr));
-  } catch (e) {
-    throw new Error(`invalid ${label}: ${(e as Error).message}`);
+  } catch {
+    throw new Error(`invalid ${label}: expected a valid 64-byte keypair JSON array`);
   }
 }
 
@@ -50,7 +50,7 @@ export function loadKey(envName: string, filePath: string, generateIfMissing = t
   }
   if (!generateIfMissing) throw new Error(`missing key: set ${envName} or provide ${filePath}`);
   const kp = Keypair.generate();
-  writeFileSync(filePath, JSON.stringify(Array.from(kp.secretKey)));
+  writeFileSync(filePath, JSON.stringify(Array.from(kp.secretKey)), { mode: 0o600 });
   return kp;
 }
 

@@ -84,13 +84,17 @@ explicit. No user deposit is automatically reinvested.
 
 ## Release verification
 
-1. Run `npm test`, `npm run lint`, `npm run typecheck:server` and `npm run build`.
+1. Run `npm run check:secrets`, `npm test`, `npm run lint`, `npm run typecheck:server` and `npm run build`.
 2. Run `npm run check:devnet` for read-only service, series, reference and sponsorship checks. Override `QUOTE_SERVICE_URL` for another deployment.
 3. Check the keeper's `/health` separately: recent ticks, qualifying samples, persistence enabled and no settlement failures.
 4. Open a small Devnet position, inspect its confirmed transaction, then verify exercise or expiry settlement and its receipt.
 5. Confirm references remain unavailable when data is missing; no price may be invented to keep a flow active.
 
 ## Operations
+
+Enable the staged-file secret guard on new checkouts with
+`git config core.hooksPath .githooks`. CI also scans reachable history.
+These checks supplement manual review; never commit secrets, even on Devnet.
 
 - Monitor quote-service and keeper health; configure an alert destination and test delivery.
 - Maintain Devnet SOL for publisher and fee-sponsor accounts, and monitor durable sponsorship-cap headroom.

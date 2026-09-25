@@ -1,5 +1,5 @@
 /**
- * PRD §22 acceptance suite — run against the DEPLOYED program.
+ * Adversarial acceptance suite for an isolated program deployment.
  *
  *   RPC_URL=https://api.devnet.solana.com npx tsx scripts/test-adversarial.ts
  *
@@ -88,7 +88,7 @@ async function mustFail(label: string, build: () => Promise<Transaction>, signer
       return;
     } catch (e) {
       const code = extractCode(e);
-      const msg = String((e as Error)?.message || e);
+      const msg = redact(String((e as Error)?.message || e));
       // transient network/blockhash issues → retry, don't count as a pass
       if (code === null && /blockhash|timeout|429|fetch failed|socket|ETIMEDOUT/i.test(msg)) {
         if (attempt < 3) { await new Promise((r) => setTimeout(r, 2500 * attempt)); continue; }
@@ -115,7 +115,7 @@ async function mustSucceed(label: string, build: () => Promise<Transaction>, sig
       pass++; results.push(["✓", label, "accepted (as expected)"]);
       return sig;
     } catch (e) {
-      const msg = String((e as Error)?.message || e);
+      const msg = redact(String((e as Error)?.message || e));
       if (attempt < 4 && /blockhash|timeout|429|fetch failed|socket/i.test(msg)) { await new Promise((r) => setTimeout(r, 2500 * attempt)); continue; }
       failures.push(`${label} — should have succeeded: ${msg.slice(0, 120)}`);
       results.push(["✗", label, `rejected: ${msg.slice(0, 40)}`]);
@@ -174,8 +174,8 @@ function buildPurchase(opts: {
 }
 
 async function main() {
-  console.log("PRD §22 adversarial suite — deployed program");
-  console.log(`  RPC:     ${RPC}`);
+  console.log("Adversarial suite — isolated program deployment");
+  console.log(`  RPC host: ${new URL(RPC).hostname}`);
   console.log(`  program: ${OPTKET_PROGRAM_ID.toBase58()}`);
 
   const cfg = await client.getConfig();
@@ -445,15 +445,19 @@ async function main() {
 
   // ---- report ----
   console.log("\n" + "─".repeat(86));
-  for (const [mark, label, detail] of results) console.log(` ${mark}  ${label.padEnd(58)} ${detail}`);
+  for (const [mark, label, detail] of results) console.log(` ${mark}  ${label.padEnd(58)} ${redact(detail)}`);
   console.log("─".repeat(86));
   console.log(`\n${pass}/${results.length} checks passed`);
   if (failures.length) {
     console.log(`\n${failures.length} FAILURE(S):`);
-    for (const f of failures) console.log(`  ✗ ${f}`);
+    for (const f of failures) console.log(`  ✗ ${redact(f)}`);
     process.exit(1);
   }
   console.log("\n§22 ADVERSARIAL SUITE PASSED ✅ — the deployed program rejected every attack.");
 }
 
-main().catch((e) => { console.error("\nSUITE ERROR ❌", e); process.exit(1); });
+function redact(value: string): string {
+  return value.replaceAll(RPC, "[RPC]").replace(/https?:\/\/[^\s"'<>]+/g, "[endpoint]");
+}
+
+main().catch(() => { console.error("\nSUITE ERROR: check isolated deployment configuration. Error details withheld to protect credentials."); process.exit(1); });

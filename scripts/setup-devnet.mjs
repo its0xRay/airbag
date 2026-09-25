@@ -72,7 +72,7 @@ function loadKeyFile(path, generate = false) {
   if (existsSync(path)) return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(path, "utf8"))));
   if (!generate) throw new Error(`missing key file: ${path}`);
   const kp = Keypair.generate();
-  writeFileSync(path, JSON.stringify(Array.from(kp.secretKey)));
+  writeFileSync(path, JSON.stringify(Array.from(kp.secretKey)), { mode: 0o600 });
   return kp;
 }
 
@@ -105,7 +105,7 @@ const saveState = () => writeFileSync(STATE_PATH, JSON.stringify(state, null, 2)
 
 async function main() {
   console.log(`Optket devnet setup`);
-  console.log(`  RPC:     ${RPC}`);
+  console.log(`  RPC host: ${new URL(RPC).hostname}`);
   console.log(`  program: ${PROGRAM_ID.toBase58()}`);
   console.log(`  admin:   ${admin.publicKey.toBase58()}  (${(await conn.getBalance(admin.publicKey)) / LAMPORTS_PER_SOL} SOL)`);
 
@@ -279,4 +279,4 @@ async function main() {
   console.log(`  admin left:  ${((await conn.getBalance(admin.publicKey)) / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
 }
 
-main().catch((e) => { console.error("\nSETUP FAILED ❌", e.message || e); process.exit(1); });
+main().catch(() => { console.error("\nSETUP FAILED: check RPC availability, configuration and account funding. Error details withheld to protect credentials."); process.exit(1); });

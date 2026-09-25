@@ -9,6 +9,14 @@ server/keeper-observations.json.tmp
 # deployer/admin key & any wallet keypairs
 **/id.json
 *-keypair.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.secret
+*.secrets
+credentials.json
 # generated secret bundles
 DEPLOY-SECRETS.local.md
 DEPLOY-SECRETS.local.txt
@@ -29,3 +37,6 @@ test-ledger/
 # ---- misc ----
 .DS_Store
 *.log
+# Local design notes and unrelated working assets
+HERO-1.md
+x402.png
