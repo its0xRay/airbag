@@ -22,14 +22,14 @@ export default function CapitalFlow({ children }: { children: ReactNode }) {
   </div>;
 }
 
-export function CapitalFlowPaths() {
+export function CapitalFlowPaths({ forward = "Premiums", reverse = "Payouts" }: { forward?: string; reverse?: string } = {}) {
   return <div className="capital-paths">
     <div className="capital-path capital-premium">
-      <div className="capital-path-label">Premiums</div>
+      <div className="capital-path-label">{forward}</div>
       <div className="capital-rail" aria-hidden="true"><i className="capital-pulse" /><i className="capital-arrow" /></div>
     </div>
     <div className="capital-path capital-payout">
-      <div className="capital-path-label">Payouts<small>When the floor pays</small></div>
+      <div className="capital-path-label">{reverse}{reverse === "Payouts" && <small>When the floor pays</small>}</div>
       <div className="capital-rail" aria-hidden="true"><i className="capital-pulse" /><i className="capital-arrow" /></div>
     </div>
   </div>;

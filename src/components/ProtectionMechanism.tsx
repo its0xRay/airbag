@@ -3,8 +3,8 @@ import { fmtOusd, fmtUsd } from "../format";
 import PayoffChart from "./PayoffChart";
 
 /** Illustrates selected contract terms. Never supplies a quote or a settlement price. */
-export default function ProtectionMechanism({ symbol, quantity, floor, reference, premium, hidePremium = false }: {
-  symbol: string; quantity: bigint; floor: bigint; reference: bigint; premium: bigint; hidePremium?: boolean;
+export default function ProtectionMechanism({ symbol, quantity, floor, reference, premium, hidePremium = false, narrative = false }: {
+  symbol: string; quantity: bigint; floor: bigint; reference: bigint; premium: bigint; hidePremium?: boolean; narrative?: boolean;
 }) {
   const gross = payout(quantity, floor, reference);
   const maximum = maxLiability(quantity, floor);
@@ -20,8 +20,8 @@ export default function ProtectionMechanism({ symbol, quantity, floor, reference
   ];
   const scale = Math.max(1, ...points.map(point => Math.abs(point.net)));
   return <div className="protection-mechanism" aria-label={`Hypothetical protection payout for ${units} ${symbol}`}>
-    <div className="scenario-gross"><span>Payout</span><strong className="mono">{fmtOusd(fromFixed(gross))}</strong></div>
-    <div className="mechanism-outcomes">{!hidePremium && <div><span>Estimated premium</span><strong className="mono">{fmtOusd(fromFixed(premium))}</strong></div>}<div><span>Payout minus premium</span><strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></div></div>
+    {narrative ? <div className="scenario-narrative"><p>At a settlement reference of <strong className="mono">{fmtUsd(fromFixed(reference))}</strong>, your payout is <strong className="mono">{fmtOusd(fromFixed(gross))}</strong>.</p><span>Payout minus estimated premium: <strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></span></div> : <><div className="scenario-gross"><span>Payout</span><strong className="mono">{fmtOusd(fromFixed(gross))}</strong></div>
+    <div className="mechanism-outcomes">{!hidePremium && <div><span>Estimated premium</span><strong className="mono">{fmtOusd(fromFixed(premium))}</strong></div>}<div><span>Payout minus premium</span><strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></div></div></>}
     <p className="premium-recovery">{recoveryPrice > 0 ? <>Break-even reference: <strong className="mono">{fmtUsd(recoveryPrice)}</strong></> : recoveryPrice === 0 ? "Payout covers premium only at a zero reference." : "Premium exceeds the maximum contract payout."}</p>
     <PayoffChart points={points} min={chartMin} max={chartMax} floor={floorPrice} breakeven={recoveryPrice} price={fromFixed(reference)} net={fromFixed(gross - premium)} scale={scale} />
     <div className="mechanism-range"><span>Maximum payout {fmtOusd(fromFixed(maximum))}</span></div>

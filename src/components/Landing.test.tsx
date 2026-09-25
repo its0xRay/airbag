@@ -13,10 +13,10 @@ afterEach(() => vi.unstubAllGlobals());
 describe("two-sided landing release", () => {
   it("keeps execution and markets dark while grouping explanatory light surfaces", () => {
     const html = render(true);
-    expect(html).toContain('class="lp-capital-market lp-section lp-light"');
+    expect(html).toContain('class="lp-section lp-light why-one"');
     expect(html).toContain('class="lp-section lp-verification lp-light"');
     expect(html).toContain('class="lp-hero lp-product-hero"');
-    expect(html).toContain('data-split="true"');
+    expect(html).toContain('data-hero="one"');
     expect(html).toContain('class="lp-section" id="assets"');
   });
   it("keeps unreleased vault claims and entry points out of the default page", () => {
@@ -39,7 +39,7 @@ describe("two-sided landing release", () => {
   });
   it("explains capital flow without repeated warnings or invented yields", () => {
     const html = render(true);
-    for (const copy of ["A price drop shouldn’t force your exit.", "Fund contractual payouts.", "When the floor pays", "Administrator deposits follow the same"]) expect(html).toContain(copy);
+    for (const copy of ["A price drop shouldn’t force your exit.", "Isolated vault", "Contract payout", "Administrator deposits follow the same", "Upfront premium. Cover ends at expiry.", "Withdrawal after settlement"]) expect(html).toContain(copy);
     expect(html).not.toContain("APY");
     expect(html).not.toContain("Deposits can lose value.");
     expect(html).not.toContain("Premiums are not guaranteed profit.");
@@ -57,7 +57,7 @@ describe("two-sided landing release", () => {
     vi.stubGlobal("window", { location: { search: "?side=vault" } });
     const html = render(true);
     expect(html).toContain("actual-vault-workspace");
-    expect(html).toContain('data-split="false"');
+    expect(html).toContain('data-hero="one"');
     expect(html).not.toContain("actual-protect-workspace");
     expect(render(false)).not.toContain("actual-vault-workspace");
   });

@@ -1,0 +1,38 @@
+.why-heading { display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; margin-bottom:32px; }
+.why-heading .lp-h2 { max-width:22ch; margin-bottom:0; }
+.why-heading > p { font-size:20px; line-height:1.5; color:var(--text-dim); max-width:34ch; }
+.why-comparison,.why-funding { border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-elev); }
+.why-comparison table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; text-align:left; }
+.why-comparison th,.why-comparison td { padding:20px 16px; border-bottom:1px solid var(--border); vertical-align:top; font-size:15px; line-height:1.5; overflow-wrap:anywhere; }
+.why-comparison th { font-weight:600; }
+.why-comparison td { color:var(--text-dim); }
+.why-comparison th small { display:block; font-size:14px; font-weight:400; color:var(--text-dim); margin-top:4px; }
+.why-comparison .airbag-column { background:color-mix(in srgb,var(--accent) 12%,var(--bg-elev)); color:var(--text); }
+.why-comparison thead .airbag-column { border-top:3px solid var(--accent); border-top-right-radius:var(--radius); }
+.why-availability { padding:16px 20px; margin:0; color:var(--text-dim); font-size:14px; line-height:1.5; }
+.why-mobile-choice { display:none; }
+.why-funding { padding:28px; margin-top:24px; }
+.why-funding > h3 { font-size:15px; color:var(--text-dim); margin:0 0 24px; font-weight:500; }
+.why-funding .risk-relationship.capital-flow { grid-template-columns:1fr .8fr 1fr .8fr 1fr; padding:0; gap:16px; background:transparent; align-items:stretch; }
+.funding-party { padding:20px; border:1px solid var(--border); border-radius:var(--radius); }
+.funding-party h4 { font-size:18px; margin:16px 0 8px; }
+.funding-party p { font-size:15px; color:var(--text-dim); line-height:1.5; margin:0; }
+.funding-icon { display:grid; place-items:center; width:40px; height:40px; border-radius:var(--radius-sm); background:var(--accent); color:var(--accent-foreground); font-size:22px; }
+.funding-vault { background:#111722; color:#e6edf6; }
+.funding-vault p { color:#9aa9bd; }
+.why-funding .capital-paths { padding:0; gap:24px; }
+.why-funding .capital-path-label { font-size:14px; }
+@media(max-width:800px) {
+  .why-heading { grid-template-columns:1fr; gap:16px; }
+  .why-heading > p { font-size:17px; margin:0; }
+  .why-mobile-choice { display:grid; gap:8px; padding:16px; font-size:14px; }
+  .why-mobile-choice select { width:100%; }
+  .why-comparison .comparison-other { display:none; }
+  .why-comparison th,.why-comparison td { padding:16px 10px; font-size:14px; }
+  .why-comparison th small { font-size:14px; }
+  .why-funding { padding:20px; }
+  .why-funding .risk-relationship.capital-flow { grid-template-columns:1fr; gap:16px; }
+  .funding-party { padding:16px; }
+  .funding-icon { float:right; margin-left:16px; }
+  .funding-party h4 { margin-top:0; }
+}

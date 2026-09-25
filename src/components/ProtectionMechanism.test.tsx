@@ -10,6 +10,15 @@ const render = (reference: number, quantity = 1) => renderToStaticMarkup(<Protec
   reference={toFixed(reference)} premium={toFixed(2)} />);
 
 describe("Selected protection mechanism", () => {
+  it("keeps narrative outcomes calculated and hypothetical, including losses", () => {
+    const html = renderToStaticMarkup(<ProtectionMechanism narrative hidePremium symbol="NVDAx" quantity={toFixed(2)} floor={toFixed(215)} reference={toFixed(220)} premium={toFixed(4)} />);
+    expect(html).toContain("your payout is");
+    expect(html).toContain("0.00 oUSD");
+    expect(html).toContain("−4.00 oUSD");
+    expect(html).toContain("Payout minus estimated premium");
+    expect(html).toContain("Payout scenario · not a quote");
+    expect(html).not.toContain("you paid");
+  });
   it("uses the contractual payoff below the floor", () => {
     const html = render(200);
     expect(html).toContain("15.00 oUSD");

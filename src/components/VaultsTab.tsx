@@ -7,6 +7,7 @@ import { fmtClock, fmtOusd } from "../format";
 import { useNowSeconds } from "../useNowSeconds";
 import { pendingTransaction } from "../onchain/transactionRecovery";
 import AssetSelector from "./AssetSelector";
+import VaultTimeline from "./VaultTimeline";
 import { redemptionValue } from "../client/vaultPortfolio";
 import { useAssetAvailability } from "../data/useAssetAvailability";
 import "./VaultsTab.css";
@@ -130,8 +131,12 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
     } catch (e) { setFieldError(e instanceof Error ? e.message : "Transaction could not be confirmed. Check its status before retrying."); }
   }
 
+  const roundMetrics = selected ? <>        <div className="vault-metrics"><div><span>Deposited this round</span><strong className="mono">{token(selected.totalShares)}</strong></div><div><span>Reserved against current positions</span><strong className="mono">{token(selected.reserved)}</strong></div></div>
+        <div className="capacity-visual"><div className="bar" role="meter" aria-label="Share of deposited capital committed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selected.totalShares ? Number(selected.reserved * 10000n / selected.totalShares) / 100 : 0}><span style={{ width: `${selected.totalShares ? Number(selected.reserved * 10000n / selected.totalShares) / 100 : 0}%` }} /></div></div>
+</> : null;
   return <section className={"vaults-page" + (embedded ? " vaults-embedded" : "")} aria-label="Fund a vault">
     {!embedded && <div className="app-page-head"><div><h1>Fund a vault</h1><p>Share in premiums. Your capital funds payouts.</p></div></div>}
+    {embedded && <div className="vault-intro"><h2>Earn premiums by funding payouts.</h2><p>Premiums add to the vault. Payouts reduce its balance.</p></div>}
     <AssetSelector value={displayedAsset} label="Choose a vault" disabled={chain.busy} onChange={i => { setAsset(i); setRoundChoice(null); setReview(null); setFieldError(null);
       const url = new URL(window.location.href); url.searchParams.delete("round"); window.history.replaceState(null, "", url);
     }} />
@@ -148,14 +153,16 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
             aria-invalid={!!fieldError} aria-describedby={[chain.connected && "vault-amount-help", fieldError && "vault-field-error"].filter(Boolean).join(" ") || undefined} onChange={e => { setAmountText(e.target.value); setReview(null); setFieldError(null); }} /></label>
           {chain.connected && <p id="vault-amount-help" className="disclosure">Balance {fmtOusd(chain.tokenBalance)}</p>}
 </div>}
-        <dl className="vault-lock-summary">
+        {embedded && <div className="vault-round-preview">{stage === "Funding" && amount != null && <p>Deposit <strong className="mono">{token(amount)}</strong> into this round.</p>}<VaultTimeline round={selected} now={now} fresh={freshRound} /></div>}
+        <dl className="vault-lock-summary" hidden={embedded}>
           {stage === "Funding" && <div><dt>Funding closes</dt><dd>{fmtClock(selected.fundingClose)}</dd></div>}
           <div><dt>Latest contract expiry</dt><dd>{fmtClock(selected.latestExpiry)}</dd></div>
         </dl>
-        <p>{stage === "Redeemable" ? "This round has settled." : stage === "Funding" ? "Premiums add to the vault. Payouts reduce its balance. Funds lock when funding closes and unlock after settlement." : "Funds unlock after settlement completes."}</p>
+        {!embedded && <p>{stage === "Redeemable" ? "This round has settled." : stage === "Funding" ? "Premiums add to the vault. Payouts reduce its balance. Funds lock when funding closes and unlock after settlement." : "Funds unlock after settlement completes."}</p>}
         {ownedValue != null && owned && <p>Final net result: <strong className="mono">{token(ownedValue - owned.shares)}</strong> · test activity</p>}
         {owned && owned.shares > 0n ? <><strong className="vault-owned mono">{token(owned.shares)}</strong><p>{selected.totalShares > 0n ? (Number(owned.shares * 10000n / selected.totalShares) / 100).toFixed(2) : "0"}% of this round{stage === "Funding" ? " · changes as deposits arrive" : " · ownership fixed"}</p>
           {owned.redeemed ? <p className="callout">Withdrawn {token(owned.redemptionAmount)}</p> : stage !== "Funding" && stage !== "Redeemable" ? <p>Your capital is locked until settlement completes.</p> : stage === "Redeemable" ? <><p>Available to withdraw: <strong>{token(owned.shares * selected.finalBalance / selected.totalShares)}</strong></p><button className="btn primary" disabled={frozen} onClick={() => begin("redeem")}>Review withdrawal</button></> : null}</> : null}
+        {embedded && roundMetrics}
         {stage === "Funding" && <form id="vault-deposit-form" onSubmit={e => { e.preventDefault(); if (!chain.connected) { void chain.connect(); return; } begin("deposit"); }}>
           <p>You can cancel during the funding window.</p>
           <button className="btn primary" type="submit" aria-busy={chain.busy} disabled={chain.busy || (chain.connected && (frozen || !canDeposit))}>{chain.busy ? chain.status || "Connecting…" : chain.connected ? "Review deposit" : "Start with a demo wallet"}</button>
@@ -168,8 +175,7 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
         {embedded && chain.error && <p className="field-error" role="alert">{chain.error}</p>}
         {receipt?.round === address && <div className="callout" role="status"><p>{receipt.action} · <a href={explorerUrl("tx", receipt.signature)} target="_blank" rel="noreferrer">View transaction ↗</a></p>{receipt.action === "Deposit confirmed" && <p>Funding closes {fmtClock(selected.fundingClose)}. Your deposit then stays locked until this round’s obligations resolve.</p>}<a className="btn ghost" href={`?view=positions&positions=vaults&deposit=${address}`}>View your deposits</a></div>}
       </section><section className="vault-capital" aria-label="Round capital">
-        <div className="vault-metrics"><div><span>Deposited this round</span><strong className="mono">{token(selected.totalShares)}</strong></div><div><span>Committed to positions</span><strong className="mono">{token(selected.reserved)}</strong></div></div>
-        <div className="capacity-visual"><div className="bar" role="meter" aria-label="Share of deposited capital committed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selected.totalShares ? Number(selected.reserved * 10000n / selected.totalShares) / 100 : 0}><span style={{ width: `${selected.totalShares ? Number(selected.reserved * 10000n / selected.totalShares) / 100 : 0}%` }} /></div></div>
+        {!embedded && roundMetrics}
         <details className="secondary-tool"><summary>Round details</summary><p>{buyerStatus}</p><dl className="vault-ledger">
           <div><dt>Premiums collected</dt><dd>{token(selected.premiums)}</dd></div><div><dt>Buyer payouts</dt><dd>{token(selected.payouts)}</dd></div><div><dt>Premium refunds</dt><dd>{token(selected.refunds)}</dd></div>
           {stage === "Redeemable" && <div><dt>Final round result</dt><dd>{token(selected.finalBalance - selected.totalShares)}</dd></div>}
@@ -182,6 +188,7 @@ export default function VaultsTab({ onOpenPosition, embedded = false, initialDra
       <section className="vault-results"><h2>Completed activity</h2><p className="disclosure">Onchain Devnet results, including administrator deposits.</p>
         {settled.length ? settled.slice(0, 12).map(r => <div className="vault-result-row" key={r.address.toBase58()}><button className="text-action" onClick={() => chooseRound(r.address.toBase58())}>{fmtClock(r.fundingClose)}</button><span>Premiums <strong>{token(r.premiums)}</strong></span><span>Payouts <strong>{token(r.payouts)}</strong></span><span>Refunds <strong>{token(r.refunds)}</strong></span><span>Net result <strong>{token(r.finalBalance - r.totalShares)}</strong></span></div>) : <p>No funded round has completed yet.</p>}
       </section></>}
+      {embedded && <p className="disclosure">oUSD · Devnet test token, no monetary value</p>}
       <div className="vault-buyer-link">{embedded ? <a className="btn ghost" href={`?view=vaults&round=${address}`}>Manage vaults</a> : <a className="btn ghost" href="?view=positions&positions=vaults">Your positions</a>}<button className="btn ghost" onClick={() => onOpenPosition(displayedAsset)}>Set your floor</button></div>
     </>}
   </section>;

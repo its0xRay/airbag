@@ -2,33 +2,33 @@
 
 ## Current landing decisions (supersede earlier layout notes below)
 
-Wide desktop uses a 40/60 split hero: introduction left, one compact interactive
-panel right. Tablet and mobile stack. Continue expands the same checkout to full
-width below the introduction without remounting or discarding selections.
-The landing buyer panel starts compact: selected quantity and expiry remain visible
-beside floor and estimated premium. Continue expands the same real checkout
-without navigating or submitting. Quantity, wallet details and advanced terms are
-revealed there. Keep the payout explorer interactive and clearly hypothetical;
-premium is shown once beside the floor. The walkthrough uses the same selected
-terms and scenario, never an unrelated fixed example or fabricated live quote.
+Wide desktop uses a shared buyer/vault panel beside stable hero copy. Below
+1400px, stack the panel below the introduction rather than squeeze the controls.
+Integrated Set your floor / Fund a vault tabs preserve input drafts, not approvals.
+Quantity and expiry remain directly editable. Each floor shows estimated premium
+per token; the total estimated premium remains explicit. Review position opens
+the existing real review, with a separate confirmation required for execution.
 
 Hero: category “Risk management for tokenized equities”, headline “Set your floor.
-Keep your tokens.”, descriptor “Cash-settled puts on tokenized equities,
-underwritten by isolated vaults.” No additional hero paragraph. Keep the Devnet
-oUSD value boundary beside premium and review.
-The buyer opens on an available longer expiry and below-reference floor where
-available. Preserve chosen duration across asset switches. A clearly labelled
-15% downside scenario is the initial illustration, never a fabricated quote or
-a guarantee of positive net payout. All negative calculated outcomes stay visible.
-Gross contract payout leads; premium and payout minus premium are secondary.
-Use the existing payoff curve instead of a rectangular boundary in the explorer;
-compact floor motifs remain appropriate for confirmed receipts and positions.
-Premium and review belong in the input column; cutoff details expand and appear
-in review. Mobile exploration remains optional. Walkthrough values form one
-explicitly illustrative example, never claimed as live terms or activity.
-Keep the existing directional capital-flow animation. Explain why holders keep
-exposure and avoid leveraged-short management, and how depositor capital funds
-payouts. Use varied section headings and consistent asset names.
+Keep your tokens.” Explain the payout in one short paragraph, retain the
+cash-settled puts / isolated vaults descriptor, and use two quiet proof points:
+maximum payout reserved and defined settlement rules. Keep the Devnet oUSD
+no-monetary-value boundary beside the transaction controls.
+
+Use actual available terms and references. The initial 15% downside scenario is
+hypothetical, not a quote or a promise of positive net payout. Preserve negative
+outcomes. Show calculated payout in plain language with the payoff curve. The
+walkthrough follows selected terms, never fabricated activity.
+
+Vault funding, locking and withdrawal labels come from actual round state.
+Elapsed expiry alone never means withdrawable. Current reserves are not a claim
+about maximum future loss. Premiums add to the vault; payouts reduce its balance.
+
+Why Airbag uses a neutral three-row comparison with a pale yellow Airbag column,
+not a red/green scorecard. On mobile, compare one selectable alternative with
+Airbag. Below it, place the isolated vault between holders and depositors, with
+directional premium, payout, deposit and withdrawal paths. Reuse the subtle
+one-time motion and respect reduced-motion settings. No artificial activity.
 
 Yellow-and-charcoal identity for risk management on Solana.
 Design tokens live in `src/index.css` under `:root`.

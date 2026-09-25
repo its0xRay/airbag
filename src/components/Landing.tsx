@@ -1,5 +1,5 @@
 import ProtectionWalkthrough, { type WalkthroughExample } from "./ProtectionWalkthrough";
-import CapitalFlow, { CapitalFlowPaths } from "./CapitalFlow";
+import WhyAirbag from "./WhyAirbag";
 import ProtectTab from "./ProtectTab";
 import AssetLogo from "./AssetLogo";
 import { VERIFIED_ASSETS } from "../data/assets";
@@ -10,13 +10,14 @@ import { useEffect, useState } from "react";
 import VaultsTab, { type VaultDraft } from "./VaultsTab";
 import "./LandingWorkspace.css";
 import "./LandingSurfaces.css";
+import "./HeroOne.css";
 
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
 
 // Keep a mount-time draft: edits are remembered without rehydrating the form on every keystroke.
-function BuyerPanel({ draft, remember, onViewPosition, onExampleChange, onCheckoutChange }: { onCheckoutChange: (open: boolean) => void; onExampleChange: (example: WalkthroughExample | null) => void; draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
+function BuyerPanel({ draft, remember, onViewPosition, onExampleChange }: { onExampleChange: (example: WalkthroughExample | null) => void; draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
   const [initial] = useState(draft);
-  return <ProtectTab onCheckoutChange={onCheckoutChange} onExampleChange={onExampleChange} embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
+  return <ProtectTab hero onExampleChange={onExampleChange} embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
 }
 
 export default function Landing({ onLaunch, onViewPosition, launching = false, vaultsEnabled = false }: {
@@ -29,7 +30,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
 }) {
   const [side, setSide] = useState<"buyer" | "vault">(() => vaultsEnabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("side") === "vault" ? "vault" : "buyer");
   const [explanationSide, setExplanationSide] = useState(side);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+
   const [example, setExample] = useState<WalkthroughExample | null>(null);
   const [buyerDraft, setBuyerDraft] = useState<ProtectDraft | null>(null);
   const [vaultDraft, setVaultDraft] = useState<VaultDraft>({ asset: 0, amount: "100" });
@@ -53,34 +54,24 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
   }
   return (
     <main className="lp">
-      <section className="lp-hero lp-product-hero" id="product" data-split={side === "buyer" && !checkoutOpen}>
+      <section className="lp-hero lp-product-hero" id="product" data-hero="one">
         <div className="lp-hero-copy">
           <p className="lp-hero-category">Risk management for tokenized equities</p>
           <h1 className="lp-title"><span className="hero-accent">Set your floor.</span><br />Keep your tokens.</h1>
+          <p className="hero-benefit">If the settlement reference falls below your floor, receive the difference. One premium upfront. Your tokens stay with you.</p>
           <p className="lp-hero-tagline">{vaultsEnabled ? "Cash-settled puts on tokenized equities, underwritten by isolated vaults." : "Cash-settled puts on tokenized equities."}</p>
+          <div className="hero-proof"><div><strong>Maximum payout reserved</strong><span>Onchain when you buy.</span></div><div><strong>Defined settlement rules</strong><span>Reference terms in every contract.</span></div></div>
         </div>
         <div id="protection" className="landing-workspace">
           {vaultsEnabled && <div className="workspace-modes" role="group" aria-label="Choose your Airbag flow">
             <button aria-pressed={side === "buyer"} disabled={launching} onClick={() => chooseSide("buyer")}>Set your floor</button>
             <button aria-pressed={side === "vault"} disabled={launching} onClick={() => chooseSide("vault")}>Fund a vault</button>
           </div>}
-          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel onCheckoutChange={setCheckoutOpen} onExampleChange={setExample} draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
+          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel onExampleChange={setExample} draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
         </div>
       </section>
 
-      {vaultsEnabled ? <section className="lp-capital-market lp-section lp-light" id="why-protect" aria-labelledby="why-protect-title">
-        <div className="lp-market-intro">
-          <span className="lp-eyebrow">Why Airbag</span>
-          <h2 className="lp-h2" id="why-protect-title">A price drop shouldn’t force your exit.</h2>
-        </div>
-        <div className="lp-market-mechanism">
-          <CapitalFlow>
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your exposure.</h3><p>Keep your tokens. Pay once for a price floor.</p></div>
-            <CapitalFlowPaths />
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Earn premiums. <br />Fund contractual payouts.</h3><p>Fund floors and earn premiums. Payouts come from the vault.</p></div>
-          </CapitalFlow>
-        </div>
-      </section> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
+      {vaultsEnabled ? <WhyAirbag /> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
         <div className="lp-section-head">
           <span className="lp-eyebrow">Why Airbag</span>
           <h2 className="lp-h2" id="why-protect-title">Your stocks are onchain.<br /><span className="soft">Your protection should be too.</span></h2>
