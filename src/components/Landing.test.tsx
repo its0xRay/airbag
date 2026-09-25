@@ -16,6 +16,7 @@ describe("two-sided landing release", () => {
     expect(html).toContain('class="lp-capital-market lp-section lp-light"');
     expect(html).toContain('class="lp-section lp-verification lp-light"');
     expect(html).toContain('class="lp-hero lp-product-hero"');
+    expect(html).toContain('data-split="true"');
     expect(html).toContain('class="lp-section" id="assets"');
   });
   it("keeps unreleased vault claims and entry points out of the default page", () => {
@@ -56,6 +57,7 @@ describe("two-sided landing release", () => {
     vi.stubGlobal("window", { location: { search: "?side=vault" } });
     const html = render(true);
     expect(html).toContain("actual-vault-workspace");
+    expect(html).toContain('data-split="false"');
     expect(html).not.toContain("actual-protect-workspace");
     expect(render(false)).not.toContain("actual-vault-workspace");
   });

@@ -2,8 +2,11 @@
 
 ## Current landing decisions (supersede earlier layout notes below)
 
+Wide desktop uses a 40/60 split hero: introduction left, one compact interactive
+panel right. Tablet and mobile stack. Continue expands the same checkout to full
+width below the introduction without remounting or discarding selections.
 The landing buyer panel starts compact: selected quantity and expiry remain visible
-beside floor and estimated premium. Set this floor expands the same real checkout
+beside floor and estimated premium. Continue expands the same real checkout
 without navigating or submitting. Quantity, wallet details and advanced terms are
 revealed there. Keep the payout explorer interactive and clearly hypothetical;
 premium is shown once beside the floor. The walkthrough uses the same selected

@@ -14,9 +14,9 @@ import "./LandingSurfaces.css";
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
 
 // Keep a mount-time draft: edits are remembered without rehydrating the form on every keystroke.
-function BuyerPanel({ draft, remember, onViewPosition, onExampleChange }: { onExampleChange: (example: WalkthroughExample | null) => void; draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
+function BuyerPanel({ draft, remember, onViewPosition, onExampleChange, onCheckoutChange }: { onCheckoutChange: (open: boolean) => void; onExampleChange: (example: WalkthroughExample | null) => void; draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
   const [initial] = useState(draft);
-  return <ProtectTab onExampleChange={onExampleChange} embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
+  return <ProtectTab onCheckoutChange={onCheckoutChange} onExampleChange={onExampleChange} embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
 }
 
 export default function Landing({ onLaunch, onViewPosition, launching = false, vaultsEnabled = false }: {
@@ -29,6 +29,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
 }) {
   const [side, setSide] = useState<"buyer" | "vault">(() => vaultsEnabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("side") === "vault" ? "vault" : "buyer");
   const [explanationSide, setExplanationSide] = useState(side);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [example, setExample] = useState<WalkthroughExample | null>(null);
   const [buyerDraft, setBuyerDraft] = useState<ProtectDraft | null>(null);
   const [vaultDraft, setVaultDraft] = useState<VaultDraft>({ asset: 0, amount: "100" });
@@ -52,7 +53,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
   }
   return (
     <main className="lp">
-      <section className="lp-hero lp-product-hero" id="product">
+      <section className="lp-hero lp-product-hero" id="product" data-split={side === "buyer" && !checkoutOpen}>
         <div className="lp-hero-copy">
           <p className="lp-hero-category">Risk management for tokenized equities</p>
           <h1 className="lp-title"><span className="hero-accent">Set your floor.</span><br />Keep your tokens.</h1>
@@ -63,7 +64,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             <button aria-pressed={side === "buyer"} disabled={launching} onClick={() => chooseSide("buyer")}>Set your floor</button>
             <button aria-pressed={side === "vault"} disabled={launching} onClick={() => chooseSide("vault")}>Fund a vault</button>
           </div>}
-          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel onExampleChange={setExample} draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
+          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel onCheckoutChange={setCheckoutOpen} onExampleChange={setExample} draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
         </div>
       </section>
 
