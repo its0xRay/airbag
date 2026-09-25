@@ -2,8 +2,12 @@
 
 ## Current landing decisions (supersede earlier layout notes below)
 
-Wide desktop uses a shared buyer/vault panel beside stable hero copy. Below
-1400px, stack the panel below the introduction rather than squeeze the controls.
+Desktop from 1100px uses a shared buyer/vault panel beside stable hero copy.
+Tablet and mobile stack the panel below the introduction. Target the initial
+review action within an 800px-high laptop viewport, without clipping or internal
+scrolling. Expanded details, errors and transaction reviews may grow naturally.
+Use compact paired input rows, one scenario/chart/total panel, and quiet footer
+disclosures. Keep the vault amount, timeline and current reserves together.
 Integrated Set your floor / Fund a vault tabs preserve input drafts, not approvals.
 Quantity and expiry remain directly editable. Each floor shows estimated premium
 per token; the total estimated premium remains explicit. Review position opens

@@ -23,7 +23,7 @@ export default function ProtectionMechanism({ symbol, quantity, floor, reference
     {narrative ? <div className="scenario-narrative"><p>At a settlement reference of <strong className="mono">{fmtUsd(fromFixed(reference))}</strong>, your payout is <strong className="mono">{fmtOusd(fromFixed(gross))}</strong>.</p><span>Payout minus estimated premium: <strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></span></div> : <><div className="scenario-gross"><span>Payout</span><strong className="mono">{fmtOusd(fromFixed(gross))}</strong></div>
     <div className="mechanism-outcomes">{!hidePremium && <div><span>Estimated premium</span><strong className="mono">{fmtOusd(fromFixed(premium))}</strong></div>}<div><span>Payout minus premium</span><strong className="mono">{fmtOusd(fromFixed(gross - premium))}</strong></div></div></>}
     <p className="premium-recovery">{recoveryPrice > 0 ? <>Break-even reference: <strong className="mono">{fmtUsd(recoveryPrice)}</strong></> : recoveryPrice === 0 ? "Payout covers premium only at a zero reference." : "Premium exceeds the maximum contract payout."}</p>
-    <PayoffChart points={points} min={chartMin} max={chartMax} floor={floorPrice} breakeven={recoveryPrice} price={fromFixed(reference)} net={fromFixed(gross - premium)} scale={scale} />
+    <PayoffChart compact={narrative} points={points} min={chartMin} max={chartMax} floor={floorPrice} breakeven={recoveryPrice} price={fromFixed(reference)} net={fromFixed(gross - premium)} scale={scale} />
     <div className="mechanism-range"><span>Maximum payout {fmtOusd(fromFixed(maximum))}</span></div>
     <p className="mechanism-disclosure">Payout scenario · not a quote</p>
   </div>;

@@ -18,6 +18,9 @@ describe("Selected protection mechanism", () => {
     expect(html).toContain("Payout minus estimated premium");
     expect(html).toContain("Payout scenario · not a quote");
     expect(html).not.toContain("you paid");
+    expect(html).toContain('viewBox="0 0 560 100"');
+    expect(html).toContain("Break-even $213.00");
+    expect(html).toContain("Excludes token holdings");
   });
   it("uses the contractual payoff below the floor", () => {
     const html = render(200);
