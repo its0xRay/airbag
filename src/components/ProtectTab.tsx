@@ -14,6 +14,7 @@ import { fetchQuoteReference, referenceSourceLabel, type QuoteReference } from "
 import { quotePremium, payout as intrinsic, toFixed, fromFixed, maxLiability } from "../engine";
 import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock, fmtAge, fmtOusd } from "../format";
 import type { ProtectDraft } from "../App";
+import type { WalkthroughExample } from "./ProtectionWalkthrough";
 import { useNowSeconds } from "../useNowSeconds";
 import { useAssetAvailability } from "../data/useAssetAvailability";
 import { closestTerms, premiumReferenceRatio, type RepeatPosition } from "../client/repeatPosition";
@@ -35,6 +36,7 @@ export default function ProtectTab({
   onViewPositions,
   onConnected,
   onDraftChange,
+  onExampleChange,
 }: {
   embedded?: boolean;
   renewal?: RepeatPosition | null;
@@ -44,6 +46,7 @@ export default function ProtectTab({
   onViewPositions?: (assetId: number, address?: string) => void;
   onConnected?: (draft: ProtectDraft) => void;
   onDraftChange?: (draft: ProtectDraft) => void;
+  onExampleChange?: (example: WalkthroughExample | null) => void;
 } = {}) {
   const c = useChain();
   const [publicSeries, setPublicSeries] = useState<SeriesInfo[]>([]);
@@ -89,6 +92,10 @@ export default function ProtectTab({
   const appliedDraft = useRef<ProtectDraft | null>(null);
   const [explorePayout, setExplorePayout] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(!embedded || !!renewal);
+  const compact = embedded && !checkoutOpen;
+  const quantityInput = useRef<HTMLInputElement>(null);
+  const expandCheckout = () => { setCheckoutOpen(true); requestAnimationFrame(() => quantityInput.current?.focus()); };
 
   useEffect(() => {
     if (!initialDraft || renewal || appliedDraft.current === initialDraft) return;
@@ -233,6 +240,10 @@ export default function ProtectTab({
 
   const presetValue = scenarioPreset === "Current" ? spotReal : scenarioPreset === "Floor" ? selected && tok(selected.strike) : scenarioPreset === "Breakeven" ? breakeven : scenarioPreset === "15% lower" ? spotReal && spotReal * 0.85 : scenario;
   const scenarioPrice = Math.max(chartMin, Math.min(chartMax, presetValue ?? spotReal ?? 0));
+  const examplePremium = est?.premium;
+  useEffect(() => {
+    onExampleChange?.(selected && examplePremium != null && referenceReady ? { assetId, quantity: qty, floor: selected.strike, expiry: selected.expiryTs, premium: examplePremium, reference: toFixed(scenarioPrice) } : null);
+  }, [assetId, qty, selected, examplePremium, referenceReady, scenarioPrice, onExampleChange]);
   const holdingsText = holdingsInputs[assetId] ?? String(c.exposure[assetId] || quantity);
   const holdingsQuantity = Number(holdingsText);
   const holdingsValid = holdingsText.trim() !== "" && Number.isFinite(holdingsQuantity) && holdingsQuantity >= 0 && holdingsQuantity <= 1e9;
@@ -254,14 +265,14 @@ export default function ProtectTab({
   const primaryDisabled = c.connected ? !canBuy : c.busy;
 
   return (
-    <div className={"protect-workspace" + (embedded ? " protect-embedded" : "")}>
+    <div className={"protect-workspace" + (embedded ? " protect-embedded" : "") + (compact ? " protect-compact" : "")}>
       {!embedded && <div className="app-page-head"><div><h1>Open position</h1><p>Choose your floor. Keep the upside.</p></div></div>}
       {isRenewal && <div className="callout">Quantity copied. Review the available floor and expiry, then confirm a fresh quote. This opens a separate position, not continuous coverage. Your previous position is unchanged.</div>}
       <div className="protect-market-head">
         <AssetSelector value={assetId} disabled={c.busy} onChange={i => { userChoseAsset.current = true; setAssetId(i); setSeriesId(null); setScenario(null); setScenarioPreset("15% lower"); setScenarioText(null); setApproval(null); setDone(null); }} />
         <div className="reference-inline"><span>Reference price</span><strong className="mono">{spotReal != null ? fmtUsd(spotReal) : "—"}</strong><span>{reference?.available ? reference.observedAt != null ? <span title={fmtClock(reference.observedAt)}>{fmtAge(reference.observedAt, now).replace(/^updated/, "Updated")}</span> : "Timestamp unavailable" : referenceStatus}</span><button className="text-action" onClick={() => setReferenceRetry((n) => n + 1)}>{marketError ? "Retry" : "Refresh"}</button></div>
       </div>
-      <p className="coverage-scope">{assetId === 0 ? "NVDAx token-market reference, not NVIDIA shares." : "Anthropic PreStocks token-market reference, not company valuation."} <span>{reference?.available ? referenceSourceLabel(reference.source) : "External token observations"} · final 5-minute median at expiry.</span></p>
+      <p className="coverage-scope">Based on the {assetLabel} token price.</p>
       {(!admissionReady && referenceReady) && <p className="disclosure" role="status">{capacityReached ? "This quantity exceeds the asset’s remaining Devnet capacity. Reduce the quantity or wait for positions to settle." : availability.label} <button className="text-action" onClick={availability.refresh}>Refresh availability</button></p>}
       {reference && !reference.available && <p className="reference-explanation"><span aria-hidden="true">⚠ </span>{reference.reason}</p>}
       {marketError && <p className="field-error" role="alert">{marketError}</p>}
@@ -275,22 +286,28 @@ export default function ProtectTab({
       </section> : <div className="protect-layout">
         <aside className="card protection-ticket" aria-label="Set your floor">
           <fieldset disabled={c.busy} className="ticket-fields" onClick={() => { if (approval) setApproval(null); }}><legend className="sr-only">Contract terms</legend>
+          <p className="floor-explanation">Below your floor at settlement? The contract pays the difference.</p>
+          {compact && <p className="compact-terms">{quantity} {assetLabel} · {selected ? <>Expires {new Date(selected.expiryTs * 1000).toLocaleDateString(undefined, {day: "numeric", month: "short"})} · {fmtDuration(secsLeft)} left</> : "Loading expiry…"}</p>}
+          <div hidden={compact}>
           <label className="field" htmlFor="protected-quantity"><span className="lbl">Quantity · {assetLabel}</span></label>
-          <div className="quantity-control"><button type="button" disabled={quantity <= 0.01} aria-label="Decrease protected quantity by one" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setApproval(null); }} aria-describedby="quantity-help" aria-invalid={qty <= 0n || tooBig} /><button type="button" disabled={!!selected && qty >= selected.maxContractSize} aria-label="Increase protected quantity by one" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
+          <div className="quantity-control"><button type="button" disabled={quantity <= 0.01} aria-label="Decrease protected quantity by one" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input ref={quantityInput} id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setApproval(null); }} aria-describedby="quantity-help" aria-invalid={qty <= 0n || tooBig} /><button type="button" disabled={!!selected && qty >= selected.maxContractSize} aria-label="Increase protected quantity by one" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
           <div className="field-help" id="quantity-help">{qty <= 0n ? "Enter a quantity above zero." : selected ? `Maximum per position: ${tok(selected.maxContractSize)} tokens` : ""}</div>
           {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setQtyStr(String(c.exposure[assetId]))}>Use reference holdings</button>}
           <div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{option ? new Date(option.expiryTs * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : kind === "short" ? "Near expiry" : "Later expiry"}<span>{option ? (kind === "short" ? "Quick Devnet expiry · " : "") + fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
           {effectiveTenor === "short" && <p className="disclosure">Try the settlement lifecycle sooner.</p>}
+          </div>
           <div className="ticket-label">Price floor</div>
           <div className="floor-list">{tenorOptions.map((s) => { const distance = spotReal ? (tok(s.strike) - spotReal) / spotReal : null; return <button key={s.seriesId} className={"strike-option" + (selected?.seriesId === s.seriesId ? " active" : "")} aria-pressed={selected?.seriesId === s.seriesId} onClick={() => setSeriesId(s.seriesId)}><strong className="mono">{fmtPrice(s.strike)}</strong><span className="floor-distance">{distance == null ? "Reference unavailable" : Math.abs(distance * 100).toFixed(1) + "% " + (distance >= 0 ? "above" : "below") + " reference"}</span></button>; })}</div>
           {!selected && <div className="empty terms-loading" role="status" aria-busy={seriesLoading}>{seriesLoading ? <><span className="loading-shape" aria-hidden="true" /><span className="loading-shape" aria-hidden="true" />Loading contract terms…</> : seriesError ? "Couldn’t load contract terms. Try again." : "No expiry is open for purchase. Check again shortly."}{!seriesLoading && <button className="text-action" onClick={() => { setSeriesLoading(true); setSeriesRetry((n) => n + 1); }}>Try again</button>}</div>}
           {selected && seriesError && <p className="field-error">Terms could not refresh. Buying checks availability again.</p>}
-          <div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{referenceRatio != null && <p className="disclosure">Premium ≈ {fmtPct(referenceRatio)} of reference value · {secsLeft < 60 ? "Less than 1m" : fmtDuration(secsLeft)} remaining</p>}
-          {selected && <div className="ticket-expiry"><div><span>Expires in {fmtDuration(selected.expiryTs - now)}</span><strong>{fmtClock(selected.expiryTs)}</strong></div></div>}
+          <div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{referenceRatio != null && <p className="disclosure">{fmtPct(referenceRatio)} of reference value</p>}
+          <p className="disclosure">oUSD · Devnet test token, no monetary value</p>
           </fieldset>
-        <div className="protection-checkout">
+        {compact && <button className="btn primary compact-continue" disabled={!selected || !referenceReady || c.busy} aria-expanded={false} onClick={expandCheckout}>Set this floor</button>}
+        <div className="protection-checkout" hidden={compact}>
+          <p className="disclosure">Maximum contractual payout is reserved onchain when you buy.</p>
           {approved && <section ref={reviewRef} tabIndex={-1} className="purchase-review" aria-label="Review purchase" onKeyDown={e => { if (e.key === "Escape" && !c.busy) cancelReview(); }}><h3>Review position</h3><dl className="review-terms"><div><dt>Quantity</dt><dd>{quantity} {assetLabel}</dd></div><div><dt>Price floor</dt><dd className="mono">{selected && fmtPrice(selected.strike)}</dd></div><div><dt>Expires</dt><dd>{selected && fmtClock(selected.expiryTs)}</dd></div><div><dt>Early exercise closes</dt><dd>{selected && fmtClock(selected.exerciseCutoffTs)}</dd></div><div><dt>Maximum premium</dt><dd className="mono">{fmtOusd(tok(approved.maxPremium))}</dd></div></dl><p>You won’t pay above this premium limit.</p>{selected?.vaultRound && <p>Funded by the {assetLabel} vault. <a href={explorerUrl("address", selected.vaultRound)} target="_blank" rel="noreferrer">Inspect backing round ↗</a></p>}<button className="btn ghost sm" disabled={c.busy} onClick={cancelReview}>Cancel review</button></section>}
-          <div className="checkout-row"><div>{c.connected && <div className="ticket-balance">Balance {fmtOusd(c.tokenBalance, 0)}</div>}<p className="disclosure">oUSD · Devnet test token, no monetary value</p></div>
+          <div className="checkout-row"><div>{c.connected && <div className="ticket-balance">Balance {fmtOusd(c.tokenBalance, 0)}</div>}</div>
           <div className="ticket-purchase"><button ref={purchaseButton} className="btn primary" disabled={primaryDisabled} aria-busy={c.busy} onClick={primaryAction}>{buyLabel}</button></div></div>
           <p className="ticket-footnote">{c.connected ? "Network fees sponsored." : "No wallet extension or SOL needed. Wallet saved in this browser. Clearing site data removes access."}</p>
           {c.error && <div className="field-error" role="alert">{c.error}</div>}
@@ -300,16 +317,16 @@ export default function ProtectTab({
           <div className="mobile-payout-overview"><span>Maximum contract payout</span><strong className="mono">{selected && qty > 0n ? fmtOusd(tok(notional)) : "—"}</strong><p>Settlement reference below your floor: difference × covered quantity. At or above: zero.</p><button className="text-action" aria-expanded={explorePayout} aria-controls="payout-exploration" onClick={() => setExplorePayout(value => !value)}>{explorePayout ? "Close payout explorer −" : "Explore payouts +"}</button></div>
           <div id="payout-exploration" className={"card scenario-card payout-exploration" + (explorePayout ? " is-expanded" : "")}><h2>Payout explorer</h2><p className="scenario-context">{scenarioPreset === "15% lower" ? "If the reference falls 15% · hypothetical" : "Hypothetical settlement scenario"}</p>
           {selected && est && qty > 0n ? <>
-            <div className="scenario-price-row"><label htmlFor="scenario-price">Explore settlement price</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>
-            <div className="scenario-adjustment"><label className="scenario-slider"><span className="sr-only">Explore settlement price</span><input aria-label="Price at settlement (illustrative scenario)" aria-valuetext={fmtUsd(scenarioPrice)} type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setScenario(Math.max(chartMin, Math.min(chartMax, scenarioPrice + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1)))); setScenarioPreset(null); setScenarioText(null); } }} onChange={(e) => { setScenario(Number(e.target.value)); setScenarioPreset(null); setScenarioText(null); }} /></label>
-            <div className="scenario-presets">{["15% lower", "Current", "Floor", "Breakeven"].map(label => <button key={label} className="btn ghost sm" disabled={label === "Breakeven" && maxNet < 0} aria-pressed={scenarioPreset === label} onClick={() => { setScenarioPreset(label); setScenarioText(null); }}>{label === "Current" ? "Latest reference" : label === "15% lower" ? "15% drop" : label === "Breakeven" ? "Covers premium" : label}</button>)}</div>
+            <div className="scenario-price-row"><label htmlFor="scenario-price">Price at settlement</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div>
+            <div className="scenario-adjustment"><label className="scenario-slider"><span className="sr-only">Price at settlement</span><input aria-label="Price at settlement (illustrative scenario)" aria-valuetext={fmtUsd(scenarioPrice)} type="range" min={chartMin} max={chartMax} step="0.01" value={scenarioPrice} onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setScenario(Math.max(chartMin, Math.min(chartMax, scenarioPrice + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1)))); setScenarioPreset(null); setScenarioText(null); } }} onChange={(e) => { setScenario(Number(e.target.value)); setScenarioPreset(null); setScenarioText(null); }} /></label>
+            <div className="scenario-presets">{["15% lower", "Current", "Floor", "Breakeven"].map(label => <button key={label} className="btn ghost sm" disabled={label === "Breakeven" && maxNet < 0} aria-pressed={scenarioPreset === label} onClick={() => { setScenarioPreset(label); setScenarioText(null); }}>{label === "Current" ? "Current reference" : label === "15% lower" ? "15% drop" : label === "Breakeven" ? "Break-even" : label === "Floor" ? "At floor" : label}</button>)}</div>
             </div>
-            <ProtectionMechanism symbol={assetLabel} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
+            <ProtectionMechanism hidePremium symbol={assetLabel} quantity={qty} floor={selected.strike} reference={toFixed(scenarioPrice)} premium={est.premium} />
           </> : <div className="empty"><strong>{qty <= 0n ? "Enter a valid quantity" : referenceStatus}</strong><p>Waiting for current pricing and contract terms.</p></div>}
           </div>
         </section>
         <button className="mobile-position-details text-action" aria-expanded={showDetails} aria-controls="position-details" onClick={() => setShowDetails(value => !value)}>{showDetails ? "Close position details −" : "Position details +"}</button>
-        <section id="position-details" className={"protection-secondary" + (showDetails ? " is-expanded" : "")} aria-label="Additional protection details">
+        <section id="position-details" hidden={compact} className={"protection-secondary" + (showDetails ? " is-expanded" : "")} aria-label="Additional protection details">
           <details className="card protection-details"><summary>Holdings</summary><h3>Check your token holdings</h3><p>Token ownership is not required to open a position.</p><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} />
           {selected && est && qty > 0n && <><h3>Holdings + payout scenario</h3>
               <label htmlFor="scenario-holdings">Holdings in this scenario · {assetLabel}</label>
@@ -322,7 +339,7 @@ export default function ProtectTab({
           </>}
           </details>
           <details className="card protection-details"><summary>Payout formula</summary><p>Quantity × max(floor − settlement reference, 0).</p><p>The chart shows contract payout minus premium only. It excludes changes in your token holdings.</p></details>
-          <details className="card protection-details"><summary>Pricing & settlement</summary><h3>Settlement rules</h3>{selected && <div className="kv"><span>Early exercise closes</span><strong>{fmtClock(selected.exerciseCutoffTs)}</strong></div>}<div className="kv"><span>Protection reference</span><strong>{asset.benchmarkLabel}</strong></div><div className="kv"><span>Source</span><strong>{reference?.available ? referenceSourceLabel(reference.source) : "Checking…"}</strong></div><p>Early exercise uses a median of qualifying observations after your request. At expiry, the keeper uses the final 5-minute window. Missing references trigger the contract’s recovery or refund rules.</p><div className="kv"><span>Maximum payout</span><strong>{selected ? fmtOusd(tok(notional)) : "—"}</strong></div><p>Quantity × floor, reached if the settlement reference is zero. This amount is reserved onchain when protection is issued.</p>
+          <details className="card protection-details"><summary>Pricing & settlement</summary><p>{assetId === 0 ? "NVDAx token-market reference, not NVIDIA shares." : "Anthropic PreStocks token-market reference, not company valuation."}</p>{selected && <p>Expires {fmtClock(selected.expiryTs)}</p>}<h3>Settlement rules</h3>{selected && <div className="kv"><span>Early exercise closes</span><strong>{fmtClock(selected.exerciseCutoffTs)}</strong></div>}<div className="kv"><span>Protection reference</span><strong>{asset.benchmarkLabel}</strong></div><div className="kv"><span>Source</span><strong>{reference?.available ? referenceSourceLabel(reference.source) : "Checking…"}</strong></div><p>Early exercise uses a median of qualifying observations after your request. At expiry, the keeper uses the final 5-minute window. Missing references trigger the contract’s recovery or refund rules.</p><div className="kv"><span>Maximum payout</span><strong>{selected ? fmtOusd(tok(notional)) : "—"}</strong></div><p>Quantity × floor, reached if the settlement reference is zero. This amount is reserved onchain when protection is issued.</p>
           {est && <><h3>How pricing works</h3><p>Premium comparison assumes 1 oUSD = $1.</p><div className="kv"><span>Intrinsic value</span><strong>{fmtOusd(tok(intrinsicNow))}</strong></div><div className="kv"><span>Additional protection cost</span><strong>{fmtOusd(tok(additionalPremium))}</strong></div><div className="kv"><span>Premium / maximum payout</span><strong>{fmtPct(premiumPct)}</strong></div><div className="kv"><span>Maximum payout minus premium</span><strong>{fmtOusd(maxNet)}</strong></div><p>Some risk and operating components do not shrink with duration, so short expiries can cost proportionally more. Components below are basis points of maximum contractual payout.</p><div className="premium-basis-grid">{Object.entries(est.components).map(([name, value]) => <div key={name}><span>{({volatility:"Modelled put value",jumpEvent:"Jump and event risk",earlyExercise:"Early exercise",hedge:"Hedge assumption",executionFunding:"Execution and funding",ops:"Operations",capitalCost:"Capital cost",riskAllowance:"Risk allowance"} as Record<string,string>)[name] ?? name}</span><strong>{Number(value).toFixed(1)} bps</strong></div>)}</div></>}
           </details>
         </section>

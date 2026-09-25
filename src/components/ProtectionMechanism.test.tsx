@@ -46,7 +46,7 @@ describe("Selected protection mechanism", () => {
     expect(html).not.toContain('class="marker breakeven"');
   });
   it("explains the premium recovery threshold without implying portfolio profit", () => {
-    expect(render(200)).toContain("Payout covers premium below");
+    expect(render(200)).toContain("Break-even reference:");
     expect(render(200)).toContain("$213.00");
     expect(render(230)).toContain("−2.00 oUSD");
   });

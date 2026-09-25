@@ -1,4 +1,4 @@
-import ProtectionWalkthrough from "./ProtectionWalkthrough";
+import ProtectionWalkthrough, { type WalkthroughExample } from "./ProtectionWalkthrough";
 import CapitalFlow, { CapitalFlowPaths } from "./CapitalFlow";
 import ProtectTab from "./ProtectTab";
 import AssetLogo from "./AssetLogo";
@@ -14,9 +14,9 @@ import "./LandingSurfaces.css";
 type AppTab = "protect" | "portfolio" | "compare" | "underwriter" | "history" | "vaults";
 
 // Keep a mount-time draft: edits are remembered without rehydrating the form on every keystroke.
-function BuyerPanel({ draft, remember, onViewPosition }: { draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
+function BuyerPanel({ draft, remember, onViewPosition, onExampleChange }: { onExampleChange: (example: WalkthroughExample | null) => void; draft: ProtectDraft | null; remember: (draft: ProtectDraft) => void; onViewPosition: (asset: number, address?: string) => void }) {
   const [initial] = useState(draft);
-  return <ProtectTab embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
+  return <ProtectTab onExampleChange={onExampleChange} embedded initialDraft={initial} onDraftChange={remember} onViewPositions={onViewPosition} />;
 }
 
 export default function Landing({ onLaunch, onViewPosition, launching = false, vaultsEnabled = false }: {
@@ -29,6 +29,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
 }) {
   const [side, setSide] = useState<"buyer" | "vault">(() => vaultsEnabled && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("side") === "vault" ? "vault" : "buyer");
   const [explanationSide, setExplanationSide] = useState(side);
+  const [example, setExample] = useState<WalkthroughExample | null>(null);
   const [buyerDraft, setBuyerDraft] = useState<ProtectDraft | null>(null);
   const [vaultDraft, setVaultDraft] = useState<VaultDraft>({ asset: 0, amount: "100" });
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
             <button aria-pressed={side === "buyer"} disabled={launching} onClick={() => chooseSide("buyer")}>Set your floor</button>
             <button aria-pressed={side === "vault"} disabled={launching} onClick={() => chooseSide("vault")}>Fund a vault</button>
           </div>}
-          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
+          {side === "vault" && vaultsEnabled ? <VaultsTab embedded initialDraft={vaultDraft} onDraftChange={setVaultDraft} onOpenPosition={assetId => { chooseSide("buyer", true, assetId); }} /> : <BuyerPanel onExampleChange={setExample} draft={buyerDraft} remember={setBuyerDraft} onViewPosition={onViewPosition} />}
         </div>
       </section>
 
@@ -73,9 +74,9 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
         <div className="lp-market-mechanism">
           <CapitalFlow>
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your exposure.</h3><p>No need to sell your tokens or manage a leveraged short. Maximum contractual payout is reserved onchain.</p></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h18v13H3zM3 7V4h15v3M16 12h5v4h-5z" /></svg></span><span className="lp-eyebrow">For holders</span><h3>Keep your exposure.</h3><p>Keep your tokens. Pay once for a price floor.</p></div>
             <CapitalFlowPaths />
-            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Earn premiums. <br />Fund contractual payouts.</h3><p>Premiums add to your asset’s vault. Payouts reduce its balance.</p></div>
+            <div className="risk-party"><span className="risk-party-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="4" /><path d="M12 8v8M8 12h8" /></svg></span><span className="lp-eyebrow">For depositors</span><h3>Earn premiums. <br />Fund contractual payouts.</h3><p>Fund floors and earn premiums. Payouts come from the vault.</p></div>
           </CapitalFlow>
         </div>
       </section> : <section className="lp-why lp-light" id="why-protect" aria-labelledby="why-protect-title">
@@ -106,7 +107,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </div>
       </section>}
 
-      <ProtectionWalkthrough side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} />
+      <ProtectionWalkthrough example={side === "buyer" ? example : null} side={explanationSide} vaultsEnabled={vaultsEnabled} onSideChange={setExplanationSide} />
 
       <section className="lp-section" id="assets">
         <div className="lp-section-head"><span className="lp-eyebrow">Supported markets</span><h2 className="lp-h2">Floors for public and pre-IPO tokens.</h2><p className="lp-lede">{vaultsEnabled ? "Set a floor or fund a vault for either token." : "Protection follows the traded token price."}</p></div>

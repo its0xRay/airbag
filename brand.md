@@ -2,6 +2,13 @@
 
 ## Current landing decisions (supersede earlier layout notes below)
 
+The landing buyer panel starts compact: selected quantity and expiry remain visible
+beside floor and estimated premium. Set this floor expands the same real checkout
+without navigating or submitting. Quantity, wallet details and advanced terms are
+revealed there. Keep the payout explorer interactive and clearly hypothetical;
+premium is shown once beside the floor. The walkthrough uses the same selected
+terms and scenario, never an unrelated fixed example or fabricated live quote.
+
 Hero: category “Risk management for tokenized equities”, headline “Set your floor.
 Keep your tokens.”, descriptor “Cash-settled puts on tokenized equities,
 underwritten by isolated vaults.” No additional hero paragraph. Keep the Devnet
