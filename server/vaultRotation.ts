@@ -4,7 +4,8 @@ import { VaultClient, vaultPdas, type VaultRoundAccount, type VaultTerms } from 
 import { ACTIVE_REFERENCE_VERSION } from "../src/data/referencePolicy";
 import { vaultPolicyHash } from "./vaultQuotes";
 
-export const ROUND_CADENCE = 1800;
+export const ROUND_CADENCE = 86_400;
+export const ROUND_DURATION = 7 * 86_400;
 const U = 1_000_000n;
 /** Stable time-slot IDs survive restarts and concurrent replicas. No deposits or recycling. */
 export function nextVaultTerms(rounds: VaultRoundAccount[], assetId: number, now: number, spot: bigint) {
@@ -12,15 +13,18 @@ export function nextVaultTerms(rounds: VaultRoundAccount[], assetId: number, now
   const mine = rounds.filter(r => r.assetId === assetId);
   if (mine.some(r => r.phase === "funding" && r.fundingClose > now)) return null;
   // A stuck keeper must not accumulate an unbounded backlog of locked rounds.
-  if (mine.filter(r => r.phase !== "redeemable").length >= 3) return null;
-  const id = 9_000_000_000n + BigInt(Math.floor(now / ROUND_CADENCE));
+  // Seven daily cohorts plus a funding round; leave room for settlement recovery.
+  if (mine.filter(r => r.phase !== "redeemable").length >= 10) return null;
+  const id = 10_000_000_000n + BigInt(Math.floor(now / ROUND_CADENCE));
   if (mine.some(r => r.roundId === id)) return null;
   const fundingClose = (Math.floor(now / ROUND_CADENCE) + 1) * ROUND_CADENCE;
   if (fundingClose - now < 120) return null;
-  const minStrike = spot * 95n / 100n;
-  const maxStrike = (spot * 105n + 99n) / 100n;
-  const terms: VaultTerms = { assetId, fundingClose, salesClose: fundingClose + 1500,
-    latestExpiry: fundingClose + 1800, depositCap: 20_000n * U, exposureCap: 10_000n * U,
+  // Dollar-denominated mandate, not a narrow band around publication-time spot.
+  // Every quote still reserves quantity × floor and passes asset-wide admission.
+  const minStrike = U / 100n;
+  const maxStrike = 10_000n * U;
+  const terms: VaultTerms = { assetId, fundingClose, salesClose: fundingClose + ROUND_DURATION - 86_400,
+    latestExpiry: fundingClose + ROUND_DURATION, depositCap: 20_000n * U, exposureCap: 10_000n * U,
     minStrike, maxStrike, maxQuantity: 5n * U };
   return { id, terms };
 }

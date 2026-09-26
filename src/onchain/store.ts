@@ -34,6 +34,9 @@ export interface SeriesInfo {
   referenceVersion: number;
   shortDated: boolean;
   vaultRound?: string;
+  minStrike?: bigint;
+  maxStrike?: bigint;
+  availableCapacity?: bigint;
 }
 
 /** One confirmed transaction touching a contract the user owns (§13.7). */
@@ -92,8 +95,8 @@ async function decodeTransactionActions(connection: Connection, signatures: stri
   return actions;
 }
 
-export async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
-  const vaultQuery = import.meta.env.VITE_VAULTS_ENABLED === "true" ? "?includeVaults=true" : "";
+export async function loadSeries(svcUrl: string, customFloors = false): Promise<SeriesInfo[]> {
+  const vaultQuery = import.meta.env.VITE_VAULTS_ENABLED === "true" ? `?includeVaults=true${customFloors ? "&customFloors=true" : ""}` : "";
   const raw = await fetchJson<Array<Record<string, unknown>>>(`${svcUrl}/series/all${vaultQuery}`);
   return raw
     .map((s) => ({
@@ -107,6 +110,9 @@ export async function loadSeries(svcUrl: string): Promise<SeriesInfo[]> {
       referenceVersion: Number(s.referenceVersion),
       shortDated: !!s.shortDated,
       vaultRound: typeof s.vaultRound === "string" ? s.vaultRound : undefined,
+      minStrike: s.minStrike == null ? undefined : BigInt(String(s.minStrike)),
+      maxStrike: s.maxStrike == null ? undefined : BigInt(String(s.maxStrike)),
+      availableCapacity: s.availableCapacity == null ? undefined : BigInt(String(s.availableCapacity)),
     }))
     .sort((a, b) => a.assetId - b.assetId || a.expiryTs - b.expiryTs || Number(b.strike - a.strike));
 }

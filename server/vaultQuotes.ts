@@ -27,14 +27,17 @@ export async function signedVaultQuote(client: VaultClient, signer: Keypair,
   if (round.referenceVersion !== ACTIVE_REFERENCE_VERSION[round.assetId]) throw new Error("Unsupported vault reference version.");
   const now = Math.floor(Date.now() / 1000);
   if (round.phase !== "active" || now >= round.salesClose || round.latestExpiry - now < 300) throw new Error("This round is not issuing new positions.");
+  if (![input.quantity, input.strike].every(v => /^\d{1,20}$/.test(v) && BigInt(v) <= 18_446_744_073_709_551_615n)) throw new Error("Use positive amounts with at most six decimal places.");
   const quantity = BigInt(input.quantity), strike = BigInt(input.strike);
-  if (quantity <= 0n || quantity > round.maxQuantity || strike < round.minStrike || strike > round.maxStrike) throw new Error("Position exceeds this round's terms.");
+  if (quantity <= 0n || quantity > round.maxQuantity) throw new Error("Quantity exceeds this round's terms.");
+  if (strike < round.minStrike || strike > round.maxStrike) throw new Error("No quote available for this floor. Your amount has not been changed.");
   const liability = maxLiability(quantity, strike);
   if (liability > round.principalAvailable || round.reserved + liability > round.exposureCap) throw new Error("Vault capacity is insufficient for this position.");
   const r = await reference(round.assetId, round.referenceVersion);
   if (!r.available || r.spot == null) throw new Error(r.reason || "A qualifying market reference is unavailable.");
   await admit?.(round.assetId, liability);
   const premium = quotePremium(round.assetId, quantity, strike, r.spot, round.latestExpiry - now).premium;
+  if (liability <= 0n || premium <= 0n || premium >= liability) throw new Error("No quote available for this floor and quantity: premium must be below maximum payout.");
   const quote = { buyer: new PublicKey(input.buyer).toBase58(), assetId: round.assetId, seriesId: 0,
     quantity, strike, expiryTs: round.latestExpiry, referenceVersion: round.referenceVersion, premium, fees: 0n,
     quoteId: randomBytes(8).readBigUInt64LE(), quoteExpiryTs: Math.min(now + 60, round.salesClose - 1) };

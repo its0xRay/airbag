@@ -1,5 +1,5 @@
 import AssetSelector from "./AssetSelector";
-import { defaultFloor } from "../client/defaultFloor";
+import { parseContractAmount, contractAmountText } from "../client/customFloor";
 import ProtectionMechanism from "./ProtectionMechanism";
 import ProtectionBoundary from "./ProtectionBoundary";
 import HoldingsCard from "./HoldingsCard";
@@ -12,14 +12,15 @@ import { useChain, explorerUrl, loadSeries, type SeriesInfo } from "../onchain/s
 import { VERIFIED_ASSETS } from "../data/assets";
 import { fetchQuoteReference, referenceSourceLabel, type QuoteReference } from "../data/marketData";
 import { quotePremium, payout as intrinsic, toFixed, fromFixed, maxLiability } from "../engine";
-import { fmtPrice, fmtUsd, fmtPct, fmtDuration, fmtClock, fmtAge, fmtOusd } from "../format";
+import { fmtPrice as roundedPrice, fmtUsd, fmtPct, fmtDuration, fmtClock, fmtAge, fmtOusd } from "../format";
 import type { ProtectDraft } from "../App";
 import type { WalkthroughExample } from "./ProtectionWalkthrough";
 import { useNowSeconds } from "../useNowSeconds";
 import { useAssetAvailability } from "../data/useAssetAvailability";
-import { closestTerms, premiumReferenceRatio, type RepeatPosition } from "../client/repeatPosition";
+import { premiumReferenceRatio, type RepeatPosition } from "../client/repeatPosition";
 
 const tok = (v: bigint) => Number(v) / 1e6;
+const fmtPrice = (v: bigint) => roundedPrice(v, Math.max(2, contractAmountText(v).split(".")[1]?.length ?? 0));
 
 /**
  * Buy protection — entirely on-chain (PRD §13.3/§13.4). Series come from the
@@ -59,7 +60,7 @@ export default function ProtectTab({
   const [seriesRetry, setSeriesRetry] = useState(0);
   useEffect(() => {
     let alive = true;
-    const load = () => loadSeries(c.svcUrl).then((next) => {
+    const load = () => loadSeries(c.svcUrl, true).then((next) => {
       if (alive) { setPublicSeries(next); setSeriesError(false); setSeriesLoading(false); }
     }).catch(() => {
       if (alive) { setSeriesError(true); setSeriesLoading(false); }
@@ -69,7 +70,9 @@ export default function ProtectTab({
   }, [c.svcUrl, seriesRetry]);
   const [assetId, setAssetId] = useState(1);
   const [seriesId, setSeriesId] = useState<number | null>(null);
-  const [tenor, setTenor] = useState<"short" | "weekly">("weekly");
+  const [floorInputs, setFloorInputs] = useState<Record<number, string>>({});
+  const [floorTouched, setFloorTouched] = useState(false);
+  const floorText = floorInputs[assetId] ?? "";
   const [qtyStr, setQtyStr] = useState("1");
   const [holdingsInputs, setHoldingsInputs] = useState<Record<number, string>>({});
   const [reference, setReference] = useState<QuoteReference | null>(null);
@@ -89,7 +92,6 @@ export default function ProtectTab({
     if (done) { receiptRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); receiptRef.current?.focus({ preventScroll: true }); }
   }, [done]);
   const [isRenewal, setIsRenewal] = useState(false);
-  const [similarDraft, setSimilarDraft] = useState<RepeatPosition | null>(null);
   const [referenceRetry, setReferenceRetry] = useState(0);
   const choseInitialAsset = useRef(false);
   const userChoseAsset = useRef(false);
@@ -110,19 +112,17 @@ export default function ProtectTab({
     // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(initialDraft.assetId);
     setSeriesId(initialDraft.seriesId ?? null);
-    const drafted = c.seriesList.find((s) => s.assetId === initialDraft.assetId && s.seriesId === initialDraft.seriesId);
-    // Restore the explicit duration along with the parent-supplied form draft.
+    // One-shot navigation restores the exact input, including a partially edited value.
     // oxlint-disable-next-line react/set-state-in-effect
-    if (initialDraft.tenor) setTenor(initialDraft.tenor);
-    else if (drafted) setTenor(drafted.shortDated ? "short" : "weekly");
+    if (initialDraft.floorText !== undefined) setFloorInputs(current => ({ ...current, [initialDraft.assetId]: initialDraft.floorText! }));
     if (initialDraft.quantityText !== undefined) setQtyStr(initialDraft.quantityText);
     else if (initialDraft.quantity && initialDraft.quantity > 0) setQtyStr(String(initialDraft.quantity));
     onInitialDraftConsumed?.();
   }, [c.seriesList, initialDraft, onInitialDraftConsumed, renewal]);
 
   useEffect(() => {
-    onDraftChange?.({ assetId, seriesId: seriesId ?? undefined, quantityText: qtyStr, tenor });
-  }, [assetId, seriesId, qtyStr, tenor, onDraftChange]);
+    onDraftChange?.({ assetId, seriesId: seriesId ?? undefined, quantityText: qtyStr, floorText });
+  }, [assetId, seriesId, qtyStr, floorText, onDraftChange]);
 
   // Open the demo on an executable market when one is available. This only
   // chooses the initial asset; a user's explicit asset selection is preserved.
@@ -144,10 +144,9 @@ export default function ProtectTab({
     // oxlint-disable-next-line react/set-state-in-effect
     setAssetId(renewal.assetId);
     setSeriesId(null);
-    setTenor("short");
+    if (renewal.strike !== undefined) setFloorInputs(current => ({ ...current, [renewal.assetId]: contractAmountText(renewal.strike!) }));
     setQtyStr(String(renewal.quantity));
     setIsRenewal(true);
-    setSimilarDraft(renewal);
     setApproval(null);
     setDone(null);
     onRenewalConsumed?.();
@@ -176,39 +175,29 @@ export default function ProtectTab({
   }, [assetId, referenceRetry]);
 
   const options = useMemo(
-    () => publicSeries.filter((s) => s.assetId === assetId && s.referenceVersion === ACTIVE_REFERENCE_VERSION[assetId]),
+    () => publicSeries.filter((s) => s.assetId === assetId && s.referenceVersion === ACTIVE_REFERENCE_VERSION[assetId] && s.vaultRound && s.minStrike != null && s.maxStrike != null && !s.shortDated),
     [publicSeries, assetId],
   );
+  const terms = options[0];
+  const floor = parseContractAmount(floorText);
+  const selected = useMemo(() => terms && floor != null ? { ...terms, strike: floor } : undefined, [terms, floor]);
   useEffect(() => {
-    if (!similarDraft || seriesLoading || assetId !== similarDraft.assetId) return;
-    const match = closestTerms(options, similarDraft, Math.floor(Date.now() / 1000));
-    // A one-shot draft selects only an available series, never an old quote.
-    // oxlint-disable-next-line react/set-state-in-effect
-    setSeriesId(match?.seriesId ?? null);
-    if (match) setTenor(match.shortDated ? "short" : "weekly");
-    setSimilarDraft(null);
-  }, [similarDraft, seriesLoading, assetId, options]);
-  const effectiveTenor = !options.length ? tenor : options.some((s) => s.shortDated === (tenor === "short")) ? tenor : tenor === "short" ? "weekly" : "short";
-  const tenorOptions = options.filter((s) => s.shortDated === (effectiveTenor === "short"));
-  const selected: SeriesInfo | undefined =
-    options.find((s) => s.seriesId === seriesId) ?? defaultFloor(tenorOptions, reference?.available && reference.assetId === assetId ? toFixed(reference.price) : undefined);
-
-  useEffect(() => {
-    if (similarDraft || renewal || (initialDraft && appliedDraft.current !== initialDraft) || !reference?.available || reference.assetId !== assetId || !selected || options.some(s => s.seriesId === seriesId)) return;
+    if (renewal || initialDraft?.floorText !== undefined || (initialDraft && appliedDraft.current !== initialDraft) || !reference?.available || reference.assetId !== assetId || floorInputs[assetId] !== undefined) return;
     // Freeze the initial floor once a real reference arrives; polling must not change it.
     // oxlint-disable-next-line react/set-state-in-effect
-    setSeriesId(selected.seriesId);
-  }, [assetId, initialDraft, options, reference, renewal, selected, seriesId, similarDraft]);
+    setFloorInputs(current => ({ ...current, [assetId]: String(Math.max(0.01, Math.floor(reference.price * 0.95 * 100) / 100)) }));
+  }, [assetId, initialDraft, floorInputs, reference, renewal]);
 
   const quantity = Number(qtyStr);
-  const qty = Number.isFinite(quantity) && quantity > 0 && quantity <= 1e9 ? toFixed(quantity) : 0n;
+  const qty = parseContractAmount(qtyStr) ?? 0n;
   const spotReal = reference?.available && reference.assetId === assetId ? reference.price : undefined;
   const referenceReady = reference?.available === true && reference.assetId === assetId;
   const spot = spotReal != null ? toFixed(spotReal) : 0n;
 
   const now = useNowSeconds();
   const secsLeft = selected ? selected.expiryTs - now : 0;
-  const est = selected && qty > 0n && spot > 0n
+  const floorError = floor == null ? "Enter a price above zero, with up to six decimals." : terms && (floor < terms.minStrike! || floor > terms.maxStrike!) ? "No quote available for this floor. Your amount is unchanged." : null;
+  const est = selected && !floorError && qty > 0n && qty <= selected.maxContractSize && spot > 0n
     ? quotePremium(assetId, qty, selected.strike, spot, Math.max(secsLeft, 60))
     : null;
   const notional = selected && qty > 0n ? maxLiability(qty, selected.strike) : 0n;
@@ -223,12 +212,13 @@ export default function ProtectTab({
   const chartMax = spotReal != null ? Math.max(spotReal * 1.18, selected ? tok(selected.strike) * 1.08 : 0) : 1;
 
   const availability = useAssetAvailability(assetId, c.svcUrl);
-  const capacityReached = !!selected && !!availability.data && maxLiability(qty, selected.strike) > BigInt(availability.data.availableExposure);
+  const capacityReached = !!selected && (selected.availableCapacity != null && notional > selected.availableCapacity || !!availability.data && notional > BigInt(availability.data.availableExposure));
   const admissionReady = availability.data?.canQuote === true && !capacityReached;
   const tooBig = !!selected && qty > selected.maxContractSize;
   const closed = !!selected && now > selected.purchaseCutoffTs;
   const affordable = !est || c.tokenBalance >= fromFixed(est.premium);
-  const canBuy = !!selected && referenceReady && admissionReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && !pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address) && c.connected;
+  const premiumValid = !!est && est.premium > 0n && est.premium < notional;
+  const canBuy = !!selected && !floorError && premiumValid && referenceReady && admissionReady && qty > 0n && !tooBig && !closed && affordable && !c.busy && !pendingTransaction(c.transaction, c.conn.rpcEndpoint, c.address) && c.connected;
   const approvalKey = `${assetId}:${selected?.seriesId}:${selected?.vaultRound ?? "legacy"}:${selected?.expiryTs}:${selected?.strike}:${qtyStr}`;
   const approved = approval?.key === approvalKey ? approval : null;
 
@@ -263,7 +253,7 @@ export default function ProtectTab({
       if (est && canBuy) { c.clearError(); setApproval({ key: approvalKey, maxPremium: ((est.premium + 9999n) / 10000n) * 10000n }); }
       return;
     }
-    const draft = { assetId, seriesId: selected?.seriesId, quantityText: qtyStr, tenor };
+    const draft = { assetId, seriesId: selected?.seriesId, quantityText: qtyStr, floorText };
     await c.connect();
     if (useChain.getState().connected && !useChain.getState().error) onConnected?.(draft);
   };
@@ -301,25 +291,27 @@ export default function ProtectTab({
           <fieldset disabled={c.busy} className="ticket-fields" onClick={() => { if (approval) setApproval(null); }}><legend className="sr-only">Contract terms</legend>
           {!hero && <p className="floor-explanation">If the settlement reference falls below your floor, receive the difference.</p>}
           {compact && <p className="compact-terms">{quantity} {assetLabel} · {selected ? <>Expires {new Date(selected.expiryTs * 1000).toLocaleDateString(undefined, {day: "numeric", month: "short"})} · {fmtDuration(secsLeft)} left</> : "Loading expiry…"}</p>}
-          <div hidden={compact} className="buyer-term-row"><div className="buyer-quantity">
+          <div hidden={compact} className="buyer-term-row custom-floor-row"><div className="buyer-floor">
+          <label className="field" htmlFor="custom-floor"><span className="lbl">Price floor · USD</span></label>
+          <input id="custom-floor" className="input mono" inputMode="decimal" autoComplete="off" value={floorText} onChange={e => { setFloorInputs(current => ({ ...current, [assetId]: e.target.value })); setFloorTouched(false); setApproval(null); }} onBlur={() => setFloorTouched(true)} aria-invalid={floorTouched && !!floorError} aria-describedby="floor-help" />
+          <div id="floor-help" className={floorTouched && floorError ? "field-error" : "field-help"}>{floorTouched && floorError ? floorError : "Your payout starts below this price."}</div>
+          </div><div className="buyer-quantity">
           <label className="field" htmlFor="protected-quantity"><span className="lbl">{hero ? "Quantity" : <>Quantity · {assetLabel}</>}</span></label>
           <div className="quantity-control"><button type="button" disabled={quantity <= 0.01} aria-label="Decrease protected quantity by one" onClick={() => setQtyStr(String(Math.max(0.01, (quantity || 1) - 1)))}>−</button><input ref={quantityInput} id="protected-quantity" className="input mono" inputMode="decimal" autoComplete="off" value={qtyStr} onChange={(e) => { setQtyStr(e.target.value); setApproval(null); }} aria-describedby="quantity-help" aria-invalid={qty <= 0n || tooBig} /><button type="button" disabled={!!selected && qty >= selected.maxContractSize} aria-label="Increase protected quantity by one" onClick={() => setQtyStr(String(Math.min(selected ? tok(selected.maxContractSize) : 20, (quantity || 0) + 1)))}>+</button></div>
           <div className="field-help" id="quantity-help">{qty <= 0n ? "Enter a quantity above zero." : selected ? `${hero ? "Max" : "Maximum per position:"} ${tok(selected.maxContractSize)} tokens` : ""}</div>
           {c.exposure[assetId] > 0 && <button className="text-action" onClick={() => setQtyStr(String(c.exposure[assetId]))}>Use reference holdings</button>}
-          </div><div className="buyer-expiry"><div className="ticket-label">Expiry</div><div className="tenor-switch" role="group" aria-label="Protection expiry">{(["short", "weekly"] as const).map((kind) => { const option = options.find(s => s.shortDated === (kind === "short")); return <button key={kind} disabled={!option} aria-pressed={effectiveTenor === kind} className={effectiveTenor === kind ? "active" : ""} onClick={() => { setTenor(kind); setSeriesId(null); setApproval(null); }}>{option ? new Date(option.expiryTs * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : kind === "short" ? "Near expiry" : "Later expiry"}<span>{option ? (kind === "short" ? (hero ? "Devnet · " : "Quick Devnet expiry · ") : "") + fmtDuration(option.expiryTs - now) + " left" : "Unavailable"}</span></button>; })}</div>
-          {effectiveTenor === "short" && <p className="disclosure">Try the settlement lifecycle sooner.</p>}
           </div></div>
-          <div className="ticket-label floor-label"><span>Price floor</span>{hero && <span>Estimated premium per token</span>}</div>
-          <div className="floor-list">{tenorOptions.map((s) => { const distance = spotReal ? (tok(s.strike) - spotReal) / spotReal : null; const floorEstimate = hero && referenceReady && spot > 0n && qty > 0n ? quotePremium(assetId, qty, s.strike, spot, Math.max(s.expiryTs - now, 60)) : null; return <button key={s.seriesId} className={"strike-option" + (selected?.seriesId === s.seriesId ? " active" : "")} aria-pressed={selected?.seriesId === s.seriesId} onClick={() => setSeriesId(s.seriesId)}><strong className="mono">{fmtPrice(s.strike)}</strong><span className="floor-distance">{distance == null ? "Reference unavailable" : Math.abs(distance * 100).toFixed(1) + "% " + (distance >= 0 ? "above" : "below") + " reference"}</span>{floorEstimate && <span className="floor-premium mono">{fmtOusd(tok(floorEstimate.premium) / quantity)}</span>}</button>; })}</div>
-          {!selected && <div className="empty terms-loading" role="status" aria-busy={seriesLoading}>{seriesLoading ? <><span className="loading-shape" aria-hidden="true" /><span className="loading-shape" aria-hidden="true" />Loading contract terms…</> : seriesError ? "Couldn’t load contract terms. Try again." : "No expiry is open for purchase. Check again shortly."}{!seriesLoading && <button className="text-action" onClick={() => { setSeriesLoading(true); setSeriesRetry((n) => n + 1); }}>Try again</button>}</div>}
+          {terms && <div className="custom-floor-expiry"><span>Expires</span><strong>{fmtClock(terms.expiryTs)}</strong><span>{fmtDuration(terms.expiryTs - now)} left</span></div>}
+          {!terms && <div className="empty terms-loading" role="status" aria-busy={seriesLoading}>{seriesLoading ? <><span className="loading-shape" aria-hidden="true" /><span className="loading-shape" aria-hidden="true" />Loading contract terms…</> : seriesError ? "Couldn’t load contract terms. Try again." : "No funded expiry is open for purchase. Check again shortly."}{!seriesLoading && <button className="text-action" onClick={() => { setSeriesLoading(true); setSeriesRetry((n) => n + 1); }}>Try again</button>}</div>}
           {selected && seriesError && <p className="field-error">Showing previously loaded terms. <button className="text-action" onClick={() => setSeriesRetry(n => n + 1)}>Retry refresh</button></p>}
-          {!hero && <>          <div className="ticket-premium"><span>{hero ? "Total estimated premium" : "Estimated premium"}</span><strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></div>{!hero && referenceRatio != null && <p className="disclosure">{fmtPct(referenceRatio)} of reference value</p>}
-          <p className="disclosure">oUSD · Devnet test token, no monetary value</p></>}
+          <div className="ticket-premium"><span>Estimated premium</span><strong className="mono">{est && premiumValid ? fmtOusd(tok(est.premium)) : "—"}</strong></div>
+          {est && !premiumValid && <p className="field-error">No quote available for this floor and quantity: premium must be below maximum payout.</p>}
+          {hero ? <p className="floor-payout-copy">Below your floor at settlement, receive the difference × your quantity. At or above it, payout is zero.</p> : <>{referenceRatio != null && <p className="disclosure">{fmtPct(referenceRatio)} of reference value</p>}<p className="disclosure">oUSD · Devnet test token, no monetary value</p></>}
 
           </fieldset>
         {!hero && checkout}
         </aside>
-        <section className="protection-analysis" aria-label="Protection payout">
+        {!hero && <section className="protection-analysis" aria-label="Protection payout">
           <div className="mobile-payout-overview"><span>Maximum contract payout</span><strong className="mono">{selected && qty > 0n ? fmtOusd(tok(notional)) : "—"}</strong><p>Settlement reference below your floor: difference × covered quantity. At or above: zero.</p><button className="text-action" aria-expanded={explorePayout} aria-controls="payout-exploration" onClick={() => setExplorePayout(value => !value)}>{explorePayout ? "Close payout explorer −" : "Explore payouts +"}</button></div>
           <div id="payout-exploration" className={"card scenario-card payout-exploration" + (explorePayout || hero ? " is-expanded" : "")}><h2>Payout at settlement</h2><p className="scenario-context">Price at settlement</p>
           {selected && est && qty > 0n ? <>
@@ -332,13 +324,12 @@ export default function ProtectTab({
           </> : <div className="empty"><strong>{qty <= 0n ? "Enter a valid quantity" : referenceStatus}</strong><p>Waiting for current pricing and contract terms.</p></div>}
           {hero && <div className="hero-total"><span>Estimated premium <strong className="mono">{est ? fmtOusd(tok(est.premium)) : "—"}</strong></span><span>Max payout <strong className="mono">{selected && qty > 0n ? fmtOusd(tok(notional)) : "—"}</strong></span></div>}
           </div>
-        </section>
+        </section>}
         {hero && checkout}
         <button className="mobile-position-details text-action" aria-expanded={showDetails} aria-controls="position-details" onClick={() => setShowDetails(value => !value)}>{showDetails ? "Close position details −" : "Position details +"}</button>
         {compact && <button className="btn primary compact-continue" disabled={!selected || !referenceReady || c.busy} aria-expanded={false} onClick={expandCheckout}>Continue</button>}
         <section id="position-details" hidden={compact} className={"protection-secondary" + (showDetails ? " is-expanded" : "")} aria-label="Additional protection details">
-          {hero && <details className="hero-custom-price"><summary>Custom price</summary><div className="scenario-price-row"><label htmlFor="scenario-price">Price at settlement</label><input id="scenario-price" className="input mono" inputMode="decimal" autoComplete="off" aria-label="Scenario price in USD" value={scenarioText ?? scenarioPrice.toFixed(2)} onChange={e => setScenarioText(e.target.value)} onBlur={() => { const value = Number(scenarioText); if (scenarioText !== null && scenarioText.trim() && Number.isFinite(value)) { setScenario(Math.max(chartMin, Math.min(chartMax, value))); setScenarioPreset(null); } setScenarioText(null); }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} /><span className="faint">USD</span></div></details>}
-          <details className="card protection-details"><summary>Holdings</summary><h3>Check your token holdings</h3><p>Token ownership is not required to open a position.</p><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} />
+          {!hero && <details className="card protection-details"><summary>Holdings</summary><h3>Check your token holdings</h3><p>Token ownership is not required to open a position.</p><HoldingsCard onProtect={(id, amount) => { setAssetId(id); setQtyStr(String(amount)); setSeriesId(null); setApproval(null); }} />
           {selected && est && qty > 0n && <><h3>Holdings + payout scenario</h3>
               <label htmlFor="scenario-holdings">Holdings in this scenario · {assetLabel}</label>
               <input id="scenario-holdings" className="input mono" inputMode="decimal" autoComplete="off" value={holdingsText} aria-invalid={!holdingsValid} aria-describedby="holdings-scenario-help" onChange={e => setHoldingsInputs(current => ({ ...current, [assetId]: e.target.value }))} />
@@ -348,8 +339,8 @@ export default function ProtectTab({
               <div className="kv"><span>Combined model value, after premium</span><strong className="mono">{outcome ? fmtUsd(tok(outcome.combinedModelValue)) : "—"}</strong></div>
               <p className="disclosure">Illustrative total: holdings + payout − premium, assuming 1 oUSD = $1. Not redeemable value.</p>
           </>}
-          </details>
-          <details className="card protection-details"><summary>Payout formula</summary><p>Quantity × max(floor − settlement reference, 0).</p><p>The chart shows contract payout minus premium only. It excludes changes in your token holdings.</p></details>
+          </details>}
+          <details className="card protection-details"><summary>Payout formula</summary><p>Quantity × max(floor − settlement reference, 0).</p>{!hero && <p>The chart shows contract payout minus premium only. It excludes changes in your token holdings.</p>}</details>
           <details className="card protection-details"><summary>Pricing & settlement</summary><p>{assetId === 0 ? "NVDAx token-market reference, not NVIDIA shares." : "Anthropic PreStocks token-market reference, not company valuation."}</p>{selected && <p>Expires {fmtClock(selected.expiryTs)}</p>}<h3>Settlement rules</h3>{selected && <div className="kv"><span>Early exercise closes</span><strong>{fmtClock(selected.exerciseCutoffTs)}</strong></div>}<div className="kv"><span>Protection reference</span><strong>{asset.benchmarkLabel}</strong></div><div className="kv"><span>Source</span><strong>{reference?.available ? referenceSourceLabel(reference.source) : "Checking…"}</strong></div><p>Early exercise uses a median of qualifying observations after your request. At expiry, the keeper uses the final 5-minute window. Missing references trigger the contract’s recovery or refund rules.</p><div className="kv"><span>Maximum payout</span><strong>{selected ? fmtOusd(tok(notional)) : "—"}</strong></div><p>Quantity × floor, reached if the settlement reference is zero. This amount is reserved onchain when protection is issued.</p>
           {est && <><h3>How pricing works</h3><p>Premium comparison assumes 1 oUSD = $1.</p><div className="kv"><span>Intrinsic value</span><strong>{fmtOusd(tok(intrinsicNow))}</strong></div><div className="kv"><span>Additional protection cost</span><strong>{fmtOusd(tok(additionalPremium))}</strong></div><div className="kv"><span>Premium / maximum payout</span><strong>{fmtPct(premiumPct)}</strong></div><div className="kv"><span>Maximum payout minus premium</span><strong>{fmtOusd(maxNet)}</strong></div><p>Some risk and operating components do not shrink with duration, so short expiries can cost proportionally more. Components below are basis points of maximum contractual payout.</p><div className="premium-basis-grid">{Object.entries(est.components).map(([name, value]) => <div key={name}><span>{({volatility:"Modelled put value",jumpEvent:"Jump and event risk",earlyExercise:"Early exercise",hedge:"Hedge assumption",executionFunding:"Execution and funding",ops:"Operations",capitalCost:"Capital cost",riskAllowance:"Risk allowance"} as Record<string,string>)[name] ?? name}</span><strong>{Number(value).toFixed(1)} bps</strong></div>)}</div></>}
           </details>

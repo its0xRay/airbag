@@ -715,8 +715,17 @@ const server = createServer(async (req, res) => {
           && now < r.salesClose && r.latestExpiry - now >= 300 && r.principalAvailable > 0n
           && r.referenceVersion === ACTIVE_REFERENCE_VERSION[r.assetId] && r.quoteAuthority.equals(quoteAuthority.publicKey)
           && Buffer.from(r.pricingPolicy).equals(vaultPolicyHash(r.assetId)));
-        const current = [0, 1].flatMap(asset => rounds.filter(r => r.assetId === asset)
+        const customFloors = url.searchParams.get("customFloors") === "true";
+        const current = [0, 1].flatMap(asset => rounds.filter(r => r.assetId === asset && (customFloors ? r.latestExpiry - now >= 86400 : r.latestExpiry - r.fundingClose <= 3600))
           .sort((a, b) => b.fundingClose - a.fundingClose).slice(0, 1));
+        if (customFloors) return json(res, 200, current.map(r => ({
+          assetId: r.assetId, seriesId: -1, strike: r.minStrike.toString(),
+          minStrike: r.minStrike.toString(), maxStrike: r.maxStrike.toString(),
+          availableCapacity: (r.principalAvailable < r.exposureCap - r.reserved ? r.principalAvailable : r.exposureCap - r.reserved).toString(),
+          expiryTs: r.latestExpiry, purchaseCutoffTs: r.salesClose - 1,
+          exerciseCutoffTs: r.latestExpiry - 300, maxContractSize: r.maxQuantity.toString(),
+          referenceVersion: r.referenceVersion, active: true, shortDated: false, vaultRound: r.address.toBase58(),
+        })));
         const vaultSeries = current.flatMap(r => [...new Set([r.minStrike, r.maxStrike])].map((strike, tier) => ({
           assetId: r.assetId, seriesId: -1 - tier, strike: strike.toString(), expiryTs: r.latestExpiry,
           purchaseCutoffTs: r.salesClose - 1, exerciseCutoffTs: r.latestExpiry - 300,

@@ -34,7 +34,9 @@ const id = BigInt(idText);
 const client = new VaultClient(conn);
 const address = vaultPdas.round(assetId, id);
 if (await client.getRound(address)) throw new Error(`Round ${address.toBase58()} already exists. Inspect its deposit record; this command will not deposit twice.`);
-if ((await client.rounds()).some(r => r.assetId === assetId && r.phase !== "redeemable")) throw new Error("An unresolved round already exists for this asset.");
+const existing = (await client.rounds()).filter(r => r.assetId === assetId && r.phase !== "redeemable");
+if (existing.length && !process.argv.includes("--allow-overlap")) throw new Error("An unresolved round exists. An explicit --allow-overlap is required to publish a separate mandate without altering it.");
+if (existing.length >= 10) throw new Error("Resolve the outstanding round backlog before publishing.");
 const asset = await new OptketClient(conn).getAsset(assetId);
 if (!asset?.active || asset.referenceVersion !== ACTIVE_REFERENCE_VERSION[assetId]) throw new Error("Active token-market asset configuration required.");
 const mint = await getMint(conn, config.demoMint);
@@ -42,7 +44,7 @@ if (mint.decimals !== 6) throw new Error("Expected six-decimal test oUSD.");
 const seed = amount("VAULT_ADMIN_DEPOSIT");
 const now = await conn.getBlockTime(await conn.getSlot("confirmed"));
 if (now == null) throw new Error("Confirmed chain time unavailable.");
-const terms: VaultTerms = { assetId, fundingClose: now + 300, salesClose: now + 1800, latestExpiry: now + 2100,
+const terms: VaultTerms = { assetId, fundingClose: now + 300, salesClose: now + 300 + 6 * 86400, latestExpiry: now + 300 + 7 * 86400,
   depositCap: amount("VAULT_DEPOSIT_CAP"), exposureCap: amount("VAULT_EXPOSURE_CAP"),
   minStrike: amount("VAULT_MIN_STRIKE"), maxStrike: amount("VAULT_MAX_STRIKE"), maxQuantity: amount("VAULT_MAX_QUANTITY") };
 if (terms.depositCap <= 0n || terms.exposureCap <= 0n || terms.exposureCap > terms.depositCap || seed > terms.depositCap

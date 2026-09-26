@@ -52,12 +52,27 @@ describe("vault executable quotes", () => {
   it("rejects quantities and floors beyond the frozen terms", async () => {
     const { client, reference, input } = fixture(1);
     await expect(signedVaultQuote(client, signer, reference, { ...input, quantity: "0" })).rejects.toThrow("terms");
-    await expect(signedVaultQuote(client, signer, reference, { ...input, strike: (101n * U).toString() })).rejects.toThrow("terms");
+    await expect(signedVaultQuote(client, signer, reference, { ...input, strike: (101n * U).toString() })).rejects.toThrow("No quote available for this floor");
   });
   it("stops sales at the cutoff and during funding", async () => {
     const { round, client, reference, input } = fixture(1); round.salesClose = 1000;
     await expect(signedVaultQuote(client, signer, reference, input)).rejects.toThrow("not issuing");
     round.salesClose = 1500; round.phase = "funding";
     await expect(signedVaultQuote(client, signer, reference, input)).rejects.toThrow("not issuing");
+  });
+  it.each([0, 1])("quotes an exact custom weekly floor for asset %s", async asset => {
+    const { round, client, input } = fixture(asset);
+    round.minStrike = 10_000n; round.maxStrike = 10_000n * U;
+    round.latestExpiry = 1000 + 7 * 86400; round.salesClose = round.latestExpiry - 86400;
+    const strike = 850_123456n;
+    const q = await signedVaultQuote(client, signer, async () => ({ available: true, spot: 1000n * U }), { ...input, strike: strike.toString() });
+    expect(Buffer.from(q.payload, "base64").readBigUInt64LE(43)).toBe(strike);
+    expect(q.expiryTs).toBe(round.latestExpiry);
+    expect(BigInt(q.premium)).toBeGreaterThan(0n);
+    expect(BigInt(q.premium)).toBeLessThan(strike);
+  });
+  it.each(["-1", "1e6", "0.5", "18446744073709551616", "0x10"])("rejects malformed raw amount %s", async strike => {
+    const { client, reference, input } = fixture(0);
+    await expect(signedVaultQuote(client, signer, reference, { ...input, strike })).rejects.toThrow("positive amounts");
   });
 });

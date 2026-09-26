@@ -198,7 +198,7 @@ function ContractCard({ contract: k, highlighted = false, onSimilar }: { contrac
 
       {open && <><div className="position-overview">
         <div><span>Protected quantity</span><strong className="mono">{qty(k.remainingQuantity)} {asset.symbol}</strong></div>
-        <div><span>Price floor</span><strong className="mono">{fmtPrice(k.strike)}</strong></div>
+        <div><span>Price floor</span><strong className="mono">{fmtPrice(k.strike, Math.max(2, (k.strike % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "").length))}</strong></div>
         <div><span>Expiry</span><strong>{fmtClock(k.expiryTs)}</strong></div>
       </div>
       <ProtectionBoundary floor={k.strike} compact />

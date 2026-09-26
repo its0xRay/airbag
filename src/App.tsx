@@ -33,6 +33,7 @@ export interface ProtectDraft {
   seriesId?: number;
   quantity?: number;
   quantityText?: string;
+  floorText?: string;
   tenor?: "short" | "weekly";
 }
 export interface PositionTarget { assetId: number; address?: string }

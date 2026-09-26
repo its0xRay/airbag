@@ -30,7 +30,16 @@
 .protect-hero .reference-inline .text-action { position:absolute; right:0; top:52px; min-height:24px; font-size:13px; padding:0; }
 .protect-hero .protect-market-head { position:relative; }
 .protect-hero .coverage-scope { font-size:13px; margin:8px 0; padding-right:180px; }
-.protect-hero .buyer-term-row { display:grid; grid-template-columns:160px minmax(0,1fr); gap:12px; }
+.buyer-term-row.custom-floor-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(140px,.65fr); gap:16px; }
+.custom-floor-row .buyer-floor,.custom-floor-row .buyer-quantity { min-width:0; }
+.custom-floor-row .input { min-height:48px; width:100%; }
+.custom-floor-expiry { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px; margin:12px 0; color:var(--text-dim); font-size:14px; }
+.custom-floor-expiry strong { color:var(--text); font-weight:500; }
+.floor-payout-copy { margin:12px 0 0; font-size:15px; line-height:1.55; color:var(--text-dim); }
+.protect-hero .buyer-floor .field-help { white-space:normal; margin-top:6px; }
+.protect-hero .buyer-floor > .input { min-height:44px; height:44px; }
+.protect-hero .ticket-premium { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:16px 0; }
+.protect-hero .ticket-premium strong { font-size:24px; }
 .protect-hero .buyer-quantity { display:grid; grid-template-columns:1fr auto; align-content:start; column-gap:8px; }
 .protect-hero .buyer-quantity > label { grid-column:1; grid-row:1; }
 .protect-hero .buyer-quantity > .quantity-control { grid-column:1 / -1; grid-row:2; }
@@ -154,7 +163,7 @@
   .protect-hero .reference-inline > span:nth-of-type(2) { position:static; font-size:12px; }
   .protect-hero .reference-inline { flex-wrap:wrap; }
   .protect-hero .coverage-scope { margin-top:4px; padding:0; }
-  .protect-hero .buyer-term-row { grid-template-columns:1fr; gap:12px; }
+  .buyer-term-row.custom-floor-row { grid-template-columns:1fr; gap:12px; }
   .protect-hero .field-help { font-size:13px; max-width:none; }
   .protect-hero .tenor-switch button span { font-size:13px; }
   .protect-hero .floor-premium { grid-column:1; grid-row:auto; font-size:14px; }

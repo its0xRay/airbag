@@ -9,7 +9,7 @@ import { fmtOusd, fmtUsd, fmtClock } from "../format";
 export type WalkthroughExample = { assetId: number; quantity: bigint; floor: bigint; expiry: number; premium: bigint; reference: bigint };
 
 const buyerSteps = [
-  { title: "Choose", heading: "Set your floor.", body: "Choose your token, floor and expiry." },
+  { title: "Choose", heading: "Set your floor.", body: "Choose your token and floor. Review the expiry." },
   { title: "Pay once", heading: "One premium upfront.", body: "Review the premium and confirm." },
   { title: "Keep holding", heading: "Your tokens stay with you.", body: "Your tokens stay in your wallet." },
   { title: "Settle", heading: "Below your floor? The contract pays the difference.", body: "Below the floor? Receive the difference for your covered quantity." },
@@ -20,7 +20,7 @@ const vaultSteps = [
   { title: "Withdraw", heading: "Your share, after settlement.", body: "Withdraw your share of the remaining balance after every obligation resolves." },
 ] as const;
 const mobileBuyerSteps = [
-  { title: "Choose", body: "Choose your token, floor and expiry." },
+  { title: "Choose", body: "Choose your token and floor. Review the expiry." },
   { title: "Pay once", body: "Review the premium. Your tokens stay with you." },
   { title: "Settle", body: "Below the floor? Receive the difference for your covered quantity." },
 ] as const;
