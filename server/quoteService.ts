@@ -28,7 +28,7 @@ import { serializeQuotePayload, QUOTE_VALIDITY_SECS } from "../src/engine/quote"
 import { quotePremium } from "../src/engine/pricing";
 import { fromFixed, maxLiability } from "../src/engine/fixed";
 import { OptketClient } from "../src/client/optketProgram";
-import { publishAvailableVaultRounds } from "./vaultRotation";
+import { publishAvailableVaultRounds, ROUND_CADENCE, ROUND_DURATION } from "./vaultRotation";
 import { referenceRiskLimit, QuoteExposureBudget, devnetExposureCaps } from "./referenceRisk";
 import { EQUITY_MAX_SAMPLE_AGE_SECS } from "../src/engine/references";
 import type { QuotePayload } from "../src/engine/types";
@@ -207,7 +207,7 @@ async function admitExposure(assetId: number, liability: bigint) {
 }
 
 const vaultRotationStatus = { enabled: process.env.VAULTS_ENABLED === "true" && process.env.VAULT_ROUNDS_ENABLED !== "false",
-  lastCheckedAt: 0, error: null as string | null, assets: {} as Record<number, string>, fundingWindowSeconds: 1800, activeWindowSeconds: 1800, automaticDeposits: false };
+  lastCheckedAt: 0, error: null as string | null, assets: {} as Record<number, string>, fundingWindowSeconds: ROUND_CADENCE, activeWindowSeconds: ROUND_DURATION, automaticDeposits: false };
 let publishingVaults = false;
 async function rotateVaults() {
   if (!vaultRotationStatus.enabled || publishingVaults || !payer) return;
