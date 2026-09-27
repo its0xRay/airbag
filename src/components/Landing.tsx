@@ -56,11 +56,12 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
     <main className="lp">
       <section className="lp-hero lp-product-hero" id="product" data-hero="one">
         <div className="lp-hero-copy">
-          <p className="lp-hero-category">Risk management for tokenized equities</p>
           <h1 className="lp-title"><span className="hero-accent">Set your floor.</span><br />Keep your tokens.</h1>
           <p className="hero-benefit">If the settlement reference falls below your floor, receive the difference. One premium upfront. Your tokens stay with you.</p>
-          <p className="lp-hero-tagline">{vaultsEnabled ? "Cash-settled puts on tokenized equities, underwritten by isolated vaults." : "Cash-settled puts on tokenized equities."}</p>
-          <div className="hero-proof"><div><strong>Maximum payout reserved</strong><span>Onchain when you buy.</span></div><div><strong>Defined settlement rules</strong><span>Reference terms in every contract.</span></div></div>
+          <div className="hero-definition">
+            <p className="lp-hero-category">Risk management for tokenized equities</p>
+            <p className="lp-hero-tagline">{vaultsEnabled ? "Cash-settled puts on tokenized equities, underwritten by isolated vaults." : "Cash-settled puts on tokenized equities."}</p>
+          </div>
         </div>
         <div id="protection" className="landing-workspace">
           {vaultsEnabled && <div className="workspace-modes" role="group" aria-label="Choose your Airbag flow">
