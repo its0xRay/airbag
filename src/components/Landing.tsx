@@ -60,7 +60,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
           <p className="hero-benefit">If the settlement reference falls below your floor, receive the difference. One premium upfront. Your tokens stay with you.</p>
           <div className="hero-definition">
             <p className="lp-hero-category">Risk management for tokenized equities</p>
-            <p className="lp-hero-tagline">{vaultsEnabled ? "Cash-settled puts on tokenized equities, underwritten by isolated vaults." : "Cash-settled puts on tokenized equities."}</p>
+            <p className="lp-hero-tagline">{vaultsEnabled ? "Cash-settled puts underwritten by isolated vaults." : "Cash-settled puts on tokenized equities."}</p>
           </div>
         </div>
         <div id="protection" className="landing-workspace">
