@@ -137,7 +137,7 @@ export default function Landing({ onLaunch, onViewPosition, launching = false, v
         </nav>
       </section>
 
-      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet</span><a href="#product">Back to top</a></footer>
+      <footer className="lp-footer"><span>Airbag</span><span>Solana Devnet</span><span className="lp-maker-credit">Built with ❤️ by <a href="https://x.com/its0xRay" target="_blank" rel="noopener noreferrer">@its0xRay</a></span></footer>
     </main>
   );
 }
