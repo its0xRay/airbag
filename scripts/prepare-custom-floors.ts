@@ -25,6 +25,8 @@ async function run() {
   const send = async (tx: Transaction, label: string) => {
     tx.feePayer = admin.publicKey;
     tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash; tx.sign(admin);
+    const simulation = await conn.simulateTransaction(tx);
+    assert(!simulation.value.err, `Preflight failed: ${JSON.stringify(simulation.value.err)}`);
     const signature = await conn.sendRawTransaction(tx.serialize());
     console.log(label, signature);
     for (let n = 0; n < 40; n++) {

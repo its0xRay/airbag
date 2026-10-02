@@ -27,7 +27,8 @@ describe("two-sided landing release", () => {
   });
   it("introduces both sides without replacing the buyer workflow", () => {
     const html = render(true);
-    expect(html).toContain("Cash-settled puts on tokenized equities, underwritten by isolated vaults.");
+    expect(html).toContain("Risk management for tokenized equities");
+    expect(html).toContain("Cash-settled puts underwritten by isolated vaults.");
     expect(html).toContain('id="protection"');
     expect(html).toContain('aria-label="Choose your Airbag flow"');
     expect(html).toContain("Fund a vault");
