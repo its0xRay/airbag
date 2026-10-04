@@ -141,14 +141,12 @@ function DevnetApp() {
       <header className={"header" + (tab === "home" ? " public-header" : " app-header")}>
         <button className="logo" onClick={() => { setTab("home"); window.scrollTo({ top: 0, behavior: "instant" }); }} aria-label="Airbag home">
           <span className="dot" aria-hidden="true" /> Airbag
-          {(tab !== "home" || connected) && (
             <span
-              className="pill gray hide-sm"
+              className="pill gray"
               style={{ marginLeft: 6 }}
             >
-              {NETWORK}
+              {NETWORK === "devnet" ? "Devnet" : NETWORK}
             </span>
-          )}
         </button>
         <div className="spacer" />
         {tab === "home" ? (
