@@ -1,7 +1,7 @@
 import { Connection, PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, TransactionInstruction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { Buffer } from "buffer";
-import { OPTKET_PROGRAM_ID, TOKEN_PROGRAM_ID, pdas, associatedTokenAddress, type Observation } from "./optketProgram";
+import { OPTKET_PROGRAM_ID, TOKEN_PROGRAM_ID, associatedTokenAddress, type Observation } from "./optketProgram";
 
 export const VAULT_IX = {
   create_vault_round: [98,47,87,44,138,236,161,130], deposit_vault: [126,224,21,255,228,53,117,33],
@@ -42,8 +42,11 @@ const u32 = (n: number) => {
   const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n, true); return b;
 };
 const i64 = (n: number) => { if (!Number.isSafeInteger(n)) throw new Error("Invalid timestamp."); const b = new Uint8Array(8); new DataView(b.buffer).setBigInt64(0, BigInt(n), true); return b; };
-const derive = (...seeds: Uint8Array[]) => PublicKey.findProgramAddressSync(seeds, OPTKET_PROGRAM_ID)[0];
-export const vaultPdas = {
+export function vaultPdasFor(programId: PublicKey) {
+const derive = (...seeds: Uint8Array[]) => PublicKey.findProgramAddressSync(seeds, programId)[0];
+return {
+  config: () => derive(bytes("config")),
+  asset: (asset: number) => derive(bytes("asset"), Uint8Array.of(asset)),
   round: (asset: number, id: bigint) => {
     if (asset !== 0 && asset !== 1) throw new Error("Unsupported vault asset.");
     return derive(bytes("underwriting-round"), Uint8Array.of(asset), u64(id));
@@ -53,6 +56,8 @@ export const vaultPdas = {
   position: (r: PublicKey, id: bigint) => derive(bytes("round-position"), r.toBytes(), u64(id)),
   request: (p: PublicKey, n: number) => derive(bytes("round-request"), p.toBytes(), u32(n)),
 };
+}
+export const vaultPdas = vaultPdasFor(OPTKET_PROGRAM_ID);
 export interface VaultTerms { assetId: number; fundingClose: number; salesClose: number; latestExpiry: number;
   depositCap: bigint; exposureCap: bigint; minStrike: bigint; maxStrike: bigint; maxQuantity: bigint; }
 export interface VaultRoundAccount extends VaultTerms {
@@ -83,14 +88,14 @@ class Reader {
   u64() { return this.view(8).getBigUint64(0, true); }
   time() { const n = Number(this.view(8).getBigInt64(0, true)); if (!Number.isSafeInteger(n)) throw new Error("Unsupported account timestamp."); return n; }
 }
-export function decodeVaultRound(address: PublicKey, data: Uint8Array): VaultRoundAccount {
+export function decodeVaultRound(address: PublicKey, data: Uint8Array, programId = OPTKET_PROGRAM_ID): VaultRoundAccount {
   const r = new Reader(data, "round");
   const fixed = { address, roundId: r.u64(), mint: r.key(), custody: r.key(), quoteAuthority: r.key(),
     publisherAuthority: r.key(), administrator: r.key(), referenceVersion: r.u32(), pricingPolicy: r.take(32),
     assetId: r.u8(), fundingClose: r.time(), salesClose: r.time(), latestExpiry: r.time(), depositCap: r.u64(),
     exposureCap: r.u64(), minStrike: r.u64(), maxStrike: r.u64(), maxQuantity: r.u64() };
   const phase = (["funding", "active", "redeemable"] as const)[r.u8()];
-  if (!phase || !vaultPdas.round(fixed.assetId, fixed.roundId).equals(address)) throw new Error("Invalid vault round.");
+  if (!phase || !vaultPdasFor(programId).round(fixed.assetId, fixed.roundId).equals(address)) throw new Error("Invalid vault round.");
   return { ...fixed, phase, totalShares: r.u64(), redeemedShares: r.u64(), principalAvailable: r.u64(),
     reserved: r.u64(), premiums: r.u64(), payouts: r.u64(), refunds: r.u64(), openContracts: r.u64(), finalBalance: r.u64(), redeemedAmount: r.u64() };
 }
@@ -110,12 +115,9 @@ export function decodeVaultRequest(address: PublicKey, data: Uint8Array): VaultR
     windowEnd: r.time(), status: r.u8(), reference: r.u64(), payout: r.u64() };
 }
 const key = (pubkey: PublicKey, isWritable = false, isSigner = false) => ({ pubkey, isWritable, isSigner });
-function ix(name: keyof typeof VAULT_IX, keys: ReturnType<typeof key>[], ...args: Uint8Array[]) {
-  return new TransactionInstruction({ programId: OPTKET_PROGRAM_ID, keys, data: Buffer.from(cat(Uint8Array.from(VAULT_IX[name]), ...args)) });
-}
-export function vaultQuoteMessage(round: PublicKey, payload: Uint8Array) {
+export function vaultQuoteMessage(round: PublicKey, payload: Uint8Array, programId = OPTKET_PROGRAM_ID) {
   if (payload.length !== 95) throw new Error("Invalid vault quote payload.");
-  return cat(bytes("airbag-vault-quote-v1"), OPTKET_PROGRAM_ID.toBytes(), round.toBytes(), payload);
+  return cat(bytes("airbag-vault-quote-v1"), programId.toBytes(), round.toBytes(), payload);
 }
 export function roundStage(r: VaultRoundAccount, now: number) {
   if (r.phase === "redeemable") return "Redeemable";
@@ -125,43 +127,48 @@ export function roundStage(r: VaultRoundAccount, now: number) {
 }
 export class VaultClient {
   readonly conn: Connection;
-  constructor(conn: Connection) { this.conn = conn; }
+  readonly programId: PublicKey;
+  readonly pdas: ReturnType<typeof vaultPdasFor>;
+  constructor(conn: Connection, programId = OPTKET_PROGRAM_ID) { this.conn = conn; this.programId = programId; this.pdas = vaultPdasFor(programId); }
+  private ix(name: keyof typeof VAULT_IX, keys: ReturnType<typeof key>[], ...args: Uint8Array[]) {
+    return new TransactionInstruction({ programId: this.programId, keys, data: Buffer.from(cat(Uint8Array.from(VAULT_IX[name]), ...args)) });
+  }
   async getRound(address: PublicKey) {
     const a = await this.conn.getAccountInfo(address);
     if (!a) return null;
-    if (!a.owner.equals(OPTKET_PROGRAM_ID)) throw new Error("Unexpected vault program owner.");
-    return decodeVaultRound(address, a.data);
+    if (!a.owner.equals(this.programId)) throw new Error("Unexpected vault program owner.");
+    return decodeVaultRound(address, a.data, this.programId);
   }
   async getDeposit(round: PublicKey, owner: PublicKey) {
-    const address = vaultPdas.deposit(round, owner), a = await this.conn.getAccountInfo(address);
+    const address = this.pdas.deposit(round, owner), a = await this.conn.getAccountInfo(address);
     if (!a) return null;
-    if (!a.owner.equals(OPTKET_PROGRAM_ID)) throw new Error("Unexpected deposit program owner.");
+    if (!a.owner.equals(this.programId)) throw new Error("Unexpected deposit program owner.");
     return decodeVaultDeposit(address, a.data);
   }
   private async scan<T>(kind: keyof typeof ACCOUNT, decode: (a: PublicKey, d: Uint8Array) => T) {
-    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+    const accounts = await this.conn.getProgramAccounts(this.programId, { filters: [
       { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT[kind])) } }] });
     return accounts.map(a => decode(a.pubkey, a.account.data));
   }
-  rounds() { return this.scan("round", decodeVaultRound); }
+  rounds() { return this.scan("round", (a, d) => decodeVaultRound(a, d, this.programId)); }
   positions() { return this.scan("position", decodeVaultPosition); }
   requests() { return this.scan("request", decodeVaultRequest); }
   async positionsForBuyer(buyer: PublicKey) {
-    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+    const accounts = await this.conn.getProgramAccounts(this.programId, { filters: [
       { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.position)) } },
       { memcmp: { offset: 40, bytes: buyer.toBase58() } },
     ] });
     return accounts.map(a => decodeVaultPosition(a.pubkey, a.account.data));
   }
   async requestsForPosition(position: PublicKey) {
-    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+    const accounts = await this.conn.getProgramAccounts(this.programId, { filters: [
       { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.request)) } },
       { memcmp: { offset: 8, bytes: position.toBase58() } },
     ] });
     return accounts.map(a => decodeVaultRequest(a.pubkey, a.account.data));
   }
   async depositsForOwner(owner: PublicKey) {
-    const accounts = await this.conn.getProgramAccounts(OPTKET_PROGRAM_ID, { filters: [
+    const accounts = await this.conn.getProgramAccounts(this.programId, { filters: [
       { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.from(ACCOUNT.deposit)) } },
       { memcmp: { offset: 40, bytes: owner.toBase58() } },
     ] });
@@ -169,45 +176,45 @@ export class VaultClient {
   }
   createIx(admin: PublicKey, mint: PublicKey, id: bigint, t: VaultTerms, policy: Uint8Array) {
     if (policy.length !== 32 || policy.every(v => v === 0)) throw new Error("A pricing policy commitment is required.");
-    const round = vaultPdas.round(t.assetId, id);
-    return ix("create_vault_round", [key(admin, true, true), key(pdas.config()), key(pdas.asset(t.assetId)),
-      key(round, true), key(vaultPdas.custody(round), true), key(mint), key(TOKEN_PROGRAM_ID), key(SystemProgram.programId)],
+    const round = this.pdas.round(t.assetId, id);
+    return this.ix("create_vault_round", [key(admin, true, true), key(this.pdas.config()), key(this.pdas.asset(t.assetId)),
+      key(round, true), key(this.pdas.custody(round), true), key(mint), key(TOKEN_PROGRAM_ID), key(SystemProgram.programId)],
       u64(id), Uint8Array.of(t.assetId), i64(t.fundingClose), i64(t.salesClose), i64(t.latestExpiry),
       ...[t.depositCap, t.exposureCap, t.minStrike, t.maxStrike, t.maxQuantity].map(u64), policy);
   }
   depositIx(r: Pick<VaultRoundAccount, "address" | "custody" | "mint">, owner: PublicKey, payer: PublicKey, amount: bigint) {
-    return ix("deposit_vault", [key(owner, false, true), key(payer, true, true), key(pdas.config()), key(r.address, true),
-      key(vaultPdas.deposit(r.address, owner), true), key(r.custody, true), key(associatedTokenAddress(r.mint, owner), true),
+    return this.ix("deposit_vault", [key(owner, false, true), key(payer, true, true), key(this.pdas.config()), key(r.address, true),
+      key(this.pdas.deposit(r.address, owner), true), key(r.custody, true), key(associatedTokenAddress(r.mint, owner), true),
       key(r.mint), key(TOKEN_PROGRAM_ID), key(SystemProgram.programId)], u64(amount));
   }
   withdrawIx(r: VaultRoundAccount, owner: PublicKey, action: "cancel" | "redeem", amount = 0n) {
-    return ix(action === "cancel" ? "cancel_vault_deposit" : "redeem_vault", [key(owner, false, true), key(r.address, true),
-      key(vaultPdas.deposit(r.address, owner), true), key(r.custody, true), key(associatedTokenAddress(r.mint, owner), true),
+    return this.ix(action === "cancel" ? "cancel_vault_deposit" : "redeem_vault", [key(owner, false, true), key(r.address, true),
+      key(this.pdas.deposit(r.address, owner), true), key(r.custody, true), key(associatedTokenAddress(r.mint, owner), true),
       key(r.mint), key(TOKEN_PROGRAM_ID)], ...(action === "cancel" ? [u64(amount)] : []));
   }
   advanceIx(r: VaultRoundAccount, cranker: PublicKey, action: "activate" | "finalize") {
-    return ix(action === "activate" ? "activate_vault" : "finalize_vault", [key(cranker, false, true),
-      key(pdas.config()), key(r.address, true), key(r.custody)]);
+    return this.ix(action === "activate" ? "activate_vault" : "finalize_vault", [key(cranker, false, true),
+      key(this.pdas.config()), key(r.address, true), key(r.custody)]);
   }
   purchaseIx(r: VaultRoundAccount, buyer: PublicKey, payer: PublicKey, payload: Uint8Array, quoteId: bigint, edIndex: number, maxPremium: bigint) {
     if (payload.length !== 95 || !Number.isInteger(edIndex) || edIndex < 0 || edIndex > 255) throw new Error("Invalid quote.");
-    return ix("purchase_vault", [key(buyer, false, true), key(payer, true, true), key(pdas.config()), key(r.address, true),
-      key(pdas.asset(r.assetId), true), key(vaultPdas.position(r.address, quoteId), true), key(r.custody, true),
+    return this.ix("purchase_vault", [key(buyer, false, true), key(payer, true, true), key(this.pdas.config()), key(r.address, true),
+      key(this.pdas.asset(r.assetId), true), key(this.pdas.position(r.address, quoteId), true), key(r.custody, true),
       key(associatedTokenAddress(r.mint, buyer), true), key(r.mint), key(SYSVAR_INSTRUCTIONS_PUBKEY), key(TOKEN_PROGRAM_ID), key(SystemProgram.programId)],
       payload, Uint8Array.of(edIndex), u64(maxPremium));
   }
   requestIx(p: VaultPositionAccount, payer: PublicKey, quantity: bigint) {
-    return ix("request_vault_exercise", [key(p.buyer, false, true), key(payer, true, true), key(p.address, true),
-      key(vaultPdas.request(p.address, p.nextNonce), true), key(SystemProgram.programId)], u64(quantity));
+    return this.ix("request_vault_exercise", [key(p.buyer, false, true), key(payer, true, true), key(p.address, true),
+      key(this.pdas.request(p.address, p.nextNonce), true), key(SystemProgram.programId)], u64(quantity));
   }
   settleIx(r: VaultRoundAccount, p: VaultPositionAccount, observations: Observation[] | null, request?: VaultRequestAccount) {
-    const keys = [key(r.publisherAuthority, false, true), key(p.address, true), key(r.address, true), key(pdas.asset(r.assetId), true),
+    const keys = [key(r.publisherAuthority, false, true), key(p.address, true), key(r.address, true), key(this.pdas.asset(r.assetId), true),
       key(r.custody, true), key(associatedTokenAddress(r.mint, p.buyer), true), key(r.mint), key(TOKEN_PROGRAM_ID)];
     if (request) keys.push(key(request.address, true));
     const encoded = observations ? [u32(observations.length), ...observations.map(o => cat(u64(o.slot), i64(o.sourceTs), i64(o.collectedTs), u64(o.price)))] : [];
-    return ix(request ? "settle_vault_exercise" : observations ? "settle_vault_expiry" : "refund_vault_expiry", keys, ...encoded);
+    return this.ix(request ? "settle_vault_exercise" : observations ? "settle_vault_expiry" : "refund_vault_expiry", keys, ...encoded);
   }
   failRequestIx(p: VaultPositionAccount, request: VaultRequestAccount, cranker: PublicKey) {
-    return ix("fail_vault_exercise", [key(cranker, false, true), key(p.address, true), key(request.address, true)]);
+    return this.ix("fail_vault_exercise", [key(cranker, false, true), key(p.address, true), key(request.address, true)]);
   }
 }

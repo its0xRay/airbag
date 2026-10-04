@@ -21,6 +21,10 @@ credentials.json
 DEPLOY-SECRETS.local.md
 DEPLOY-SECRETS.local.txt
 .env
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.invites.txt
 .env.*
 !.env.example
 # devnet setup state (contains the demo mint address only, but keep local)

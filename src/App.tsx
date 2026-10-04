@@ -46,7 +46,14 @@ const TABS: [Tab, string][] = [
   ["history", "Onchain"],
 ];
 
+const BetaApp = lazy(() => import("./beta/BetaApp"));
 export default function App() {
+  // Separate roots: entering mainnet never restores or loads the burner wallet.
+  return new URLSearchParams(window.location.search).get("beta") === "1"
+    ? <PageBoundary><Suspense fallback={<p role="status">Loading private beta…</p>}><BetaApp /></Suspense></PageBoundary>
+    : <DevnetApp />;
+}
+function DevnetApp() {
   const connected = useChain((s) => s.connected);
   const connect = useChain((s) => s.connect);
   useEffect(() => {
@@ -153,6 +160,7 @@ export default function App() {
             </nav>
             <details className="public-section-menu" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false; }} onKeyDown={e => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary className="btn ghost">Explore</summary><nav aria-label="Page sections" onClick={e => { if ((e.target as HTMLElement).closest("a,button")) e.currentTarget.closest("details")!.open = false; }}><a href="#why-protect">Why Airbag</a><a href="#how-it-works">How it works</a><a href="#assets">Markets</a></nav></details>
             {connected && <button className="btn ghost" onPointerEnter={() => void loadPortfolio().catch(() => {})} onFocus={() => void loadPortfolio().catch(() => {})} onClick={() => goTo("portfolio")}>Your positions</button>}
+            <WalletBar />
           </>
         ) : (
           <>{tab !== "portfolio" && <button className="btn ghost" onPointerEnter={() => void loadPortfolio().catch(() => {})} onFocus={() => void loadPortfolio().catch(() => {})} onClick={() => goTo("portfolio")}>Your positions</button>}        <nav className="management-tools" aria-label="Protocol tools">

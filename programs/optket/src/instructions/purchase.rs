@@ -88,6 +88,9 @@ pub struct Purchase<'info> {
 }
 
 pub fn purchase(ctx: Context<Purchase>, quote: QuotePayload, ed25519_ix_index: u8) -> Result<()> {
+    // Beta only offers gated vault-backed contracts. Legacy purchases must not
+    // provide an alternate route around the lifetime participation limit.
+    require!(!cfg!(feature = "mainnet-beta"), OptketError::Unauthorized);
     let now = Clock::get()?.unix_timestamp;
     let config = &mut ctx.accounts.config;
     let series = &ctx.accounts.series;

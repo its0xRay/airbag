@@ -21,6 +21,8 @@
     "test:watch": "vitest",
     "quote-service": "tsx server/quoteService.ts",
     "keeper": "tsx server/keeper.ts",
+    "beta:service": "tsx server/betaService.ts",
+    "beta:admin": "tsx scripts/beta-admin.ts",
     "check:devnet": "node scripts/check-devnet.mjs",
     "test:adversarial": "tsx scripts/test-adversarial.ts",
     "setup:devnet": "node scripts/setup-devnet.mjs"
@@ -54,7 +56,7 @@
     "@types/chai": "^4.3.0",
     "@types/mocha": "^10.0.0",
     "chai": "^4.5.0",
-    "mocha": "^10.7.0",
+    "mocha": "^11.8.0",
     "ts-mocha": "^10.0.0"
   }
 }

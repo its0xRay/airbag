@@ -73,6 +73,16 @@ pub struct DepositVault<'info> {
 }
 
 pub fn deposit_vault(ctx: Context<DepositVault>, amount: u64) -> Result<()> {
+    crate::beta::charge(ctx.remaining_accounts, ctx.accounts.owner.key(), amount)?;
+    record_deposit(ctx, amount)
+}
+
+pub fn seed_vault(ctx: Context<DepositVault>, amount: u64) -> Result<()> {
+    crate::beta::charge_seed(ctx.remaining_accounts, ctx.accounts.owner.key(), ctx.accounts.config.admin, amount)?;
+    record_deposit(ctx, amount)
+}
+
+fn record_deposit(ctx: Context<DepositVault>, amount: u64) -> Result<()> {
     require!(!ctx.accounts.config.paused_purchases, OptketError::PurchasesPaused);
     require!(!ctx.accounts.deposit.redeemed, OptketError::InvalidVaultPhase);
     let round = &mut ctx.accounts.round;
@@ -178,6 +188,7 @@ pub struct PurchaseVault<'info> {
 
 pub fn purchase_vault(ctx: Context<PurchaseVault>, quote: QuotePayload,
     ed25519_ix_index: u8, max_premium: u64) -> Result<()> {
+    crate::beta::charge(ctx.remaining_accounts, ctx.accounts.buyer.key(), quote.premium)?;
     let now = Clock::get()?.unix_timestamp;
     require!(!ctx.accounts.config.paused_purchases, OptketError::PurchasesPaused);
     require_keys_eq!(quote.buyer, ctx.accounts.buyer.key(), OptketError::QuoteBuyerMismatch);

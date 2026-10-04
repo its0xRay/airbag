@@ -13,7 +13,7 @@ pub enum OptketError {
     SeriesInactive,
 
     // ---- Token / collateral gating ----
-    #[msg("Only the configured demo mint may be used (real USDC is rejected)")]
+    #[msg("Settlement mint does not match this deployment")]
     WrongMint,
     #[msg("Pool has insufficient available capital to reserve this liability")]
     InsufficientCollateral,

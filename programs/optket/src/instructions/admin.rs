@@ -35,12 +35,19 @@ pub fn initialize_config(
     publisher_authority: Pubkey,
     trial_cap: u64,
 ) -> Result<()> {
+    if cfg!(feature = "mainnet-beta") {
+        require_keys_eq!(ctx.accounts.admin.key(), crate::BETA_BOOTSTRAP_ADMIN, OptketError::Unauthorized);
+        require_keys_eq!(ctx.accounts.demo_mint.key(), crate::beta::USDC, OptketError::WrongMint);
+        require!(ctx.accounts.demo_mint.decimals == 6, OptketError::WrongMint);
+    } else {
+        require!(ctx.accounts.demo_mint.key() != crate::beta::USDC, OptketError::WrongMint);
+    }
     let c = &mut ctx.accounts.config;
     c.admin = ctx.accounts.admin.key();
     c.quote_authority = quote_authority;
     c.publisher_authority = publisher_authority;
     c.demo_mint = ctx.accounts.demo_mint.key();
-    c.paused_purchases = false;
+    c.paused_purchases = cfg!(feature = "mainnet-beta");
     c.next_contract_id = 1;
     c.trial_cap = trial_cap;
     c.trial_spent = 0;
@@ -315,6 +322,7 @@ pub struct FundPool<'info> {
 }
 
 pub fn fund_pool(ctx: Context<FundPool>, _asset_id: u8, amount: u64) -> Result<()> {
+    require!(!cfg!(feature = "mainnet-beta"), OptketError::Unauthorized);
     let cpi = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         TransferChecked {

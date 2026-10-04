@@ -1,4 +1,5 @@
 import { useChain, explorerUrl, NETWORK } from "../onchain/store";
+import "../beta/beta.css";
 const truncate = (s: string) => `${s.slice(0, 4)}…${s.slice(-4)}`;
 
 /**
@@ -10,14 +11,18 @@ export default function WalletBar() {
 
   if (!c.connected) {
     return (
-      <button className="btn primary" disabled={c.busy} onClick={() => c.connect()}>
-        {c.busy ? c.status || "Connecting…" : "Connect demo wallet"}
-      </button>
+      <div className="wallet-entry-pair">
+        <div><small>Devnet · Test tokens</small><button className="btn" disabled={c.busy} onClick={() => c.connect()}>
+          {c.busy ? "Connecting…" : "Try demo wallet"}
+        </button></div>
+        <div><small>Mainnet beta · Invite only</small><a className="btn primary" href="/?beta=1">Connect wallet</a></div>
+      </div>
     );
   }
 
   return (
     <div className="row wallet-controls">
+      <span className="pill">Devnet</span>
       <span className="pill green mono demo-balance hide-sm">
         {c.tokenBalance.toLocaleString()} oUSD <small>demo</small>
       </span>
@@ -34,6 +39,7 @@ export default function WalletBar() {
         {c.busy ? "…" : "↻"}
       </button>
       {c.tokenBalance === 0 && <button className="btn ghost sm" disabled={c.busy} onClick={() => c.connect()}>Get demo oUSD</button>}
+      <a className="btn ghost sm" href="/?beta=1">Connect wallet <small>Mainnet beta</small></a>
     </div>
   );
 }

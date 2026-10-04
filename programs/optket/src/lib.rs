@@ -1,12 +1,9 @@
 //! Optket — downside protection for tokenized equities on Solana (two-asset MVP).
 //!
-//! This program implements the shared protection engine described in the Optket
-//! PRD: a signed-quote purchase flow, per-asset collateral pools, full/partial
-//! early exercise, deterministic expiry settlement, and a disclosed demo-refund
-//! fallback. It is a DEMO configuration — only a configured demo mint is
-//! accepted, real USDC is rejected, and payouts carry no redemption promise.
-//!
-//! Section references (e.g. "PRD §8") point at the product spec.
+//! Signed quotes, isolated vaults, partial exercise and reference-based settlement.
+//! The default build remains Devnet-only and rejects canonical USDC. The separate
+//! mainnet-beta build pins its initializer, accepts canonical USDC and enforces
+//! invite access, tester participation limits and a distinct administrator seed cap.
 
 use anchor_lang::prelude::*;
 
@@ -19,6 +16,8 @@ pub mod references;
 pub mod state;
 pub mod vault_accounting;
 pub mod vault_state;
+pub mod beta;
+use beta::*;
 
 pub mod instructions;
 use instructions::*;
@@ -28,12 +27,19 @@ pub use quote::QuotePayload;
 pub use references::Observation;
 pub use vault_accounting::RoundTerms;
 
-// Placeholder program id. After `anchor build`, run `anchor keys sync`.
-declare_id!("Ad2TFKtNNzzxcApDZVHdMTVoucSUczNAstfV4ywL1wky");
+// Build-time identity keeps the mainnet program separate from deployed Devnet.
+include!(concat!(env!("OUT_DIR"), "/program_id.rs"));
 
 #[program]
 pub mod optket {
     use super::*;
+
+    pub fn initialize_beta_policy(ctx: Context<InitializeBetaPolicy>, access_authority: Pubkey, total_limit: u64) -> Result<()> {
+        beta::initialize(ctx, access_authority, total_limit)
+    }
+    pub fn set_beta_access(ctx: Context<SetBetaAccess>, enabled: bool) -> Result<()> {
+        beta::set_access(ctx, enabled)
+    }
 
     pub fn create_vault_round(ctx: Context<CreateVaultRound>, round_id: u64,
         terms: RoundTerms, pricing_policy: [u8; 32]) -> Result<()> {
@@ -41,6 +47,9 @@ pub mod optket {
     }
     pub fn deposit_vault(ctx: Context<DepositVault>, amount: u64) -> Result<()> {
         instructions::vaults::deposit_vault(ctx, amount)
+    }
+    pub fn seed_vault(ctx: Context<DepositVault>, amount: u64) -> Result<()> {
+        instructions::vaults::seed_vault(ctx, amount)
     }
     pub fn cancel_vault_deposit(ctx: Context<WithdrawVault>, amount: u64) -> Result<()> {
         instructions::vaults::cancel_vault_deposit(ctx, amount)

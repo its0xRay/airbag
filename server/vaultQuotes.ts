@@ -42,7 +42,7 @@ export async function signedVaultQuote(client: VaultClient, signer: Keypair,
     quantity, strike, expiryTs: round.latestExpiry, referenceVersion: round.referenceVersion, premium, fees: 0n,
     quoteId: randomBytes(8).readBigUInt64LE(), quoteExpiryTs: Math.min(now + 60, round.salesClose - 1) };
   const payload = serializeQuotePayload(quote, new PublicKey(quote.buyer).toBytes());
-  const message = vaultQuoteMessage(round.address, payload);
+  const message = vaultQuoteMessage(round.address, payload, client.programId);
   return { round: round.address.toBase58(), payload: Buffer.from(payload).toString("base64"),
     message: Buffer.from(message).toString("base64"), signature: Buffer.from(nacl.sign.detached(message, signer.secretKey)).toString("base64"),
     quoteAuthority: signer.publicKey.toBase58(), quoteId: quote.quoteId.toString(), premium: premium.toString(),
