@@ -84,7 +84,7 @@ function DevnetApp() {
   useEffect(() => { const restore = () => updateTab(tabFromUrl()); window.addEventListener("popstate", restore); return () => window.removeEventListener("popstate", restore); }, []);
   useEffect(() => {
     if (tab !== "underwriter" && tab !== "history") return;
-    return visiblePolling(() => { void useChain.getState().refreshPublic(); }, 30000);
+    return visiblePolling(() => useChain.getState().refreshPublic(), 30000);
   }, [tab]);
   const [positionTarget, setPositionTarget] = useState<PositionTarget | null>(null);
   const protocolMenu = useRef<HTMLDetailsElement>(null);
@@ -132,7 +132,7 @@ function DevnetApp() {
       if (chain.busy || chain.refreshing || chain.transaction?.state === "checking") return;
       const history = tab === "portfolio" && Date.now() - lastHistory >= 60000;
       if (history) lastHistory = Date.now();
-      void refresh({ history }).catch(() => {});
+      return refresh({ history }).catch(() => {});
     }, 12000);
   }, [connected, refresh, tab]);
 

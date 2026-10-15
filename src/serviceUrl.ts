@@ -17,7 +17,21 @@ export function normalizeServiceUrl(rawValue?: string): string {
   return url.toString().replace(/\/$/, "");
 }
 
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+const pendingReads = new Map<string, Promise<unknown>>();
+/** Share only identical, option-free GETs while in flight. Never cache results,
+ * signatures, authenticated requests, abortable reads or transaction POSTs. */
+export function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  if (init !== undefined) return readJson<T>(url, init);
+  const pending = pendingReads.get(url);
+  if (pending) return pending as Promise<T>;
+  const request = readJson<T>(url).finally(() => {
+    if (pendingReads.get(url) === request) pendingReads.delete(url);
+  });
+  pendingReads.set(url, request);
+  return request;
+}
+
+async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {

@@ -21,3 +21,21 @@ it("pauses hidden reads, resumes immediately, and cleans up listeners", async ()
   await vi.advanceTimersByTimeAsync(24000);
   expect(read).toHaveBeenCalledTimes(2);
 });
+
+it("does not overlap slow reads or resume a stopped timer", async () => {
+  vi.useFakeTimers();
+  const document = Object.assign(new EventTarget(), { visibilityState: "visible" });
+  vi.stubGlobal("document", document);
+  let resolve!: () => void;
+  const read = vi.fn(() => new Promise<void>(r => { resolve = r; }));
+  const stop = visiblePolling(read, 1000);
+  await vi.advanceTimersByTimeAsync(5000);
+  document.dispatchEvent(new Event("visibilitychange"));
+  expect(read).toHaveBeenCalledTimes(1);
+  resolve();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(read).toHaveBeenCalledTimes(2);
+  stop(); resolve();
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(read).toHaveBeenCalledTimes(2);
+});

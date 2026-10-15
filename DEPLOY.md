@@ -53,14 +53,36 @@ on both services, verify real-reference purchases and settlement for both assets
 then set `VITE_VAULTS_ENABLED=true` on Vercel and redeploy. Disabled clients continue
 to receive legacy offers; vault discovery is opt-in.
 
-With vaults enabled, the quote service publishes empty rounds on a daily
+With vaults enabled, the quote service publishes rounds on a daily
 cadence. Set `VAULT_ROUNDS_ENABLED=false` to stop publication without stopping
-settlement. No tokens are minted, deposited or recycled by this job. Funding ends
+settlement. Outside the finite test campaign below, rounds are empty and no
+tokens are minted, deposited or recycled by this job. Funding ends
 at the next UTC day boundary; the latest expiry is seven days after funding closes.
 It skips windows with under two minutes left and stops after ten unresolved
 rounds per asset, missing qualifying references, exhausted exposure capacity, a purchase pause, or an admin
 balance below one Devnet SOL. This is a stop threshold, not a reserved balance.
 Inspect `/health` → `vaultRotation` for operational errors.
+
+### Finite Devnet funding campaign
+
+The approved 15–29 October 2026 campaign deposits 10,000 existing administrator
+test oUSD per asset per daily round, capped at 15 rounds per asset (300,000 total).
+It stops at 23:59:59 Asia/Kolkata on 29 October. Set
+`DEVNET_TEST_FUNDING_ENABLED=false` to disable it early. Mainnet is rejected by
+genesis and program checks. The job never mints, redeems or moves user deposits.
+Daily round creation and the seed deposit are atomic with deterministic addresses,
+so restart, cancellation and uncertain submission cannot cause a second deposit.
+Insufficient test tokens, SOL, references or outstanding-round capacity stop funding.
+The first restoration round accepts deposits for five minutes; subsequent rounds
+retain the daily funding window and seven-day expiry. Earlier active rounds remain
+available while the next cohort collects deposits. Existing settlement rules remain unchanged.
+
+`npx tsx scripts/restore-devnet-funding.ts` inspects balances without writing.
+`--send` publishes the same idempotent campaign rounds. `--redeem-admin` redeems
+only the two explicitly inspected administrator deposits. The separately approved
+`--prepare-budget` mints 280,000 test oUSD once, atomically paired with a durable
+administrator-owned marker; it is not called by hosted services. All writes require
+`--send`, a verified Devnet connection and the existing administrator key.
 
 Run only one quote-signing service replica. Pending quote exposure is reserved
 in memory for 65 seconds, across both legacy and vault quotes; startup has a

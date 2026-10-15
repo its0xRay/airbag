@@ -38,6 +38,7 @@ import { loadKey, loadAdmin } from "./keys";
 import { createRpcRelay } from "./rpcRelay";
 import { createRpcTransport } from "./rpcTransport";
 import { PublicationSchedule } from "./publicationSchedule";
+import { DEVNET_FUNDING, publishFundedDevnetRounds } from "./devnetFunding";
 import { tierAvailable } from "./seriesRotation";
 import { VaultClient } from "../src/client/vaultProgram";
 import { signedVaultQuote, vaultPolicyHash } from "./vaultQuotes";
@@ -209,14 +210,19 @@ async function admitExposure(assetId: number, liability: bigint) {
 }
 
 const vaultRotationStatus = { enabled: process.env.VAULTS_ENABLED === "true" && process.env.VAULT_ROUNDS_ENABLED !== "false",
-  lastCheckedAt: 0, error: null as string | null, assets: {} as Record<number, string>, fundingWindowSeconds: ROUND_CADENCE, activeWindowSeconds: ROUND_DURATION, automaticDeposits: false };
+  lastCheckedAt: 0, error: null as string | null, assets: {} as Record<number, string>, fundingWindowSeconds: ROUND_CADENCE, activeWindowSeconds: ROUND_DURATION,
+  automaticDeposits: false, testFundingStopAt: DEVNET_FUNDING.stop, testFundingPerAssetRound: "10000", testFundingMaxTotal: "300000" };
 let publishingVaults = false;
 const vaultPublicationSchedule = new PublicationSchedule();
 async function rotateVaults() {
   if (!vaultRotationStatus.enabled || publishingVaults || !payer) return;
   publishingVaults = true;
   try {
-    vaultRotationStatus.assets = await publishAvailableVaultRounds(new VaultClient(conn), payer, async assetId => {
+    const funding = process.env.DEVNET_TEST_FUNDING_ENABLED !== "false"
+      && nowSec() >= DEVNET_FUNDING.start && nowSec() < DEVNET_FUNDING.stop;
+    vaultRotationStatus.automaticDeposits = funding;
+    const publish = funding ? publishFundedDevnetRounds : publishAvailableVaultRounds;
+    vaultRotationStatus.assets = await publish(new VaultClient(conn), payer, async assetId => {
       const ref = await referenceStatus(assetId);
       if (ref.available) await admitExposure(assetId, 0n);
       return ref;
@@ -415,8 +421,11 @@ function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSi
 }
 
 let rotating = false;
+const legacyPublicationSchedule = new PublicationSchedule();
 async function rotateShortSeries() {
   if (rotating) return;
+  if (!legacyPublicationSchedule.due()) return;
+  legacyPublicationSchedule.clear();
   rotating = true;
   try { await rotateSeries(); } finally { rotating = false; }
 }
@@ -429,12 +438,13 @@ async function rotateSeries() {
     }
     if (!Number.isInteger(SHORT_ID_MAX) || SHORT_ID_MAX >= WEEKLY_ID_MIN || SHORT_ID_MAX < SHORT_ID_MIN) throw new Error("Invalid short-series id range");
     const t = nowSec();
+    const renewalDeadlines: number[] = [];
     if (nextShortId === null) {
       const ids = Array.from({ length: SHORT_ID_MAX - SHORT_ID_MIN + 1 }, (_, i) => SHORT_ID_MIN + i);
       // Startup-only discovery. Existing ids are contiguous; stop at the first
       // gap and retain the newest usable id matching each configured floor.
-      discovery: for (let i = 0; i < ids.length; i += 5) {
-        const chunk = ids.slice(i, i + 5);
+      discovery: for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
         const infos = await conn.getMultipleAccountsInfo(chunk.map((id) => seriesPda(0, id)));
         for (let k = 0; k < chunk.length; k++) {
           const info = infos[k];
@@ -458,7 +468,10 @@ async function rotateSeries() {
       if (currentId != null) {
         const current = await Promise.all([0, 1].map(asset => fetchSeries(asset, currentId)));
         const tier = SHORT_TIERS[tierIndex];
-        if (tierAvailable(current, { 0: tier[0].strike, 1: tier[1].strike }, t, 150)) continue;
+        if (tierAvailable(current, { 0: tier[0].strike, 1: tier[1].strike }, t, 150)) {
+          renewalDeadlines.push(...current.map(s => s.purchaseCutoffTs - 150));
+          continue;
+        }
       }
       if (nextShortId > SHORT_ID_MAX) throw new Error(`short-series id range exhausted at ${SHORT_ID_MAX}`);
       const seriesId = nextShortId;
@@ -473,11 +486,12 @@ async function rotateSeries() {
       await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" });
       nextShortId++;
       activeShortIds.set(tierIndex, seriesId);
+      renewalDeadlines.push(expiry - 450);
       console.log(`[rotate] published tier ${tierIndex + 1} short series id ${seriesId} (${SHORT_MINUTES}m) for both assets`);
     }
     if (nextWeeklyId === null) {
-      discovery: for (let start = WEEKLY_ID_MIN; start <= WEEKLY_ID_MAX; start += 5) {
-        const ids = Array.from({ length: Math.min(5, WEEKLY_ID_MAX - start + 1) }, (_, i) => start + i);
+      discovery: for (let start = WEEKLY_ID_MIN; start <= WEEKLY_ID_MAX; start += 100) {
+        const ids = Array.from({ length: Math.min(100, WEEKLY_ID_MAX - start + 1) }, (_, i) => start + i);
         const infos = await conn.getMultipleAccountsInfo(ids.map(id => seriesPda(0, id)));
         for (let i = 0; i < ids.length; i++) {
           if (!infos[i]) { nextWeeklyId = ids[i]; break discovery; }
@@ -493,7 +507,10 @@ async function rotateSeries() {
       // A failed read must not be interpreted as permission to publish a replacement.
       const current = await Promise.all([0, 1].map(asset => fetchSeries(asset, weeklyId(asset, tierIndex))));
       const tier = WEEKLY_TIERS[tierIndex];
-      if (tierAvailable(current, { 0: tier[0].strike, 1: tier[1].strike }, t, 86400)) continue;
+      if (tierAvailable(current, { 0: tier[0].strike, 1: tier[1].strike }, t, 86400)) {
+        renewalDeadlines.push(...current.map(s => s.purchaseCutoffTs - 86400));
+        continue;
+      }
       if (nextWeeklyId > WEEKLY_ID_MAX) throw new Error("Weekly series id range exhausted");
       const id = nextWeeklyId;
       const expiry = t + 7 * 86400;
@@ -503,15 +520,18 @@ async function rotateSeries() {
       ), [payer], { commitment: "confirmed" });
       nextWeeklyId++;
       activeWeeklyIds.set(tierIndex, id);
+      renewalDeadlines.push(expiry - 300 - 86400);
       console.log(`[rotate] published weekly tier ${tierIndex + 1}, id ${id}, for both assets`);
     }
     rotationStatus.lastSuccessAt = nowSec();
     rotationStatus.error = null;
+    legacyPublicationSchedule.defer(Math.min(240, Math.max(0, Math.min(...renewalDeadlines) - nowSec())));
   } catch (e) {
     // Reconcile chain state after any uncertain submission; never skip its id.
     nextShortId = null;
     nextWeeklyId = null;
     rotationStatus.error = "Series rotation failed; inspect service logs";
+    legacyPublicationSchedule.defer(120);
     console.warn("[rotate] failed:", (e as Error).message);
   }
 }
@@ -697,10 +717,12 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/series/all") {
       const ids: Array<{ assetId: number; seriesId: number }> = [];
       const currentShortIds = [...new Set(activeShortIds.values())];
-      for (const assetId of [0, 1]) for (const seriesId of [weeklyId(assetId, 0), weeklyId(assetId, 1), ...currentShortIds]) ids.push({ assetId, seriesId });
+      const onlyCustom = process.env.VAULTS_ENABLED === "true" && url.searchParams.get("includeVaults") === "true"
+        && url.searchParams.get("customFloors") === "true";
+      if (!onlyCustom) for (const assetId of [0, 1]) for (const seriesId of [weeklyId(assetId, 0), weeklyId(assetId, 1), ...currentShortIds]) ids.push({ assetId, seriesId });
       const infos = [];
-      for (let i = 0; i < ids.length; i += 5) {
-        infos.push(...await conn.getMultipleAccountsInfo(ids.slice(i, i + 5).map((k) => seriesPda(k.assetId, k.seriesId))));
+      for (let i = 0; i < ids.length; i += 100) {
+        infos.push(...await conn.getMultipleAccountsInfo(ids.slice(i, i + 100).map((k) => seriesPda(k.assetId, k.seriesId))));
       }
       const now = nowSec();
       const out = infos
@@ -793,7 +815,7 @@ server.listen(PORT, async () => {
   }
   // keep a short lifecycle series permanently available
   await rotateShortSeries();
-  setInterval(rotateShortSeries, 120_000);
+  setInterval(rotateShortSeries, 30_000);
   void rotateVaults();
   setInterval(rotateVaults, 60_000);
 });
