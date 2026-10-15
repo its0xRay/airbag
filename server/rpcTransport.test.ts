@@ -4,6 +4,20 @@ import { createRpcTransport } from "./rpcTransport";
 const options = (id: number, method = "getAccountInfo", params = ["account"]) => ({ method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id, method, params }) });
 afterEach(() => vi.useRealTimers());
 describe("RPC request efficiency", () => {
+  it("reports actual sent requests and prunes hour buckets without exposing RPC credentials", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(3_600_000);
+    const rpc = createRpcTransport("metrics", vi.fn(async () => new Response(JSON.stringify({ result: 1 }))));
+    await rpc.fetch("https://rpc.test/secret", options(1));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(rpc.stats()).toMatchObject({ totalSent: 1, uptimeSeconds: 60, requestsPerMinute: 1,
+      recentHourlyRequests: [{ hourStartedAt: 3_600_000, requests: 1 }] });
+    await vi.advanceTimersByTimeAsync(24 * 3_600_000);
+    expect(rpc.stats().recentHourlyRequests).toEqual([]);
+    await rpc.fetch("https://rpc.test/secret", options(2));
+    expect(rpc.stats().recentHourlyRequests).toHaveLength(1);
+    expect(rpc.stats().totalSent).toBe(2);
+    expect(JSON.stringify(rpc.stats())).not.toContain("secret");
+  });
   it("paces scans across relay and service without delaying confirmation", async () => {
     vi.useFakeTimers();
     const calls: Array<{ method: string; time: number }> = [];

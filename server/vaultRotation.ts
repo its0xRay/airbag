@@ -3,6 +3,7 @@ import { OptketClient } from "../src/client/optketProgram";
 import { VaultClient, vaultPdas, type VaultRoundAccount, type VaultTerms } from "../src/client/vaultProgram";
 import { ACTIVE_REFERENCE_VERSION } from "../src/data/referencePolicy";
 import { vaultPolicyHash } from "./vaultQuotes";
+import type { PublicationSchedule } from "./publicationSchedule";
 
 export const ROUND_CADENCE = 86_400;
 export const ROUND_DURATION = 7 * 86_400;
@@ -30,19 +31,27 @@ export function nextVaultTerms(rounds: VaultRoundAccount[], assetId: number, now
 }
 
 export async function publishAvailableVaultRounds(client: VaultClient, admin: Keypair,
-  reference: (asset: number) => Promise<{ available: boolean; spot?: bigint }>) {
+  reference: (asset: number) => Promise<{ available: boolean; spot?: bigint }>, schedule?: PublicationSchedule) {
+  if (schedule && !schedule.due()) return { 0: "No new round due", 1: "No new round due" };
+  schedule?.clear();
   if (await client.conn.getGenesisHash() !== "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG") throw new Error("Automatic rounds are Devnet-only.");
+  const rounds = await client.rounds();
+  const now = await client.conn.getBlockTime(await client.conn.getSlot("confirmed"));
+  if (now == null) throw new Error("Confirmed chain time unavailable.");
+  const funding = [0, 1].map(asset => rounds.find(r => r.assetId === asset && r.phase === "funding" && r.fundingClose > now));
+  if (funding.every(r => r !== undefined)) {
+    schedule?.defer(Math.min(...funding.map(r => r!.fundingClose)) - now);
+    return { 0: "No new round due", 1: "No new round due" };
+  }
   const protocol = new OptketClient(client.conn), config = await protocol.getConfig();
   if (!config || !config.admin.equals(admin.publicKey) || config.pausedPurchases) throw new Error("Round publication paused or unauthorized.");
   // Stop threshold, not a reserved balance: concurrent duties may also spend SOL.
   // Never buy or mint SOL. At most two bounded creates per cadence.
   if (await client.conn.getBalance(admin.publicKey) < 1_000_000_000) throw new Error("Round publication paused: Devnet fee reserve is low.");
-  const rounds = await client.rounds();
-  const now = await client.conn.getBlockTime(await client.conn.getSlot("confirmed"));
-  if (now == null) throw new Error("Confirmed chain time unavailable.");
   const results: Record<number, string> = {};
   for (const assetId of [0, 1]) {
     try {
+      if (funding[assetId]) { results[assetId] = "No new round due"; continue; }
       const asset = await protocol.getAsset(assetId);
       if (!asset?.active || asset.referenceVersion !== ACTIVE_REFERENCE_VERSION[assetId]) { results[assetId] = "Asset unavailable"; continue; }
       const ref = await reference(assetId);

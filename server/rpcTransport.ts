@@ -14,6 +14,7 @@ export function createRpcTransport(label: string, upstream: typeof fetch = fetch
   const cooldowns = new Map<string, number>();
   let rateLimits = 0;
   const startedAt = Date.now();
+  const hourly = new Map<number, number>();
   const readMethods = new Set(["getAccountInfo", "getMultipleAccounts", "getProgramAccounts", "getBalance", "getTokenAccountBalance", "getGenesisHash"]);
   const transport: typeof fetch = async (input, init) => {
     let body: { method?: string; params?: unknown; id?: unknown } = {};
@@ -51,6 +52,9 @@ export function createRpcTransport(label: string, upstream: typeof fetch = fetch
         }
         init?.signal?.throwIfAborted();
         metric.sent++;
+        const hour = Math.floor(Date.now() / 3_600_000);
+        hourly.set(hour, (hourly.get(hour) ?? 0) + 1);
+        for (const old of hourly.keys()) if (old < hour - 23) hourly.delete(old);
         const response = await upstream(input, init);
         let rpcError = false;
         try { rpcError = Boolean((await response.clone().json() as { error?: unknown }).error); } catch { rpcError = true; }
@@ -72,5 +76,15 @@ export function createRpcTransport(label: string, upstream: typeof fetch = fetch
     try { return (await operation).clone(); }
     finally { if (key && pending.get(key) === operation) pending.delete(key); }
   };
-  return { fetch: transport, stats: () => ({ component: label, startedAt, rateLimits, cooldownRemainingMs: Math.max(0, ...[...cooldowns.values()].map(until => until - Date.now())), inFlightReads: pending.size, methods }) };
+  return { fetch: transport, stats: () => {
+    const uptimeSeconds = Math.max(1, (Date.now() - startedAt) / 1000);
+    const totalSent = Object.values(methods).reduce((sum, method) => sum + method.sent, 0);
+    const hour = Math.floor(Date.now() / 3_600_000);
+    return { component: label, startedAt, uptimeSeconds: Math.floor(uptimeSeconds), totalSent,
+      requestsPerMinute: Math.round(totalSent / uptimeSeconds * 6000) / 100,
+      // Hour buckets, not a billing counter. Retains the current + 23 prior hours.
+      recentHourlyRequests: [...hourly].filter(([bucket]) => bucket >= hour - 23)
+        .map(([bucket, requests]) => ({ hourStartedAt: bucket * 3_600_000, requests })),
+      rateLimits, cooldownRemainingMs: Math.max(0, ...[...cooldowns.values()].map(until => until - Date.now())), inFlightReads: pending.size, methods };
+  } };
 }

@@ -2,6 +2,8 @@ import { ACTIVE_REFERENCE_VERSION, referenceKind } from "../src/data/referencePo
 import { VaultClient } from "../src/client/vaultProgram";
 import { tickVaults } from "./vaultKeeper";
 import { createRpcTransport } from "./rpcTransport";
+import { readKeeperSnapshot, type KeeperSnapshot } from "./keeperSnapshot";
+import { startKeeperLoops } from "./keeperLoops";
 import { loadObservations, saveObservations, pruneObservations, type ObservationScope } from "./observationStore";
 // Airbag keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
@@ -64,6 +66,9 @@ const keeperStatus = {
   dueExpiries: 0,
   persistenceEnabled: Boolean(STATE_PATH),
   lastPersistedAt: 0,
+  lastSampleTickAt: 0,
+  sampleError: false,
+  snapshot: { slot: 0, accountCount: 0, dataBytes: 0, milliseconds: 0 },
   settlementErrors: 0,
   lastSettlement: null as null | { signature: string; action: string; at: number },
 };
@@ -112,7 +117,8 @@ function windowSamples(assetId: number, lo: number, hi: number): Observation[] {
 // live reference adapters, one per asset (independent — §9)
 const pyth = new PythEquityAdapter(0);
 const jupiter = new JupiterPreStocksAdapter(1);
-const nvdaToken = createNvdaTokenReference();
+const referenceRpc = createRpcTransport("keeper-reference");
+const nvdaToken = createNvdaTokenReference(referenceRpc.fetch);
 
 const keeperRpc = createRpcTransport("keeper");
 const conn = new Connection(RPC, { commitment: "confirmed", fetch: keeperRpc.fetch, disableRetryOnRateLimit: true });
@@ -208,8 +214,7 @@ async function ensurePublisherRole() {
   console.log(`✓ set on-chain publisher_authority = keeper (${publisher.publicKey.toBase58()})`);
 }
 
-async function settleRequests() {
-  const requests = await client.getPendingRequests();
+async function settleRequests(requests: KeeperSnapshot["requests"]) {
   keeperStatus.pendingRequests = requests.length;
   for (const req of requests) {
     try {
@@ -243,9 +248,8 @@ async function settleRequests() {
   }
 }
 
-async function settleExpiries() {
+async function settleExpiries(open: KeeperSnapshot["contracts"]) {
   const now = nowSec();
-  const open = await client.getOpenContracts();
   keeperStatus.dueExpiries = open.filter((c) => c.expiryTs <= now && c.pendingQuantity === 0n && c.remainingQuantity > 0n).length;
   for (const c of open) {
     if (c.expiryTs > now || c.pendingQuantity !== 0n || c.remainingQuantity === 0n) continue;
@@ -286,11 +290,13 @@ async function tick() {
   keeperStatus.lastTickAt = nowSec();
   keeperStatus.settlementErrors = 0;
   try {
-    await collectSamples();   // keep the expiry window populated with real data
-    await settleRequests();
-    await settleExpiries();
+    const started = Date.now();
+    const snapshot = await readKeeperSnapshot(conn, client.programId, process.env.VAULTS_ENABLED === "true");
+    keeperStatus.snapshot = { slot: snapshot.slot, accountCount: snapshot.accountCount, dataBytes: snapshot.dataBytes, milliseconds: Date.now() - started };
+    await settleRequests(snapshot.requests);
+    await settleExpiries(snapshot.contracts);
     if (process.env.VAULTS_ENABLED === "true") {
-      const errors = await tickVaults(new VaultClient(conn), publisher, windowSamples);
+      const errors = await tickVaults(new VaultClient(conn), publisher, windowSamples, snapshot.vaults);
       keeperStatus.settlementErrors += errors.length;
       errors.forEach(error => console.warn(error));
     }
@@ -314,7 +320,7 @@ function startHealthServer() {
     const age = keeperStatus.lastSuccessfulTickAt ? nowSec() - keeperStatus.lastSuccessfulTickAt : null;
     const referenceAges = [0, 1].map(asset => sampleBuffer[asset].length
       ? nowSec() - Math.max(...sampleBuffer[asset].map(o => o.sourceTs)) : null);
-    const healthy = keeperStatus.ready && !keeperStatus.lastError && age !== null
+    const healthy = keeperStatus.ready && !keeperStatus.lastError && !keeperStatus.sampleError && age !== null
       && age <= Math.max(60, Math.ceil(POLL_MS / 1000) * 4)
       && referenceAges.every(age => age !== null && age <= 60);
     res.writeHead(healthy ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store" });
@@ -326,6 +332,7 @@ function startHealthServer() {
       referenceAgeSeconds: { nvdaToken: referenceAges[0], prestocks: referenceAges[1] },
       publisher: publisher.publicKey.toBase58(),
       rpc: keeperRpc.stats(),
+      referenceRpc: referenceRpc.stats(),
     }));
   }).listen(port, () => console.log(`  health:    :${port}/health`));
 }
@@ -360,7 +367,28 @@ async function main() {
   }
   console.log(`  polling every ${POLL_MS}ms — settling pending requests & due expiries…\n`);
   keeperStatus.ready = true;
-  await tick();
-  setInterval(tick, POLL_MS);
+  const loops = startKeeperLoops({ intervalMs: POLL_MS, settle: tick,
+    sample: async () => {
+      await collectSamples();
+      keeperStatus.lastSampleTickAt = nowSec();
+      keeperStatus.sampleError = false;
+    },
+    onError: (loop, error) => {
+      if (loop === "sample") keeperStatus.sampleError = true;
+      console.warn(`keeper ${loop} failed:`, String(error).replace(/https?:\/\/\S+/g, "[endpoint]"));
+    },
+  });
+  const report = () => console.log("[keeper efficiency]", JSON.stringify({
+    snapshot: keeperStatus.snapshot, lastSuccessfulTickAt: keeperStatus.lastSuccessfulTickAt,
+    lastSampleTickAt: keeperStatus.lastSampleTickAt, lastError: keeperStatus.lastError,
+    sampleError: keeperStatus.sampleError, pendingRequests: keeperStatus.pendingRequests,
+    dueExpiries: keeperStatus.dueExpiries,
+    referenceAgeSeconds: [0, 1].map(asset => sampleBuffer[asset].length
+      ? nowSec() - Math.max(...sampleBuffer[asset].map(o => o.sourceTs)) : null),
+    rpc: keeperRpc.stats(), referenceRpc: referenceRpc.stats(),
+  }));
+  await loops.started;
+  report();
+  setInterval(report, 300_000).unref();
 }
 main().catch((e) => { console.error("keeper fatal:", e); process.exit(1); });

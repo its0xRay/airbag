@@ -53,11 +53,11 @@ on both services, verify real-reference purchases and settlement for both assets
 then set `VITE_VAULTS_ENABLED=true` on Vercel and redeploy. Disabled clients continue
 to receive legacy offers; vault discovery is opt-in.
 
-With vaults enabled, the quote service publishes empty rounds on a 30-minute
+With vaults enabled, the quote service publishes empty rounds on a daily
 cadence. Set `VAULT_ROUNDS_ENABLED=false` to stop publication without stopping
 settlement. No tokens are minted, deposited or recycled by this job. Funding ends
-at the next half-hour boundary; the active window lasts another 30 minutes.
-It skips windows with under two minutes left and stops after three unresolved
+at the next UTC day boundary; the latest expiry is seven days after funding closes.
+It skips windows with under two minutes left and stops after ten unresolved
 rounds per asset, missing qualifying references, exhausted exposure capacity, a purchase pause, or an admin
 balance below one Devnet SOL. This is a stop threshold, not a reserved balance.
 Inspect `/health` → `vaultRotation` for operational errors.
@@ -91,6 +91,19 @@ explicit. No user deposit is automatically reinvested.
 5. Confirm references remain unavailable when data is missing; no price may be invented to keep a flow active.
 
 ## Operations
+
+The keeper samples references and discovers settlement work every five seconds
+in separate non-overlapping loops. One fresh confirmed program snapshot replaces
+five discovery scans; it is not a completed-result cache. Rounds are re-read before
+activation/finalization. Background publication skips known idle funding windows,
+rechecking at their deadline or within five minutes. User quote validation and
+transaction confirmation remain uncached by these optimizations.
+
+`/health` exposes per-service RPC totals, requests/minute and recent hourly buckets,
+including reference RPC reads. Counters reset on restart and are not billing
+credits. Keeper efficiency logs are emitted every five minutes. Run
+`npx tsx scripts/check-keeper-snapshot.ts` for a read-only Devnet comparison of
+unified discovery with the former scans; set `RPC_URL` privately if required.
 
 Enable the staged-file secret guard on new checkouts with
 `git config core.hooksPath .githooks`. CI also scans reachable history.

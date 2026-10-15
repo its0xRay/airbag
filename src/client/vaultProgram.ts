@@ -26,7 +26,7 @@ export function decodeVaultInstruction(data: string): string | null {
   }
   return null;
 }
-const ACCOUNT = { round: [241,182,175,3,89,158,50,209], deposit: [189,136,170,198,139,86,236,96],
+export const ACCOUNT = { round: [241,182,175,3,89,158,50,209], deposit: [189,136,170,198,139,86,236,96],
   position: [122,109,193,63,69,148,90,237], request: [247,197,226,96,16,245,213,224] } as const;
 const cat = (...parts: Uint8Array[]) => {
   const b = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));

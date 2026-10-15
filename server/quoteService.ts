@@ -37,6 +37,7 @@ import { VERIFIED_ASSETS } from "../src/data/assets";
 import { loadKey, loadAdmin } from "./keys";
 import { createRpcRelay } from "./rpcRelay";
 import { createRpcTransport } from "./rpcTransport";
+import { PublicationSchedule } from "./publicationSchedule";
 import { tierAvailable } from "./seriesRotation";
 import { VaultClient } from "../src/client/vaultProgram";
 import { signedVaultQuote, vaultPolicyHash } from "./vaultQuotes";
@@ -56,10 +57,11 @@ const conn = new Connection(RPC_URL, { commitment: "confirmed", fetch: serviceRp
 const rpcRelay = process.env.RPC_PROXY_ENABLED === "true" ? createRpcRelay(RPC_URL, PROGRAM_ID.toBase58()) : null;
 let relayVerified = false;
 let relayVerification: Promise<boolean> | null = null;
-const mainnet = new Connection(MAINNET_RPC, "confirmed");
+const referenceRpc = createRpcTransport("quote-reference");
+const mainnet = new Connection(MAINNET_RPC, { commitment: "confirmed", fetch: referenceRpc.fetch, disableRetryOnRateLimit: true });
 const equityReference = new PythEquityAdapter(0);
 const prestocksReference = new JupiterPreStocksAdapter(1);
-const nvdaTokenReference = createNvdaTokenReference();
+const nvdaTokenReference = createNvdaTokenReference(referenceRpc.fetch);
 
 // ---- keys (env secrets in production, gitignored files locally) ----
 const dir = new URL(".", import.meta.url).pathname;
@@ -209,6 +211,7 @@ async function admitExposure(assetId: number, liability: bigint) {
 const vaultRotationStatus = { enabled: process.env.VAULTS_ENABLED === "true" && process.env.VAULT_ROUNDS_ENABLED !== "false",
   lastCheckedAt: 0, error: null as string | null, assets: {} as Record<number, string>, fundingWindowSeconds: ROUND_CADENCE, activeWindowSeconds: ROUND_DURATION, automaticDeposits: false };
 let publishingVaults = false;
+const vaultPublicationSchedule = new PublicationSchedule();
 async function rotateVaults() {
   if (!vaultRotationStatus.enabled || publishingVaults || !payer) return;
   publishingVaults = true;
@@ -217,7 +220,7 @@ async function rotateVaults() {
       const ref = await referenceStatus(assetId);
       if (ref.available) await admitExposure(assetId, 0n);
       return ref;
-    });
+    }, vaultPublicationSchedule);
     vaultRotationStatus.error = null;
   } catch { vaultRotationStatus.error = "New rounds paused. Reference, exposure or publication checks need attention."; }
   finally { vaultRotationStatus.lastCheckedAt = nowSec(); publishingVaults = false; }
@@ -627,7 +630,7 @@ const server = createServer(async (req, res) => {
         ok: chain !== "unreachable", network: "devnet", slot: chain, programId: PROGRAM_ID.toBase58(),
         referenceVersions: ACTIVE_REFERENCE_VERSION,
         quoteAuthority: quoteAuthority.publicKey.toBase58(), issued: usedQuoteIds.size,
-        seriesRotation: rotationStatus, vaultRotation: vaultRotationStatus, rpcRelayEnabled: Boolean(rpcRelay), rpc: serviceRpc.stats(), relayRpc: rpcRelay?.stats(),
+        seriesRotation: rotationStatus, vaultRotation: { ...vaultRotationStatus, nextCheckAt: vaultPublicationSchedule.nextCheckAt }, rpcRelayEnabled: Boolean(rpcRelay), rpc: serviceRpc.stats(), relayRpc: rpcRelay?.stats(), referenceRpc: referenceRpc.stats(),
       });
     }
     if (req.method === "GET" && url.pathname === "/config") {

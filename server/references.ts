@@ -166,10 +166,11 @@ export class JupiterPreStocksAdapter {
 
 /** NVDAx v2 requires fresh upstream updates, not freshly collected stale prints.
  * Legacy ANTHROPIC v1 retains its original snapshot observation policy. */
-export function createNvdaTokenReference() {
+export function createNvdaTokenReference(rpcFetch: typeof fetch = fetch) {
   const mainnet = new Connection(process.env.MAINNET_RPC || "https://api.mainnet-beta.solana.com", {
     commitment: "confirmed",
-    fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8000) }),
+    fetch: (input, init) => rpcFetch(input, { ...init, signal: AbortSignal.timeout(8000) }),
+    disableRetryOnRateLimit: true,
   });
   let cachedSlot = -1;
   let cachedTime: number | null = null;

@@ -80,7 +80,7 @@ function concat(parts: Uint8Array[]): Uint8Array {
 const disc = (name: keyof typeof DISC) => Uint8Array.from(DISC[name]);
 
 // anchor account discriminators (sha256("account:<Name>")[:8])
-const ACCT_DISC = {
+export const ACCT_DISC = {
   ExerciseRequest: [84, 20, 230, 181, 46, 33, 231, 7],
   Contract: [172, 138, 115, 242, 121, 67, 183, 26],
 } as const;
@@ -157,7 +157,7 @@ function decodeAsset(b: Uint8Array): AssetAcct {
   const r = new Reader(b);
   return { assetId: r.u8(), kind: r.u8() === 0 ? "EquityToken" : "PreStocks", mint: r.pubkey(), referenceVersion: r.u32(), conversionVersion: r.u32(), maxAggregateExposure: r.u64(), outstandingExposure: r.u64(), active: r.bool() };
 }
-function decodeContract(address: string, b: Uint8Array): ContractAcct {
+export function decodeContract(address: string, b: Uint8Array): ContractAcct {
   const r = new Reader(b);
   return { address, contractId: r.u64(), buyer: r.pubkey(), assetId: r.u8(), seriesId: r.u16(), mint: r.pubkey(), conversionVersion: r.u32(), referenceVersion: r.u32(), originalQuantity: r.u64(), strike: r.u64(), expiryTs: r.i64(), exerciseCutoffTs: r.i64(), premiumPaid: r.u64(), feesPaid: r.u64(), remainingQuantity: r.u64(), pendingQuantity: r.u64(), reservedCollateral: r.u64(), status: CONTRACT_STATUS[r.u8()] || "Unknown", createdTs: r.i64(), nextRequestNonce: r.u32() };
 }
@@ -165,7 +165,7 @@ function decodeContract(address: string, b: Uint8Array): ContractAcct {
 export interface ExerciseRequestAcct { address: string; contract: PublicKey; nonce: number; quantity: bigint; requestTs: number; windowStart: number; windowEnd: number; kind: "Equity" | "PreStocks"; status: "Pending" | "Settled" | "Failed"; reservedLocked: bigint | null; settlementReference: bigint; payout: bigint; }
 const REQUEST_STATUS = ["Pending", "Settled", "Failed"];
 const REQUEST_KIND = ["Equity", "PreStocks"] as const;
-function decodeRequest(address: string, b: Uint8Array): ExerciseRequestAcct {
+export function decodeRequest(address: string, b: Uint8Array): ExerciseRequestAcct {
   const r = new Reader(b);
   return { address, contract: r.pubkey(), nonce: r.u32(), quantity: r.u64(), requestTs: r.i64(), windowStart: r.i64(), windowEnd: r.i64(), kind: REQUEST_KIND[r.u8()], status: REQUEST_STATUS[r.u8()] as ExerciseRequestAcct["status"], reservedLocked: r.u64(), settlementReference: r.u64(), payout: r.u64() };
 }
