@@ -401,7 +401,7 @@ const WEEKLY_TIERS = [
 const weeklyId = (asset: number, tier: number) => activeWeeklyIds.get(tier) ?? (asset === 0 ? tier + 2 : tier);
 let nextWeeklyId: number | null = null;
 let nextShortId: number | null = null;
-const rotationStatus = { lastSuccessAt: 0, error: null as string | null };
+const rotationStatus = { enabled: process.env.LEGACY_SERIES_ROTATION_ENABLED === "true", lastSuccessAt: 0, error: null as string | null };
 const fx = (n: number) => BigInt(Math.round(n * 1e6));
 
 function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSize: number, expiry: number) {
@@ -423,6 +423,7 @@ function createSeriesIx(assetId: number, seriesId: number, strike: number, maxSi
 let rotating = false;
 const legacyPublicationSchedule = new PublicationSchedule();
 async function rotateShortSeries() {
+  if (!rotationStatus.enabled) return;
   if (rotating) return;
   if (!legacyPublicationSchedule.due()) return;
   legacyPublicationSchedule.clear();
@@ -813,9 +814,12 @@ server.listen(PORT, async () => {
   } catch (e) {
     console.warn("  trial budget status unavailable:", (e as Error).message);
   }
-  // keep a short lifecycle series permanently available
-  await rotateShortSeries();
-  setInterval(rotateShortSeries, 30_000);
+  // Legacy fixed-floor publication is opt-in. Existing contracts still settle;
+  // current custom-floor vault quotes and daily funding are independent.
+  if (rotationStatus.enabled) {
+    await rotateShortSeries();
+    setInterval(rotateShortSeries, 30_000);
+  }
   void rotateVaults();
   setInterval(rotateVaults, 60_000);
 });

@@ -4,6 +4,7 @@ import { tickVaults } from "./vaultKeeper";
 import { createRpcTransport } from "./rpcTransport";
 import { readKeeperSnapshot, type KeeperSnapshot } from "./keeperSnapshot";
 import { startKeeperLoops } from "./keeperLoops";
+import { samplingAssets } from "./keeperActivity";
 import { loadObservations, saveObservations, pruneObservations, type ObservationScope } from "./observationStore";
 // Airbag keeper (PRD §21). Settles ready exercise requests, processes expiries
 // and eligible refunds — independently per asset, idempotently.
@@ -57,6 +58,8 @@ const EXPIRY_REFUND_GRACE_SECS = Number(process.env.EXPIRY_REFUND_GRACE_SECS || 
 const STATE_PATH = process.env.KEEPER_STATE_PATH;
 let observationScope: ObservationScope | null = null;
 let sampleBuffer: Record<number, Observation[]> = { 0: [], 1: [] };
+let requiredAssets = samplingAssets(null);
+let sampleInFlight: Promise<void> | null = null;
 const keeperStatus = {
   ready: false,
   lastTickAt: 0,
@@ -73,13 +76,15 @@ const keeperStatus = {
   lastSettlement: null as null | { signature: string; action: string; at: number },
 };
 
-async function collectSamples() {
+async function collectSamplesFor(assets: number[]) {
   await Promise.allSettled([ (async () => {
+    if (!assets.includes(0)) return;
     const [token] = await nvdaToken.observe(1);
     if (token?.available) sampleBuffer[0].push({
       slot: token.slot, sourceTs: token.sourceTs, collectedTs: nowSec(), price: token.price,
     });
   })(), (async () => {
+    if (!assets.includes(1)) return;
     const [jup] = await jupiter.observe(1);
     if (jup?.available) {
       // Jupiter's blockId identifies the last upstream price update, so it can
@@ -97,6 +102,14 @@ async function collectSamples() {
     saveObservations(STATE_PATH, observationScope, sampleBuffer, nowSec());
     keeperStatus.lastPersistedAt = nowSec();
   }
+}
+
+/** Shared guard also covers activation from discovery, not just timer ticks. */
+async function collectSamples() {
+  if (sampleInFlight) return sampleInFlight;
+  if (!requiredAssets.length) return;
+  sampleInFlight = collectSamplesFor([...requiredAssets]).finally(() => { sampleInFlight = null; });
+  return sampleInFlight;
 }
 
 /** Buffered samples inside [lo, hi], de-duplicated and strictly slot-ordered. */
@@ -292,6 +305,17 @@ async function tick() {
   try {
     const started = Date.now();
     const snapshot = await readKeeperSnapshot(conn, client.programId, process.env.VAULTS_ENABLED === "true");
+    const nextAssets = samplingAssets(snapshot);
+    const activated = nextAssets.some(asset => !requiredAssets.includes(asset));
+    requiredAssets = nextAssets;
+    if (activated) {
+      // Wake sampling immediately, independently of settlement. A slow price
+      // source for a newly active asset must not delay other assets' payouts.
+      void (async () => {
+        if (sampleInFlight) await sampleInFlight;
+        await collectSamples();
+      })().catch(() => { keeperStatus.sampleError = true; });
+    }
     keeperStatus.snapshot = { slot: snapshot.slot, accountCount: snapshot.accountCount, dataBytes: snapshot.dataBytes, milliseconds: Date.now() - started };
     await settleRequests(snapshot.requests);
     await settleExpiries(snapshot.contracts);
@@ -303,6 +327,7 @@ async function tick() {
     keeperStatus.lastSuccessfulTickAt = nowSec();
     keeperStatus.lastError = keeperStatus.settlementErrors ? "Some settlements failed; retrying" : null;
   } catch (error) {
+    requiredAssets = samplingAssets(null);
     keeperStatus.lastError = "Keeper tick failed; inspect service logs";
     console.warn("keeper tick error:", String(error).replace(/https?:\/\/\S+/g, "[endpoint]"));
   } finally {
@@ -322,11 +347,13 @@ function startHealthServer() {
       ? nowSec() - Math.max(...sampleBuffer[asset].map(o => o.sourceTs)) : null);
     const healthy = keeperStatus.ready && !keeperStatus.lastError && !keeperStatus.sampleError && age !== null
       && age <= Math.max(60, Math.ceil(POLL_MS / 1000) * 4)
-      && referenceAges.every(age => age !== null && age <= 60);
+      && requiredAssets.every(asset => referenceAges[asset] !== null && referenceAges[asset]! <= 60);
     res.writeHead(healthy ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store" });
     res.end(JSON.stringify({
       ok: healthy,
       ...keeperStatus,
+      samplingAssets: requiredAssets,
+      samplingMode: requiredAssets.length ? "active" : "idle",
       lastSuccessfulTickAgeSeconds: age,
       samples: { nvdaToken: sampleBuffer[0].length, prestocks: sampleBuffer[1].length },
       referenceAgeSeconds: { nvdaToken: referenceAges[0], prestocks: referenceAges[1] },
@@ -379,6 +406,7 @@ async function main() {
     },
   });
   const report = () => console.log("[keeper efficiency]", JSON.stringify({
+    samplingAssets: requiredAssets, samplingMode: requiredAssets.length ? "active" : "idle",
     snapshot: keeperStatus.snapshot, lastSuccessfulTickAt: keeperStatus.lastSuccessfulTickAt,
     lastSampleTickAt: keeperStatus.lastSampleTickAt, lastError: keeperStatus.lastError,
     sampleError: keeperStatus.sampleError, pendingRequests: keeperStatus.pendingRequests,
